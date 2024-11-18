@@ -54,10 +54,8 @@ enum Commands {
         #[clap(long)]
         private_key: H256,
     },
-    SyncValidityProof,
-    PostEmptyBlock,
-    ConstructBlock,
-    PostBlock,
+    PostEmptyAndSync,
+    PostAndSync,
     GenerateKey,
 }
 
@@ -104,17 +102,13 @@ async fn main() -> anyhow::Result<()> {
             println!("Private key: {}", private_key.to_hex());
             println!("Public key: {}", key.pubkey.to_hex());
         }
-        Commands::SyncValidityProof => {
+        Commands::PostEmptyAndSync => {
+            state_manager::post_empty_block(&get_base_url()).await?;
             state_manager::sync_validity_proof(&get_base_url()).await?;
         }
-        Commands::PostEmptyBlock => {
-            state_manager::post_empty_block(&get_base_url()).await?;
-        }
-        Commands::ConstructBlock => {
-            state_manager::construct_block(&get_base_url()).await?;
-        }
-        Commands::PostBlock => {
+        Commands::PostAndSync => {
             state_manager::post_block(&get_base_url()).await?;
+            state_manager::sync_validity_proof(&get_base_url()).await?;
         }
     }
 
