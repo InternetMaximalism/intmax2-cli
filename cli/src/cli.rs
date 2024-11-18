@@ -20,6 +20,8 @@ use intmax2_zkp::{
 };
 use num_bigint::BigUint;
 
+use crate::state_manager::construct_block;
+
 type BC = TestContract;
 type BB = TestBlockBuilder;
 type S = TestStoreVaultServer;
@@ -109,7 +111,8 @@ pub async fn tx(
     log::info!("Waiting for block builder to build the block");
 
     // sleep for a while to wait for the block builder to build the block
-    tokio::time::sleep(std::time::Duration::from_secs(30)).await;
+    tokio::time::sleep(std::time::Duration::from_secs(2)).await;
+    construct_block(block_builder_url).await?; // todo: remove this line in production
 
     let mut tries = 0;
     let proposal = loop {
@@ -151,7 +154,7 @@ pub async fn balance(private_key: H256) -> anyhow::Result<()> {
     for (i, leaf) in balances.iter() {
         println!("Token {}: {}", i, leaf.amount);
     }
-    println!("-----------------------------------------------");
+    println!("-----------------------------------");
     Ok(())
 }
 
