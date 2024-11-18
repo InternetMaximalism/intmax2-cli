@@ -1,6 +1,6 @@
 use anyhow::{bail, ensure};
 use clap::{Parser, Subcommand};
-use cli::{balance, deposit, get_base_url, sync, tx};
+use cli::{balance, deposit, get_base_url, sync, sync_withdrawals, tx};
 use ethers::types::H256;
 use intmax2_core_sdk::utils::init_logger;
 use intmax2_zkp::{
@@ -45,6 +45,10 @@ enum Commands {
         #[clap(long)]
         private_key: H256,
     },
+    SyncWithdrawals {
+        #[clap(long)]
+        private_key: H256,
+    },
     Balance {
         #[clap(long)]
         private_key: H256,
@@ -84,6 +88,10 @@ async fn main() -> anyhow::Result<()> {
         Commands::Sync { private_key } => {
             let key = h256_to_keyset(*private_key);
             sync(key).await?;
+        }
+        Commands::SyncWithdrawals { private_key } => {
+            let key = h256_to_keyset(*private_key);
+            sync_withdrawals(key).await?;
         }
         Commands::Balance { private_key } => {
             let key = h256_to_keyset(*private_key);

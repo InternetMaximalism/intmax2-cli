@@ -147,6 +147,12 @@ pub async fn sync(key: KeySet) -> anyhow::Result<()> {
     Ok(())
 }
 
+pub async fn sync_withdrawals(key: KeySet) -> anyhow::Result<()> {
+    let client = get_client()?;
+    client.sync_withdrawals(key).await?;
+    Ok(())
+}
+
 pub async fn balance(key: KeySet) -> anyhow::Result<()> {
     let client = get_client()?;
     client.sync(key).await?;
