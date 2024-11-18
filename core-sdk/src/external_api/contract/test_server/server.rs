@@ -7,7 +7,7 @@ use crate::external_api::common::error::ServerError;
 use crate::external_api::contract::interface::{BlockchainError, ContractInterface};
 use crate::external_api::utils::retry::with_retry;
 
-use super::types::DepositNativeTokenRequest;
+use super::types::DepositRequest;
 
 #[derive(Debug, Clone)]
 pub struct TestContract {
@@ -46,21 +46,23 @@ impl TestContract {
 
 #[async_trait(?Send)]
 impl ContractInterface for TestContract {
-    async fn deposit_native_token(
+    async fn deposit(
         &self,
         _signer_private_key: H256,
         pubkey_salt_hash: Bytes32,
+        token_index: u32,
         amount: U256,
     ) -> Result<(), BlockchainError> {
-        let request = DepositNativeTokenRequest {
+        let request = DepositRequest {
             pubkey_salt_hash,
+            token_index,
             amount,
         };
 
         // Note: In a real implementation, you would use the signer_private_key to sign the transaction.
         // For this test implementation, we're ignoring it as the server is handling the signing.
 
-        self.post_request::<_, ()>("/contract/deposit-native-token", &request)
+        self.post_request::<_, ()>("/contract/deposit", &request)
             .await
             .map_err(|e| match e {
                 ServerError::ServerError(msg) if msg.contains("Insufficient funds") => {

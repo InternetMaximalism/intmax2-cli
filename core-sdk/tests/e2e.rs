@@ -47,9 +47,10 @@ async fn e2e_test() -> anyhow::Result<()> {
     let deposit_call = client.prepare_deposit(alice_key, 0, 100.into()).await?;
 
     contract
-        .deposit_native_token(
+        .deposit(
             H256::zero(),
             deposit_call.pubkey_salt_hash,
+            deposit_call.token_index,
             deposit_call.amount,
         )
         .await?;

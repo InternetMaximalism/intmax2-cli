@@ -61,12 +61,19 @@ impl LiquidityContract {
 
 #[async_trait(?Send)]
 impl ContractInterface for LiquidityContract {
-    async fn deposit_native_token(
+    async fn deposit(
         &self,
         signer_private_key: H256,
         pubkey_salt_hash: Bytes32,
+        token_index: u32,
         amount: U256,
     ) -> Result<(), BlockchainError> {
+        if token_index != 0 {
+            return Err(BlockchainError::InternalError(
+                "Only native token is supported".to_string(),
+            ));
+        }
+
         let contract = get_liquidity_contract_with_signer(
             &self.rpc_url,
             self.chain_id,

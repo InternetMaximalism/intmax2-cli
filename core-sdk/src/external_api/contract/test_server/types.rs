@@ -3,7 +3,8 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct DepositNativeTokenRequest {
+pub struct DepositRequest {
     pub pubkey_salt_hash: Bytes32,
+    pub token_index: u32,
     pub amount: U256,
 }

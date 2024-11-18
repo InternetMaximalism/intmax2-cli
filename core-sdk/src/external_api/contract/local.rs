@@ -23,13 +23,17 @@ impl LocalContract {
 
 #[async_trait(?Send)]
 impl ContractInterface for LocalContract {
-    async fn deposit_native_token(
+    async fn deposit(
         &self,
         _signer_private_key: H256,
         pubkey_salt_hash: Bytes32,
+        token_index: u32,
         amount: U256,
     ) -> Result<(), BlockchainError> {
-        self.0.lock().unwrap().deposit(pubkey_salt_hash, 0, amount);
+        self.0
+            .lock()
+            .unwrap()
+            .deposit(pubkey_salt_hash, token_index, amount);
         Ok(())
     }
 }

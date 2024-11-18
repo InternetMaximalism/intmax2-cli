@@ -16,10 +16,11 @@ pub enum BlockchainError {
 
 #[async_trait(?Send)]
 pub trait ContractInterface {
-    async fn deposit_native_token(
+    async fn deposit(
         &self,
         signer_private_key: H256,
         pubkey_salt_hash: Bytes32,
+        token_index: u32,
         amount: U256,
     ) -> Result<(), BlockchainError>;
 }
