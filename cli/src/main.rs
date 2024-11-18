@@ -24,8 +24,6 @@ struct Args {
 enum Commands {
     Tx {
         #[clap(long)]
-        block_builder_url: String,
-        #[clap(long)]
         private_key: H256,
         #[clap(long)]
         to: H256,
@@ -35,10 +33,6 @@ enum Commands {
         token_index: u32,
     },
     Deposit {
-        #[clap(long)]
-        rpc_url: String,
-        #[clap(long)]
-        eth_private_key: H256,
         #[clap(long)]
         private_key: H256,
         #[clap(long)]
@@ -66,7 +60,6 @@ async fn main() -> anyhow::Result<()> {
 
     match &args.command {
         Commands::Tx {
-            block_builder_url,
             private_key,
             to,
             amount,
@@ -74,18 +67,16 @@ async fn main() -> anyhow::Result<()> {
         } => {
             let to = h256_to_u256(*to);
             let amount = u128_to_u256(*amount);
-            tx(block_builder_url, *private_key, to, amount, *token_index).await?;
+            tx(*private_key, to, amount, *token_index).await?;
         }
         Commands::Deposit {
-            rpc_url,
-            eth_private_key,
             private_key,
             amount,
             token_index,
         } => {
             let amount = u128_to_u256(*amount);
             let token_index = *token_index;
-            deposit(rpc_url, *eth_private_key, *private_key, amount, token_index).await?;
+            deposit(*private_key, amount, token_index).await?;
         }
         Commands::Sync { private_key } => {
             sync(*private_key).await?;

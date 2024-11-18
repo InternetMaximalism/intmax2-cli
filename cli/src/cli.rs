@@ -20,7 +20,7 @@ use intmax2_zkp::{
 };
 use num_bigint::BigUint;
 
-use crate::state_manager::construct_block;
+use crate::{external_api::indexer::api::IndexerApi, state_manager::construct_block};
 
 type BC = TestContract;
 type BB = TestBlockBuilder;
@@ -31,6 +31,11 @@ type W = TestWithdrawalAggregator;
 
 pub fn get_base_url() -> String {
     env::var("BASE_URL").expect("BASE_URL must be set")
+}
+
+pub fn get_indexer_url() -> String {
+    // todo: remove this line in production
+    "https://dev.builder.indexer.intmax.xyz".to_string()
 }
 
 pub fn get_client() -> anyhow::Result<Client<BB, S, V, B, W>> {
@@ -64,13 +69,7 @@ pub fn get_contract() -> BC {
     contract
 }
 
-pub async fn deposit(
-    _rpc_url: &str,
-    eth_private_key: H256,
-    private_key: H256,
-    amount: U256,
-    token_index: u32,
-) -> anyhow::Result<()> {
+pub async fn deposit(private_key: H256, amount: U256, token_index: u32) -> anyhow::Result<()> {
     let client = get_client()?;
     let key = h256_to_keyset(private_key);
     let deposit_call = client.prepare_deposit(key, token_index, amount).await?;
@@ -78,7 +77,7 @@ pub async fn deposit(
     let contract = get_contract();
     contract
         .deposit(
-            eth_private_key,
+            H256::default(),
             deposit_call.pubkey_salt_hash,
             deposit_call.token_index,
             deposit_call.amount,
@@ -87,15 +86,18 @@ pub async fn deposit(
     Ok(())
 }
 
-pub async fn tx(
-    block_builder_url: &str,
-    private_key: H256,
-    to: U256,
-    amount: U256,
-    token_index: u32,
-) -> anyhow::Result<()> {
+pub async fn tx(private_key: H256, to: U256, amount: U256, token_index: u32) -> anyhow::Result<()> {
     let client = get_client()?;
     let key = h256_to_keyset(private_key);
+
+    // get block builder info
+    let indexer = IndexerApi::new(&&get_indexer_url());
+    let block_builder_info = indexer.get_block_builder_info().await?;
+    if block_builder_info.is_empty() {
+        anyhow::bail!("No block builder available");
+    }
+    let _block_builder_url = block_builder_info.first().unwrap().url.clone();
+    let block_builder_url = &get_base_url(); // todo: remove this line in production
 
     let mut rng = rand::thread_rng();
     let salt = Salt::rand(&mut rng);
