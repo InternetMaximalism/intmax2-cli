@@ -2393,6 +2393,7 @@ dependencies = [
  "anyhow",
  "clap",
  "ethers",
+ "hex",
  "intmax2-core-sdk",
  "intmax2-zkp",
  "log",

@@ -18,7 +18,6 @@ use intmax2_zkp::{
     },
     ethereum_types::u256::U256,
 };
-use num_bigint::BigUint;
 
 use crate::{external_api::indexer::api::IndexerApi, state_manager::construct_block};
 
@@ -69,9 +68,8 @@ pub fn get_contract() -> BC {
     contract
 }
 
-pub async fn deposit(private_key: H256, amount: U256, token_index: u32) -> anyhow::Result<()> {
+pub async fn deposit(key: KeySet, amount: U256, token_index: u32) -> anyhow::Result<()> {
     let client = get_client()?;
-    let key = h256_to_keyset(private_key);
     let deposit_call = client.prepare_deposit(key, token_index, amount).await?;
 
     let contract = get_contract();
@@ -86,9 +84,13 @@ pub async fn deposit(private_key: H256, amount: U256, token_index: u32) -> anyho
     Ok(())
 }
 
-pub async fn tx(private_key: H256, to: U256, amount: U256, token_index: u32) -> anyhow::Result<()> {
+pub async fn tx(
+    key: KeySet,
+    to: GenericAddress,
+    amount: U256,
+    token_index: u32,
+) -> anyhow::Result<()> {
     let client = get_client()?;
-    let key = h256_to_keyset(private_key);
 
     // get block builder info
     let indexer = IndexerApi::new(&&get_indexer_url());
@@ -102,7 +104,7 @@ pub async fn tx(private_key: H256, to: U256, amount: U256, token_index: u32) -> 
     let mut rng = rand::thread_rng();
     let salt = Salt::rand(&mut rng);
     let transfer = Transfer {
-        recipient: GenericAddress::from_pubkey(to),
+        recipient: to,
         amount,
         token_index,
         salt,
@@ -139,16 +141,14 @@ pub async fn tx(private_key: H256, to: U256, amount: U256, token_index: u32) -> 
     Ok(())
 }
 
-pub async fn sync(private_key: H256) -> anyhow::Result<()> {
+pub async fn sync(key: KeySet) -> anyhow::Result<()> {
     let client = get_client()?;
-    let key = h256_to_keyset(private_key);
     client.sync(key).await?;
     Ok(())
 }
 
-pub async fn balance(private_key: H256) -> anyhow::Result<()> {
+pub async fn balance(key: KeySet) -> anyhow::Result<()> {
     let client = get_client()?;
-    let key = h256_to_keyset(private_key);
     client.sync(key).await?;
 
     let user_data = client.get_user_data(key).await?;
@@ -158,8 +158,4 @@ pub async fn balance(private_key: H256) -> anyhow::Result<()> {
     }
     println!("-----------------------------------");
     Ok(())
-}
-
-fn h256_to_keyset(h256: H256) -> KeySet {
-    KeySet::new(BigUint::from_bytes_be(h256.as_bytes()).into())
 }
