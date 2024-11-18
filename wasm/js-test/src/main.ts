@@ -23,7 +23,7 @@ async function main() {
   const amount = "123";
   const pubkeySaltHash = await prepare_deposit(config, privateKey, amount, tokenIndex);
   console.log("pubkeySaltHash: ", pubkeySaltHash);
-  await mimic_deposit(baseUrl, pubkeySaltHash, amount);
+  await mimic_deposit(baseUrl, pubkeySaltHash, tokenIndex, amount);
 
   await postEmptyBlock(baseUrl); // block builder post empty block (this is not used in production)
   await syncValidityProof(baseUrl); // block validity prover sync validity proof (this is not used in production)

@@ -204,6 +204,7 @@ pub async fn decrypt_tx_data(private_key: &str, data: &[u8]) -> Result<JsTxData,
 pub async fn mimic_deposit(
     contract_server_url: &str,
     pubkey_salt_hash: &str,
+    token_index: u32,
     amount: &str,
 ) -> Result<(), JsError> {
     let pubkey_salt_hash = parse_h256(pubkey_salt_hash)?;
@@ -212,7 +213,7 @@ pub async fn mimic_deposit(
 
     let contract = get_mock_contract(contract_server_url);
     contract
-        .deposit_native_token(H256::default(), pubkey_salt_hash, amount)
+        .deposit(H256::default(), pubkey_salt_hash, token_index, amount)
         .await?;
     Ok(())
 }
