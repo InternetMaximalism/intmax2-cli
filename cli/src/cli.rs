@@ -75,9 +75,10 @@ pub async fn deposit(
 
     let contract = get_contract();
     contract
-        .deposit_native_token(
+        .deposit(
             eth_private_key,
             deposit_call.pubkey_salt_hash,
+            deposit_call.token_index,
             deposit_call.amount,
         )
         .await?;
