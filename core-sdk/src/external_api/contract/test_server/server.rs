@@ -4,7 +4,9 @@ use intmax2_zkp::ethereum_types::{bytes32::Bytes32, u256::U256};
 use reqwest_wasm::Client;
 
 use crate::external_api::common::error::ServerError;
-use crate::external_api::contract::interface::{BlockchainError, ContractInterface};
+use crate::external_api::contract::interface::{
+    BlockchainError, ContractInterface, ContractWithdrawal,
+};
 use crate::external_api::utils::retry::with_retry;
 
 use super::types::DepositRequest;
@@ -71,5 +73,13 @@ impl ContractInterface for TestContract {
                 ServerError::ServerError(msg) => BlockchainError::TransactionFailed(msg),
                 _ => BlockchainError::InternalError(e.to_string()),
             })
+    }
+
+    async fn claim_withdrawals(
+        &self,
+        _signer_private_key: H256,
+        _withdrawals: &[ContractWithdrawal],
+    ) -> Result<(), BlockchainError> {
+        todo!()
     }
 }

@@ -13,7 +13,7 @@ use intmax2_zkp::ethereum_types::{bytes32::Bytes32, u256::U256, u32limb_trait::U
 
 use super::{
     handlers::handle_contract_call,
-    interface::{BlockchainError, ContractInterface},
+    interface::{BlockchainError, ContractInterface, ContractWithdrawal},
     utils::{get_address, get_client, get_client_with_signer},
 };
 
@@ -91,6 +91,44 @@ impl ContractInterface for LiquidityContract {
             get_address(self.chain_id, signer_private_key),
             "depositer",
             "deposit_native_token",
+        )
+        .await?;
+        Ok(())
+    }
+
+    async fn claim_withdrawals(
+        &self,
+        signer_private_key: H256,
+        withdrawals: &[ContractWithdrawal],
+    ) -> Result<(), BlockchainError> {
+        let withdrawals = withdrawals
+            .iter()
+            .map(|w| {
+                let recipient = ethers::types::Address::from_slice(&w.recipient.to_bytes_be());
+                let token_index = w.token_index;
+                let amount = ethers::types::U256::from_big_endian(&w.amount.to_bytes_be());
+                let id = ethers::types::U256::from(w.id);
+                Withdrawal {
+                    recipient,
+                    token_index,
+                    amount,
+                    id,
+                }
+            })
+            .collect::<Vec<_>>();
+        let contract = get_liquidity_contract_with_signer(
+            &self.rpc_url,
+            self.chain_id,
+            self.contract_address,
+            signer_private_key,
+        )
+        .await?;
+        let mut tx = contract.claim_withdrawals(withdrawals);
+        handle_contract_call(
+            &mut tx,
+            get_address(self.chain_id, signer_private_key),
+            "withdrawer",
+            "claim_withdrawals",
         )
         .await?;
         Ok(())

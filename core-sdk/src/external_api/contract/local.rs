@@ -7,7 +7,7 @@ use intmax2_zkp::{
     mock::contract::MockContract,
 };
 
-use super::interface::{BlockchainError, ContractInterface};
+use super::interface::{BlockchainError, ContractInterface, ContractWithdrawal};
 
 pub struct LocalContract(pub Arc<Mutex<MockContract>>);
 
@@ -35,5 +35,13 @@ impl ContractInterface for LocalContract {
             .unwrap()
             .deposit(pubkey_salt_hash, token_index, amount);
         Ok(())
+    }
+
+    async fn claim_withdrawals(
+        &self,
+        _signer_private_key: H256,
+        _withdrawals: &[ContractWithdrawal],
+    ) -> Result<(), BlockchainError> {
+        todo!()
     }
 }
