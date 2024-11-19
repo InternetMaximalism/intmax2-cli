@@ -1,3 +1,4 @@
+pub mod account;
 pub mod balance_logic;
 pub mod client;
 pub mod config;
