@@ -1,5 +1,5 @@
 import { cleanEnv, url } from 'envalid';
-import { Config, finalize_tx, generate_key_from_provisional, get_user_data, JsGenericAddress, JsTransfer, mimic_deposit, prepare_deposit, query_proposal, send_tx_request, sync, sync_withdrawals, } from '../pkg';
+import { Config, finalize_tx, generate_intmax_account_from_eth_key, get_user_data, JsGenericAddress, JsTransfer, mimic_deposit, prepare_deposit, query_proposal, send_tx_request, sync, sync_withdrawals, } from '../pkg';
 import { constructBlock, postBlock, postEmptyBlock, syncValidityProof } from './state-manager';
 import { generateRandomHex } from './utils';
 
@@ -12,7 +12,7 @@ async function main() {
   const config = Config.new(baseUrl, baseUrl, baseUrl, baseUrl, 7200n, 300n);
 
   // generate key
-  const key = await generate_key_from_provisional(generateRandomHex(32));
+  const key = await generate_intmax_account_from_eth_key(generateRandomHex(32));
   const publicKey = key.pubkey;
   const privateKey = key.privkey;
   console.log("privateKey: ", privateKey);
@@ -42,7 +42,7 @@ async function main() {
   }
 
   // construct a transfer tx
-  const someonesKey = await generate_key_from_provisional(generateRandomHex(32));
+  const someonesKey = await generate_intmax_account_from_eth_key(generateRandomHex(32));
   const genericAddress = new JsGenericAddress(true, someonesKey.pubkey);
   const salt = generateRandomHex(32);
   const transfer = new JsTransfer(genericAddress, 0, "1", salt);
