@@ -5,6 +5,7 @@ use intmax2_zkp::{
     common::{
         private_state::FullPrivateState,
         salt::Salt,
+        signature::key_set::KeySet,
         witness::{
             deposit_witness::DepositWitness, private_transition_witness::PrivateTransitionWitness,
             receive_deposit_witness::ReceiveDepositWitness,
@@ -36,6 +37,7 @@ const D: usize = 2;
 pub async fn process_deposit<V: BlockValidityInterface, B: BalanceProverInterface>(
     validity_prover: &V,
     balance_processor: &B,
+    key: KeySet,
     pubkey: U256,
     full_private_state: &mut FullPrivateState,
     new_salt: Salt,
@@ -47,6 +49,7 @@ pub async fn process_deposit<V: BlockValidityInterface, B: BalanceProverInterfac
     let before_balance_proof = update_balance_proof(
         validity_prover,
         balance_processor,
+        key,
         pubkey,
         prev_balance_proof,
         receive_block_number,
@@ -92,6 +95,7 @@ pub async fn process_deposit<V: BlockValidityInterface, B: BalanceProverInterfac
     // prove deposit
     let balance_proof = balance_processor
         .prove_receive_deposit(
+            key,
             pubkey,
             &receive_deposit_witness,
             &Some(before_balance_proof),
@@ -104,6 +108,7 @@ pub async fn process_deposit<V: BlockValidityInterface, B: BalanceProverInterfac
 pub async fn process_transfer<V: BlockValidityInterface, B: BalanceProverInterface>(
     validity_prover: &V,
     balance_processor: &B,
+    key: KeySet,
     pubkey: U256,
     full_private_state: &mut FullPrivateState,
     new_salt: Salt,
@@ -125,6 +130,7 @@ pub async fn process_transfer<V: BlockValidityInterface, B: BalanceProverInterfa
     let before_balance_proof = update_balance_proof(
         validity_prover,
         balance_processor,
+        key,
         pubkey,
         prev_balance_proof,
         receive_block_number,
@@ -163,6 +169,7 @@ pub async fn process_transfer<V: BlockValidityInterface, B: BalanceProverInterfa
     // prove transfer
     let balance_proof = balance_processor
         .prove_receive_transfer(
+            key,
             pubkey,
             &receive_trasfer_witness,
             &Some(before_balance_proof),
@@ -175,6 +182,7 @@ pub async fn process_transfer<V: BlockValidityInterface, B: BalanceProverInterfa
 pub async fn process_common_tx<V: BlockValidityInterface, B: BalanceProverInterface>(
     validity_prover: &V,
     balance_processor: &B,
+    key: KeySet,
     sender: U256,
     prev_balance_proof: &Option<ProofWithPublicInputs<F, C, D>>,
     tx_block_number: u32,
@@ -229,6 +237,7 @@ pub async fn process_common_tx<V: BlockValidityInterface, B: BalanceProverInterf
     // prove tx send
     let balance_proof = balance_processor
         .prove_send(
+            key,
             sender,
             &tx_witness,
             &update_witness,
@@ -244,6 +253,7 @@ pub async fn process_common_tx<V: BlockValidityInterface, B: BalanceProverInterf
 async fn update_balance_proof<V: BlockValidityInterface, B: BalanceProverInterface>(
     validity_prover: &V,
     balance_processor: &B,
+    key: KeySet,
     pubkey: U256,
     prev_balance_proof: &Option<ProofWithPublicInputs<F, C, D>>,
     block_number: u32,
@@ -282,7 +292,7 @@ async fn update_balance_proof<V: BlockValidityInterface, B: BalanceProverInterfa
         ));
     }
     let balance_proof = balance_processor
-        .prove_update(pubkey, &update_witness, &prev_balance_proof)
+        .prove_update(key, pubkey, &update_witness, &prev_balance_proof)
         .await?;
     Ok(balance_proof)
 }

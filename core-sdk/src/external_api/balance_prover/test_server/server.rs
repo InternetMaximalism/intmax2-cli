@@ -1,10 +1,13 @@
 use async_trait::async_trait;
 use intmax2_zkp::{
-    common::witness::{
-        receive_deposit_witness::ReceiveDepositWitness,
-        receive_transfer_witness::ReceiveTransferWitness, spent_witness::SpentWitness,
-        tx_witness::TxWitness, update_witness::UpdateWitness,
-        withdrawal_witness::WithdrawalWitness,
+    common::{
+        signature::key_set::KeySet,
+        witness::{
+            receive_deposit_witness::ReceiveDepositWitness,
+            receive_transfer_witness::ReceiveTransferWitness, spent_witness::SpentWitness,
+            tx_witness::TxWitness, update_witness::UpdateWitness,
+            withdrawal_witness::WithdrawalWitness,
+        },
     },
     ethereum_types::u256::U256,
 };
@@ -69,6 +72,7 @@ impl TestBalanceProver {
 impl BalanceProverInterface for TestBalanceProver {
     async fn prove_spent(
         &self,
+        _key: KeySet,
         spent_witness: &SpentWitness,
     ) -> Result<ProofWithPublicInputs<F, C, D>, ServerError> {
         let request = ProveSpentRequest {
@@ -82,6 +86,7 @@ impl BalanceProverInterface for TestBalanceProver {
 
     async fn prove_send(
         &self,
+        _key: KeySet,
         pubkey: U256,
         tx_witnes: &TxWitness,
         update_witness: &UpdateWitness<F, C, D>,
@@ -103,6 +108,7 @@ impl BalanceProverInterface for TestBalanceProver {
 
     async fn prove_update(
         &self,
+        _key: KeySet,
         pubkey: U256,
         update_witness: &UpdateWitness<F, C, D>,
         prev_proof: &Option<ProofWithPublicInputs<F, C, D>>,
@@ -120,6 +126,7 @@ impl BalanceProverInterface for TestBalanceProver {
 
     async fn prove_receive_transfer(
         &self,
+        _key: KeySet,
         pubkey: U256,
         receive_transfer_witness: &ReceiveTransferWitness<F, C, D>,
         prev_proof: &Option<ProofWithPublicInputs<F, C, D>>,
@@ -137,6 +144,7 @@ impl BalanceProverInterface for TestBalanceProver {
 
     async fn prove_receive_deposit(
         &self,
+        _key: KeySet,
         pubkey: U256,
         receive_deposit_witness: &ReceiveDepositWitness,
         prev_proof: &Option<ProofWithPublicInputs<F, C, D>>,
@@ -154,6 +162,7 @@ impl BalanceProverInterface for TestBalanceProver {
 
     async fn prove_single_withdrawal(
         &self,
+        _key: KeySet,
         withdrawal_witness: &WithdrawalWitness<F, C, D>,
     ) -> Result<ProofWithPublicInputs<F, C, D>, ServerError> {
         let request = ProveSingleWithdrawalRequest {
