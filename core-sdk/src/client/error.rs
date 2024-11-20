@@ -23,9 +23,6 @@ pub enum ClientError {
     #[error("Internal error: {0}")]
     InternalError(String),
 
-    #[error("Tx query timeout: {0}")]
-    TxQueryTimeOut(String),
-
     #[error("Invalid block proposal: {0}")]
     InvalidBlockProposal(String),
 
