@@ -8,7 +8,7 @@ use intmax2_core_sdk::{
 use intmax2_zkp::{
     common::transfer::Transfer,
     constants::NUM_TRANSFERS_IN_TX,
-    ethereum_types::u32limb_trait::U32LimbTrait,
+    ethereum_types::{u256::U256, u32limb_trait::U32LimbTrait},
     mock::data::{deposit_data::DepositData, transfer_data::TransferData, tx_data::TxData},
 };
 use js_types::{
@@ -17,6 +17,7 @@ use js_types::{
     utils::parse_u256,
     wrapper::{JsBlockProposal, JsTxRequestMemo},
 };
+use num_bigint::BigUint;
 use utils::{h256_to_bytes32, parse_h256, str_privkey_to_keyset};
 use wasm_bindgen::{prelude::wasm_bindgen, JsError};
 
@@ -38,8 +39,9 @@ pub async fn generate_intmax_account_from_eth_key(
 ) -> Result<IntmaxAccount, JsError> {
     let eth_private_key = parse_h256(eth_private_key)?;
     let key_set = inner_generate_intmax_account_from_eth_key(eth_private_key);
+    let private_key: U256 = BigUint::from(key_set.privkey).try_into().unwrap();
     Ok(IntmaxAccount {
-        privkey: key_set.privkey.to_string(),
+        privkey: private_key.to_hex(),
         pubkey: key_set.pubkey.to_hex(),
     })
 }
