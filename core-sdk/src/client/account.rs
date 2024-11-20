@@ -11,11 +11,11 @@ pub fn generate_intmax_account_from_eth_key(eth_private_key: H256) -> KeySet {
         hasher.update(b"INTMAX");
         hasher.update(eth_private_key.as_bytes());
         let digest = hasher.clone().finalize();
-        let provitional_private_key: Fr = BigUint::from_bytes_be(&digest).into();
-        if provitional_private_key.is_zero() {
+        let provisional_private_key: Fr = BigUint::from_bytes_be(&digest).into();
+        if provisional_private_key.is_zero() {
             continue;
         }
-        return KeySet::generate_from_provisional(provitional_private_key);
+        return KeySet::generate_from_provisional(provisional_private_key);
     }
 }
 
