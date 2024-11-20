@@ -133,8 +133,6 @@ struct CreateRequest {
 #[serde(rename_all = "camelCase")]
 struct CreateResponse {
     request_id: String,
-    status: String,
-    message: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
