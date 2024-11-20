@@ -28,4 +28,7 @@ pub enum ClientError {
 
     #[error("Invalid block proposal: {0}")]
     InvalidBlockProposal(String),
+
+    #[error("Pending error: {0}")]
+    PendingError(String),
 }

@@ -327,7 +327,9 @@ where
             sync_status = self.sync_single(key).await?;
         }
         if sync_status == SyncStatus::Pending {
-            return Err(ClientError::InternalError("pending actions".to_string()));
+            return Err(ClientError::PendingError(
+                "there is pending actions".to_string(),
+            ));
         }
         Ok(())
     }
@@ -380,7 +382,7 @@ where
         )
         .await?;
         if withdrawal_info.pending.len() > 0 {
-            todo!("handle pending withdrawals")
+            return Err(ClientError::PendingError("pending withdrawals".to_string()));
         }
         for (meta, data) in &withdrawal_info.settled {
             self.sync_withdrawal(key, meta, data).await?;
