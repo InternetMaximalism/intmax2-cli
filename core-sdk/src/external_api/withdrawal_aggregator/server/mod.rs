@@ -6,7 +6,9 @@ use plonky2::{
 
 use crate::external_api::common::error::ServerError;
 
-use super::interface::{Fee, WithdrawalAggregatorInterface};
+use super::interface::{Fee, WithdrawalAggregatorInterface, WithdrawalInfo};
+
+pub mod fee;
 
 pub struct WithdrawalAggregatorServer {
     pub server_base_url: String,
@@ -24,7 +26,7 @@ impl WithdrawalAggregatorServer {
 
 #[async_trait(?Send)]
 impl WithdrawalAggregatorInterface for WithdrawalAggregatorServer {
-    async fn fee(&self) -> Result<Fee, ServerError> {
+    async fn fee(&self) -> Result<Vec<Fee>, ServerError> {
         todo!()
     }
 
@@ -32,6 +34,10 @@ impl WithdrawalAggregatorInterface for WithdrawalAggregatorServer {
         &self,
         _single_withdrawal_proof: &ProofWithPublicInputs<F, C, D>,
     ) -> Result<(), ServerError> {
+        todo!()
+    }
+
+    async fn get_withdrawal_info(&self) -> Result<Vec<WithdrawalInfo>, ServerError> {
         todo!()
     }
 }

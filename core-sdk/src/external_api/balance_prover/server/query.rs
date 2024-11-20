@@ -29,7 +29,7 @@ pub async fn request_and_fetch_proof<I: Serialize>(
     let mut tries = 0;
     let result = loop {
         let res = query_request(base_url, &request_id).await?;
-        if res.status == "pending" {
+        if res.status == "processing" {
             // wait for 1 second
             sleep_for(1).await;
         } else if res.status == "success" {
