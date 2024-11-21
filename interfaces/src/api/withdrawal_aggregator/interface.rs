@@ -1,6 +1,6 @@
 use async_trait::async_trait;
 use intmax2_zkp::{
-    common::withdrawal::Withdrawal,
+    common::{signature::key_set::KeySet, withdrawal::Withdrawal},
     ethereum_types::{address::Address, u256::U256},
 };
 use plonky2::{
@@ -69,5 +69,5 @@ pub trait WithdrawalAggregatorClientInterface {
         single_withdrawal_proof: &ProofWithPublicInputs<F, C, D>,
     ) -> Result<(), ServerError>;
 
-    async fn get_withdrawal_info(&self) -> Result<Vec<WithdrawalInfo>, ServerError>;
+    async fn get_withdrawal_info(&self, key: KeySet) -> Result<Vec<WithdrawalInfo>, ServerError>;
 }

@@ -12,6 +12,8 @@ use intmax2_zkp::{
 use plonky2::{field::goldilocks_field::GoldilocksField, plonk::config::PoseidonGoldilocksConfig};
 use serde::{Deserialize, Serialize};
 
+use super::interface::DepositInfo;
+
 type F = GoldilocksField;
 type C = PoseidonGoldilocksConfig;
 const D: usize = 2;
@@ -51,8 +53,14 @@ pub struct GetUpdateWitnessResponse {
 
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct GetDepositIndexAndBlockNumberQuery {
+pub struct GetDepositInfoQuery {
     pub deposit_hash: Bytes32,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GetDepositInfoResponse {
+    pub deposit_info: Option<DepositInfo>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]

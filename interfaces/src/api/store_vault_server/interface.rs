@@ -1,3 +1,5 @@
+use std::str::FromStr;
+
 use async_trait::async_trait;
 use intmax2_zkp::{ethereum_types::u256::U256, utils::poseidon_hash_out::PoseidonHashOut};
 use plonky2::{
@@ -19,6 +21,31 @@ pub enum DataType {
     Transfer,
     Withdrawal,
     Tx,
+}
+
+impl ToString for DataType {
+    fn to_string(&self) -> String {
+        match self {
+            DataType::Deposit => "deposit".to_string(),
+            DataType::Transfer => "transfer".to_string(),
+            DataType::Withdrawal => "withdrawal".to_string(),
+            DataType::Tx => "tx".to_string(),
+        }
+    }
+}
+
+impl FromStr for DataType {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "deposit" => Ok(DataType::Deposit),
+            "transfer" => Ok(DataType::Transfer),
+            "withdrawal" => Ok(DataType::Withdrawal),
+            "tx" => Ok(DataType::Tx),
+            _ => Err(format!("Invalid data type: {}", s)),
+        }
+    }
 }
 
 #[async_trait(?Send)]
