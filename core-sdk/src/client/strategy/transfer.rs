@@ -1,16 +1,14 @@
-use intmax2_zkp::{
-    common::signature::key_set::KeySet,
-    mock::data::{meta_data::MetaData, transfer_data::TransferData},
+use intmax2_interfaces::{
+    api::{
+        store_vault_server::interface::{DataType, StoreVaultClientInterface},
+        validity_prover::interface::ValidityProverClientInterface,
+    },
+    data::{meta_data::MetaData, transfer_data::TransferData},
 };
+use intmax2_zkp::common::signature::key_set::KeySet;
 use plonky2::{field::goldilocks_field::GoldilocksField, plonk::config::PoseidonGoldilocksConfig};
 
-use crate::{
-    client::error::ClientError,
-    external_api::{
-        block_validity_prover::interface::BlockValidityInterface,
-        store_vault_server::interface::StoreVaultInterface,
-    },
-};
+use crate::client::error::ClientError;
 
 type F = GoldilocksField;
 type C = PoseidonGoldilocksConfig;
@@ -23,7 +21,7 @@ pub struct TransferInfo {
     pub rejected: Vec<MetaData>,
 }
 
-pub async fn fetch_transfer_info<S: StoreVaultInterface, V: BlockValidityInterface>(
+pub async fn fetch_transfer_info<S: StoreVaultClientInterface, V: ValidityProverClientInterface>(
     store_vault_server: &S,
     validity_prover: &V,
     key: KeySet,
@@ -35,7 +33,7 @@ pub async fn fetch_transfer_info<S: StoreVaultInterface, V: BlockValidityInterfa
     let mut rejected = Vec::new();
 
     let encrypted_data = store_vault_server
-        .get_transfer_data_all_after(key.pubkey, transfer_lpt)
+        .get_data_all_after(DataType::Transfer, key.pubkey, transfer_lpt)
         .await?;
     for (meta, encrypted_data) in encrypted_data {
         match TransferData::decrypt(&encrypted_data, key) {

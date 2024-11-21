@@ -1,13 +1,12 @@
-use crate::external_api::{common::error::ServerError, contract::interface::BlockchainError};
+use intmax2_interfaces::api::error::ServerError;
 
 #[derive(Debug, thiserror::Error)]
 pub enum ClientError {
     #[error("Server error: {0}")]
     ServerError(#[from] ServerError),
 
-    #[error("Blockchain error: {0}")]
-    BlockchainError(#[from] BlockchainError),
-
+    // #[error("Blockchain error: {0}")]
+    // BlockchainError(#[from] BlockchainError),
     #[error("Witness generation error: {0}")]
     WitnessGenerationError(String),
 

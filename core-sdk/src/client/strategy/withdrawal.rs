@@ -1,21 +1,19 @@
+use intmax2_interfaces::{
+    api::{
+        store_vault_server::interface::{DataType, StoreVaultClientInterface},
+        validity_prover::interface::ValidityProverClientInterface,
+    },
+    data::{meta_data::MetaData, transfer_data::TransferData},
+};
 use plonky2::{
     field::{extension::Extendable, goldilocks_field::GoldilocksField},
     hash::hash_types::RichField,
     plonk::config::{GenericConfig, PoseidonGoldilocksConfig},
 };
 
-use intmax2_zkp::{
-    common::signature::key_set::KeySet,
-    mock::data::{meta_data::MetaData, transfer_data::TransferData},
-};
+use intmax2_zkp::common::signature::key_set::KeySet;
 
-use crate::{
-    client::error::ClientError,
-    external_api::{
-        block_validity_prover::interface::BlockValidityInterface,
-        store_vault_server::interface::StoreVaultInterface,
-    },
-};
+use crate::client::error::ClientError;
 
 type F = GoldilocksField;
 type C = PoseidonGoldilocksConfig;
@@ -32,7 +30,10 @@ where
     pub rejected: Vec<MetaData>,
 }
 
-pub async fn fetch_withdrawal_info<S: StoreVaultInterface, V: BlockValidityInterface>(
+pub async fn fetch_withdrawal_info<
+    S: StoreVaultClientInterface,
+    V: ValidityProverClientInterface,
+>(
     store_vault_server: &S,
     validity_prover: &V,
     key: KeySet,
@@ -44,7 +45,7 @@ pub async fn fetch_withdrawal_info<S: StoreVaultInterface, V: BlockValidityInter
     let mut rejected = Vec::new();
 
     let encrypted_data = store_vault_server
-        .get_withdrawal_data_all_after(key.pubkey, withdrwal_lpt)
+        .get_data_all_after(DataType::Withdrawal, key.pubkey, withdrwal_lpt)
         .await?;
     for (meta, encrypted_data) in encrypted_data {
         match TransferData::decrypt(&encrypted_data, key) {

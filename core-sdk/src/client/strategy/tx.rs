@@ -1,20 +1,16 @@
+use crate::client::error::ClientError;
+use intmax2_interfaces::{
+    api::{
+        store_vault_server::interface::{DataType, StoreVaultClientInterface},
+        validity_prover::interface::ValidityProverClientInterface,
+    },
+    data::{meta_data::MetaData, tx_data::TxData},
+};
+use intmax2_zkp::common::signature::key_set::KeySet;
 use plonky2::{
     field::{extension::Extendable, goldilocks_field::GoldilocksField},
     hash::hash_types::RichField,
     plonk::config::{GenericConfig, PoseidonGoldilocksConfig},
-};
-
-use crate::{
-    client::error::ClientError,
-    external_api::{
-        block_validity_prover::interface::BlockValidityInterface,
-        store_vault_server::interface::StoreVaultInterface,
-    },
-};
-
-use intmax2_zkp::{
-    common::signature::key_set::KeySet,
-    mock::data::{meta_data::MetaData, tx_data::TxData},
 };
 
 type F = GoldilocksField;
@@ -32,7 +28,7 @@ where
     pub rejected: Vec<MetaData>,
 }
 
-pub async fn fetch_tx_info<S: StoreVaultInterface, V: BlockValidityInterface>(
+pub async fn fetch_tx_info<S: StoreVaultClientInterface, V: ValidityProverClientInterface>(
     store_vault_server: &S,
     validity_prover: &V,
     key: KeySet,
@@ -44,7 +40,7 @@ pub async fn fetch_tx_info<S: StoreVaultInterface, V: BlockValidityInterface>(
     let mut rejected = Vec::new();
 
     let encrypted_data = store_vault_server
-        .get_tx_data_all_after(key.pubkey, tx_lpt)
+        .get_data_all_after(DataType::Tx, key.pubkey, tx_lpt)
         .await?;
     for (meta, encrypted_data) in encrypted_data {
         match TxData::decrypt(&encrypted_data, key) {

@@ -1,3 +1,10 @@
+use intmax2_interfaces::{
+    api::{
+        balance_prover::interface::BalanceProverClientInterface,
+        validity_prover::interface::ValidityProverClientInterface,
+    },
+    data::{common_tx_data::CommonTxData, deposit_data::DepositData, transfer_data::TransferData},
+};
 use intmax2_zkp::{
     circuits::balance::{
         balance_pis::BalancePublicInputs, balance_processor::get_prev_balance_pis,
@@ -14,18 +21,10 @@ use intmax2_zkp::{
         },
     },
     ethereum_types::{bytes32::Bytes32, u256::U256},
-    mock::data::{
-        common_tx_data::CommonTxData, deposit_data::DepositData, transfer_data::TransferData,
-    },
 };
 use plonky2::{
     field::goldilocks_field::GoldilocksField,
     plonk::{config::PoseidonGoldilocksConfig, proof::ProofWithPublicInputs},
-};
-
-use crate::external_api::{
-    balance_prover::interface::BalanceProverInterface,
-    block_validity_prover::interface::BlockValidityInterface,
 };
 
 use super::error::ClientError;
@@ -34,7 +33,7 @@ type F = GoldilocksField;
 type C = PoseidonGoldilocksConfig;
 const D: usize = 2;
 
-pub async fn process_deposit<V: BlockValidityInterface, B: BalanceProverInterface>(
+pub async fn process_deposit<V: ValidityProverClientInterface, B: BalanceProverClientInterface>(
     validity_prover: &V,
     balance_processor: &B,
     key: KeySet,
@@ -57,23 +56,23 @@ pub async fn process_deposit<V: BlockValidityInterface, B: BalanceProverInterfac
     .await?;
 
     // Generate witness
-    let (deposit_index, deposit_block_number) = validity_prover
-        .get_deposit_index_and_block_number(deposit_data.deposit_hash())
+    let deposit_info = validity_prover
+        .get_deposit_info(deposit_data.deposit_hash())
         .await?
         .ok_or(ClientError::InternalError(
             "Deposit index and block number not found".to_string(),
         ))?;
-    if deposit_block_number > receive_block_number {
+    if deposit_info.block_number > receive_block_number {
         return Err(ClientError::InternalError(
             "Deposit block number is greater than receive block number".to_string(),
         ));
     }
     let deposit_merkle_proof = validity_prover
-        .get_deposit_merkle_proof(receive_block_number, deposit_index)
+        .get_deposit_merkle_proof(receive_block_number, deposit_info.deposit_index)
         .await?;
     let deposit_witness = DepositWitness {
         deposit_salt: deposit_data.deposit_salt,
-        deposit_index: deposit_index as u32,
+        deposit_index: deposit_info.deposit_index as u32,
         deposit: deposit_data.deposit.clone(),
         deposit_merkle_proof,
     };
@@ -105,7 +104,7 @@ pub async fn process_deposit<V: BlockValidityInterface, B: BalanceProverInterfac
     Ok(balance_proof)
 }
 
-pub async fn process_transfer<V: BlockValidityInterface, B: BalanceProverInterface>(
+pub async fn process_transfer<V: ValidityProverClientInterface, B: BalanceProverClientInterface>(
     validity_prover: &V,
     balance_processor: &B,
     key: KeySet,
@@ -179,7 +178,10 @@ pub async fn process_transfer<V: BlockValidityInterface, B: BalanceProverInterfa
     Ok(balance_proof)
 }
 
-pub async fn process_common_tx<V: BlockValidityInterface, B: BalanceProverInterface>(
+pub async fn process_common_tx<
+    V: ValidityProverClientInterface,
+    B: BalanceProverClientInterface,
+>(
     validity_prover: &V,
     balance_processor: &B,
     key: KeySet,
@@ -189,7 +191,7 @@ pub async fn process_common_tx<V: BlockValidityInterface, B: BalanceProverInterf
     common_tx_data: &CommonTxData<F, C, D>,
 ) -> Result<ProofWithPublicInputs<F, C, D>, ClientError> {
     // sync check
-    if tx_block_number > validity_prover.block_number().await? {
+    if tx_block_number > validity_prover.get_block_number().await? {
         return Err(ClientError::InternalError(
             "Validity prover is not up to date".to_string(),
         ));
@@ -250,7 +252,7 @@ pub async fn process_common_tx<V: BlockValidityInterface, B: BalanceProverInterf
 }
 
 // Inner function to update balance proof
-async fn update_balance_proof<V: BlockValidityInterface, B: BalanceProverInterface>(
+async fn update_balance_proof<V: ValidityProverClientInterface, B: BalanceProverClientInterface>(
     validity_prover: &V,
     balance_processor: &B,
     key: KeySet,
@@ -259,7 +261,7 @@ async fn update_balance_proof<V: BlockValidityInterface, B: BalanceProverInterfa
     block_number: u32,
 ) -> Result<ProofWithPublicInputs<F, C, D>, ClientError> {
     // sync check
-    if block_number > validity_prover.block_number().await? {
+    if block_number > validity_prover.get_block_number().await? {
         return Err(ClientError::InternalError(
             "Validity prover is not up to date".to_string(),
         ));

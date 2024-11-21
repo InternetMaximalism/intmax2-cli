@@ -1,20 +1,18 @@
-use plonky2::{field::goldilocks_field::GoldilocksField, plonk::config::PoseidonGoldilocksConfig};
-
-use intmax2_zkp::{
-    common::signature::key_set::KeySet,
-    mock::data::{
+use intmax2_interfaces::{
+    api::{
+        store_vault_server::interface::StoreVaultClientInterface,
+        validity_prover::interface::ValidityProverClientInterface,
+    },
+    data::{
         deposit_data::DepositData, meta_data::MetaData, transfer_data::TransferData,
         tx_data::TxData, user_data::UserData,
     },
 };
+use plonky2::{field::goldilocks_field::GoldilocksField, plonk::config::PoseidonGoldilocksConfig};
 
-use crate::{
-    client::error::ClientError,
-    external_api::{
-        block_validity_prover::interface::BlockValidityInterface,
-        store_vault_server::interface::StoreVaultInterface,
-    },
-};
+use intmax2_zkp::common::signature::key_set::KeySet;
+
+use crate::client::error::ClientError;
 
 use super::{deposit::fetch_deposit_info, transfer::fetch_transfer_info, tx::fetch_tx_info};
 
@@ -39,7 +37,10 @@ pub struct NextAction {
 }
 
 // generate strategy of the balance proof update process
-pub async fn determin_next_action<S: StoreVaultInterface, V: BlockValidityInterface>(
+pub async fn determin_next_action<
+    S: StoreVaultClientInterface,
+    V: ValidityProverClientInterface,
+>(
     store_vault_server: &S,
     validity_prover: &V,
     key: KeySet,

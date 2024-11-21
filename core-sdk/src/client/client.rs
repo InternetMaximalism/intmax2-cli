@@ -1,3 +1,16 @@
+use intmax2_interfaces::{
+    api::{
+        balance_prover::interface::BalanceProverClientInterface,
+        block_builder::interface::BlockBuilderClientInterface,
+        store_vault_server::interface::{DataType, StoreVaultClientInterface},
+        validity_prover::interface::ValidityProverClientInterface,
+        withdrawal_aggregator::interface::WithdrawalAggregatorClientInterface,
+    },
+    data::{
+        common_tx_data::CommonTxData, deposit_data::DepositData, meta_data::MetaData,
+        transfer_data::TransferData, tx_data::TxData, user_data::UserData,
+    },
+};
 use intmax2_zkp::{
     circuits::balance::{balance_pis::BalancePublicInputs, send::spent_circuit::SpentPublicInputs},
     common::{
@@ -14,10 +27,6 @@ use intmax2_zkp::{
     },
     constants::{NUM_TRANSFERS_IN_TX, TRANSFER_TREE_HEIGHT},
     ethereum_types::{bytes32::Bytes32, u256::U256},
-    mock::data::{
-        common_tx_data::CommonTxData, deposit_data::DepositData, meta_data::MetaData,
-        transfer_data::TransferData, tx_data::TxData, user_data::UserData,
-    },
     utils::poseidon_hash_out::PoseidonHashOut,
 };
 
@@ -27,18 +36,9 @@ use plonky2::{
 };
 use serde::{Deserialize, Serialize};
 
-use crate::{
-    client::{
-        balance_logic::{process_common_tx, process_transfer},
-        utils::generate_salt,
-    },
-    external_api::{
-        balance_prover::interface::BalanceProverInterface,
-        block_builder::interface::BlockBuilderInterface,
-        block_validity_prover::interface::BlockValidityInterface,
-        store_vault_server::interface::StoreVaultInterface,
-        withdrawal_aggregator::interface::WithdrawalAggregatorInterface,
-    },
+use crate::client::{
+    balance_logic::{process_common_tx, process_transfer},
+    utils::generate_salt,
 };
 
 use super::{
@@ -57,11 +57,11 @@ type C = PoseidonGoldilocksConfig;
 const D: usize = 2;
 
 pub struct Client<
-    BB: BlockBuilderInterface,
-    S: StoreVaultInterface,
-    V: BlockValidityInterface,
-    B: BalanceProverInterface,
-    W: WithdrawalAggregatorInterface,
+    BB: BlockBuilderClientInterface,
+    S: StoreVaultClientInterface,
+    V: ValidityProverClientInterface,
+    B: BalanceProverClientInterface,
+    W: WithdrawalAggregatorClientInterface,
 > {
     pub config: ClientConfig,
 
@@ -100,11 +100,11 @@ pub struct DepositCall {
 
 impl<BB, S, V, B, W> Client<BB, S, V, B, W>
 where
-    BB: BlockBuilderInterface,
-    S: StoreVaultInterface,
-    V: BlockValidityInterface,
-    B: BalanceProverInterface,
-    W: WithdrawalAggregatorInterface,
+    BB: BlockBuilderClientInterface,
+    S: StoreVaultClientInterface,
+    V: ValidityProverClientInterface,
+    B: BalanceProverClientInterface,
+    W: WithdrawalAggregatorClientInterface,
 {
     /// Back up deposit information before calling the contract's deposit function
     pub async fn prepare_deposit(
@@ -134,7 +134,11 @@ where
             deposit,
         };
         self.store_vault_server
-            .save_deposit_data(key.pubkey, deposit_data.encrypt(key.pubkey))
+            .save_data(
+                DataType::Deposit,
+                key.pubkey,
+                &deposit_data.encrypt(key.pubkey),
+            )
             .await?;
 
         Ok(DepositCall {
@@ -272,7 +276,7 @@ where
             spent_witness: memo.spent_witness.clone(),
         };
         self.store_vault_server
-            .save_tx_data(key.pubkey, tx_data.encrypt(key.pubkey))
+            .save_data(DataType::Tx, key.pubkey, &tx_data.encrypt(key.pubkey))
             .await?;
 
         // save transfer data
@@ -294,14 +298,19 @@ where
             if transfer.recipient.is_pubkey {
                 let recipient = transfer.recipient.to_pubkey().unwrap();
                 self.store_vault_server
-                    .save_transfer_data(
+                    .save_data(
+                        DataType::Transfer,
                         transfer.recipient.to_pubkey().unwrap(),
-                        transfer_data.encrypt(recipient),
+                        &transfer_data.encrypt(recipient),
                     )
                     .await?;
             } else {
                 self.store_vault_server
-                    .save_withdrawal_data(key.pubkey, transfer_data.encrypt(key.pubkey))
+                    .save_data(
+                        DataType::Transfer,
+                        key.pubkey,
+                        &transfer_data.encrypt(key.pubkey),
+                    )
                     .await?;
             }
         }
@@ -429,7 +438,7 @@ where
 
         // save proof and user data
         self.store_vault_server
-            .save_balance_proof(key.pubkey, new_balance_proof)
+            .save_balance_proof(key.pubkey, &new_balance_proof)
             .await?;
         self.store_vault_server
             .save_user_data(key.pubkey, user_data.encrypt(key.pubkey))
@@ -488,7 +497,7 @@ where
 
         // save proof and user data
         self.store_vault_server
-            .save_balance_proof(key.pubkey, new_balance_proof)
+            .save_balance_proof(key.pubkey, &new_balance_proof)
             .await?;
         self.store_vault_server
             .save_user_data(key.pubkey, user_data.encrypt(key.pubkey))
@@ -649,7 +658,7 @@ where
         .await?;
 
         self.store_vault_server
-            .save_balance_proof(sender, new_sender_balance_proof.clone())
+            .save_balance_proof(sender, &new_sender_balance_proof)
             .await?;
 
         Ok(new_sender_balance_proof)
