@@ -1,4 +1,14 @@
 use async_trait::async_trait;
+use intmax2_interfaces::api::{
+    balance_prover::{
+        interface::BalanceProverClientInterface,
+        types::{
+            ProveReceiveDepositRequest, ProveReceiveTransferRequest, ProveResponse,
+            ProveSendRequest, ProveSingleWithdrawalRequest, ProveSpentRequest, ProveUpdateRequest,
+        },
+    },
+    error::ServerError,
+};
 use intmax2_zkp::{
     common::{
         signature::key_set::KeySet,
@@ -17,17 +27,7 @@ use plonky2::{
 };
 use reqwest_wasm::Client;
 
-use crate::external_api::common::error::ServerError;
-use crate::external_api::{
-    balance_prover::{
-        interface::BalanceProverInterface,
-        test_server::types::{
-            ProveReceiveDepositRequest, ProveReceiveTransferRequest, ProveResponse,
-            ProveSendRequest, ProveSingleWithdrawalRequest, ProveSpentRequest, ProveUpdateRequest,
-        },
-    },
-    utils::retry::with_retry,
-};
+use super::utils::retry::with_retry;
 
 type F = GoldilocksField;
 type C = PoseidonGoldilocksConfig;
@@ -69,7 +69,7 @@ impl TestBalanceProver {
 }
 
 #[async_trait(?Send)]
-impl BalanceProverInterface for TestBalanceProver {
+impl BalanceProverClientInterface for TestBalanceProver {
     async fn prove_spent(
         &self,
         _key: KeySet,

@@ -1,17 +1,20 @@
 use async_trait::async_trait;
+use intmax2_interfaces::api::{
+    block_builder::{
+        interface::{BlockBuilderClientInterface, FeeProof},
+        types::{
+            PostSignatureRequest, QueryProposalRequest, QueryProposalResponse, TxRequestRequest,
+        },
+    },
+    error::ServerError,
+};
 use intmax2_zkp::{
     common::{block_builder::BlockProposal, signature::flatten::FlatG2, tx::Tx},
     ethereum_types::u256::U256,
 };
 use reqwest_wasm::Client;
 
-use crate::external_api::{block_builder::{
-    interface::{BlockBuilderInterface, FeeProof},
-    test_server::types::{
-        PostSignatureRequest, QueryProposalRequest, QueryProposalResponse, TxRequestRequest,
-    },
-}, utils::retry::with_retry};
-use crate::external_api::common::error::ServerError;
+use super::utils::retry::with_retry;
 
 #[derive(Debug, Clone)]
 pub struct TestBlockBuilder {
@@ -48,15 +51,19 @@ impl TestBlockBuilder {
 }
 
 #[async_trait(?Send)]
-impl BlockBuilderInterface for TestBlockBuilder {
+impl BlockBuilderClientInterface for TestBlockBuilder {
     async fn send_tx_request(
         &self,
         block_builder_url: &str,
         pubkey: U256,
         tx: Tx,
-        _fee_proof: Option<FeeProof>,
+        fee_proof: Option<FeeProof>,
     ) -> Result<(), ServerError> {
-        let request = TxRequestRequest { pubkey, tx };
+        let request = TxRequestRequest {
+            pubkey,
+            tx,
+            fee_proof,
+        };
         self.post_request::<_, ()>(block_builder_url, "/block-builder/tx-request", &request)
             .await
     }

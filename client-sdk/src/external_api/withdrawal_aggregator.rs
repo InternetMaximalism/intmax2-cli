@@ -1,18 +1,18 @@
 use async_trait::async_trait;
+use intmax2_interfaces::api::{
+    error::ServerError,
+    withdrawal_aggregator::{
+        interface::{Fee, WithdrawalAggregatorClientInterface, WithdrawalInfo},
+        types::RequestWithdrawalRequest,
+    },
+};
 use plonky2::{
     field::goldilocks_field::GoldilocksField,
     plonk::{config::PoseidonGoldilocksConfig, proof::ProofWithPublicInputs},
 };
 use reqwest_wasm::Client;
 
-use crate::external_api::{
-    common::error::ServerError,
-    withdrawal_aggregator::interface::{WithdrawalAggregatorInterface, WithdrawalInfo},
-};
-use crate::external_api::{
-    utils::retry::with_retry,
-    withdrawal_aggregator::{interface::Fee, test_server::types::RequestWithdrawalRequest},
-};
+use super::utils::retry::with_retry;
 
 type F = GoldilocksField;
 type C = PoseidonGoldilocksConfig;
@@ -76,7 +76,7 @@ impl TestWithdrawalAggregator {
 }
 
 #[async_trait(?Send)]
-impl WithdrawalAggregatorInterface for TestWithdrawalAggregator {
+impl WithdrawalAggregatorClientInterface for TestWithdrawalAggregator {
     async fn fee(&self) -> Result<Vec<Fee>, ServerError> {
         self.get_request::<Vec<Fee>>("/withdrawal-aggregator/fee")
             .await
