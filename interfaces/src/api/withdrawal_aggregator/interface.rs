@@ -11,7 +11,7 @@ type C = PoseidonGoldilocksConfig;
 const D: usize = 2;
 
 #[async_trait(?Send)]
-pub trait WithdrawalAggregatorInterface {
+pub trait WithdrawalAggregatorClientInterface {
     async fn request_withdrawal(
         &self,
         single_withdrawal_proof: &ProofWithPublicInputs<F, C, D>,
