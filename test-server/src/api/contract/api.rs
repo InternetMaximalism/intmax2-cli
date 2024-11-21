@@ -4,7 +4,6 @@ use actix_web::{
     Error,
 };
 use ethers::types::H256;
-use intmax2_core_sdk::external_api::contract::interface::ContractInterface as _;
 
 use crate::api::state::State;
 

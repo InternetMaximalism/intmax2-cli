@@ -3,7 +3,6 @@ use actix_web::{
     web::{scope, Data, Json},
     Error, Scope,
 };
-use intmax2_core_sdk::external_api::balance_prover::interface::BalanceProverInterface as _;
 
 use crate::api::{
     balance_prover::types::{

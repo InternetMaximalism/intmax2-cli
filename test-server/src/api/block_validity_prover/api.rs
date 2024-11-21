@@ -3,7 +3,6 @@ use actix_web::{
     web::{Data, Json, Query},
     Error,
 };
-use intmax2_core_sdk::external_api::block_validity_prover::interface::BlockValidityInterface;
 
 use crate::api::{
     block_validity_prover::types::{

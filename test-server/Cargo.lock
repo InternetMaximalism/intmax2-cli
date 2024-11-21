@@ -2515,7 +2515,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "intmax2-core-sdk"
+name = "intmax2-client-sdk"
 version = "0.1.0"
 dependencies = [
  "aes-gcm",
@@ -4615,7 +4615,7 @@ dependencies = [
  "ethers",
  "hashbrown 0.14.5",
  "hex",
- "intmax2-core-sdk",
+ "intmax2-client-sdk",
  "intmax2-zkp",
  "itertools 0.13.0",
  "log",

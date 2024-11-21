@@ -3,7 +3,6 @@ use actix_web::{
     web::{Data, Json, Path, Query},
     Error,
 };
-use intmax2_core_sdk::external_api::store_vault_server::interface::StoreVaultInterface as _;
 
 use crate::api::{
     state::State,

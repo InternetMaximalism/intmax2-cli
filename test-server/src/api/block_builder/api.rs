@@ -3,7 +3,6 @@ use actix_web::{
     web::{Data, Json},
     Error,
 };
-use intmax2_core_sdk::external_api::block_builder::interface::BlockBuilderInterface;
 
 use crate::api::{
     block_builder::types::{PostSignatureRequest, QueryProposalRequest, QueryProposalResponse},
