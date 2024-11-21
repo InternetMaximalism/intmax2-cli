@@ -11,7 +11,7 @@ use std::sync::{Arc, Mutex};
 
 use crate::{external_api::common::error::ServerError, utils::circuit_verifiers::CircuitVerifiers};
 
-use super::interface::{Fee, WithdrawalAggregatorInterface};
+use super::interface::{Fee, WithdrawalAggregatorInterface, WithdrawalInfo};
 
 type F = GoldilocksField;
 type C = PoseidonGoldilocksConfig;
@@ -43,13 +43,8 @@ impl LocalWithdrawalAggregator {
 
 #[async_trait(?Send)]
 impl WithdrawalAggregatorInterface for LocalWithdrawalAggregator {
-    async fn fee(&self) -> Result<Fee, ServerError> {
-        Ok(Fee {
-            native_fee: 0,
-            erc20_fee: 0,
-            erc721_fee: 0,
-            erc1155_fee: 0,
-        })
+    async fn fee(&self) -> Result<Vec<Fee>, ServerError> {
+        Ok(vec![Fee::default()])
     }
 
     async fn request_withdrawal(
@@ -61,5 +56,9 @@ impl WithdrawalAggregatorInterface for LocalWithdrawalAggregator {
             .add(single_withdrawal_proof)
             .map_err(|e| ServerError::InternalError(format!("Failed to add proof {}", e)))?;
         Ok(())
+    }
+
+    async fn get_withdrawal_info(&self) -> Result<Vec<WithdrawalInfo>, ServerError> {
+        Ok(vec![])
     }
 }

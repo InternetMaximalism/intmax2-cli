@@ -213,7 +213,7 @@ where
         .map_err(|e| {
             ClientError::WitnessGenerationError(format!("failed to generate spent witness: {}", e))
         })?;
-        let spent_proof = self.balance_prover.prove_spent(&spent_witness).await?;
+        let spent_proof = self.balance_prover.prove_spent(key, &spent_witness).await?;
 
         self.block_builder
             .send_tx_request(block_builder_url, key.pubkey, tx, None)
@@ -327,7 +327,9 @@ where
             sync_status = self.sync_single(key).await?;
         }
         if sync_status == SyncStatus::Pending {
-            return Err(ClientError::InternalError("pending actions".to_string()));
+            return Err(ClientError::PendingError(
+                "there is pending actions".to_string(),
+            ));
         }
         Ok(())
     }
@@ -380,7 +382,7 @@ where
         )
         .await?;
         if withdrawal_info.pending.len() > 0 {
-            todo!("handle pending withdrawals")
+            return Err(ClientError::PendingError("pending withdrawals".to_string()));
         }
         for (meta, data) in &withdrawal_info.settled {
             self.sync_withdrawal(key, meta, data).await?;
@@ -410,6 +412,7 @@ where
         let new_balance_proof = process_deposit(
             &self.validity_prover,
             &self.balance_prover,
+            key,
             user_data.pubkey,
             &mut user_data.full_private_state,
             new_salt,
@@ -456,6 +459,7 @@ where
         // sender balance proof after applying the tx
         let new_sender_balance_proof = self
             .generate_new_sender_balance_proof(
+                key,
                 transfer_data.sender,
                 meta.block_number.unwrap(),
                 &transfer_data.tx_data,
@@ -466,6 +470,7 @@ where
         let new_balance_proof = process_transfer(
             &self.validity_prover,
             &self.balance_prover,
+            key,
             user_data.pubkey,
             &mut user_data.full_private_state,
             new_salt,
@@ -502,6 +507,7 @@ where
         let mut user_data = self.get_user_data(key).await?;
         let balance_proof = self
             .generate_new_sender_balance_proof(
+                key,
                 key.pubkey,
                 meta.block_number.unwrap(),
                 &tx_data.common,
@@ -554,6 +560,7 @@ where
 
         let new_user_balance_proof = self
             .generate_new_sender_balance_proof(
+                key,
                 key.pubkey,
                 meta.block_number.unwrap(),
                 &withdrawal_data.tx_data,
@@ -571,7 +578,7 @@ where
         };
         let single_withdrawal_proof = self
             .balance_prover
-            .prove_single_withdrawal(&withdrawal_witness)
+            .prove_single_withdrawal(key, &withdrawal_witness)
             .await?;
 
         // send withdrawal request
@@ -596,6 +603,7 @@ where
     // save the proof to the data store server
     async fn generate_new_sender_balance_proof(
         &self,
+        key: KeySet,
         sender: U256,
         block_number: u32,
         common_tx_data: &CommonTxData<F, C, D>,
@@ -632,6 +640,7 @@ where
         let new_sender_balance_proof = process_common_tx(
             &self.validity_prover,
             &self.balance_prover,
+            key,
             sender,
             &Some(prev_sender_balance_proof),
             block_number,
