@@ -4,9 +4,9 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-plonky2 = { git="https://github.com/InternetMaximalism/polygon-plonky2.git", branch="intmax2-dev", default-features = false}
-intmax2-zkp = {git ="https://github.com/InternetMaximalism/intmax2-zkp", branch = "cli"}
-intmax2-core-sdk = {path="../core-sdk"}
+plonky2 = {workspace = true} 
+intmax2-zkp = {workspace = true}
+intmax2-client-sdk = {path="../client-sdk"}
 ethers="2.0"
 anyhow = "1.0.93"
 num-bigint = "0.4.6"

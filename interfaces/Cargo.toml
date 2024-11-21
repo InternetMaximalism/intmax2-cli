@@ -4,8 +4,8 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-plonky2 = { git="https://github.com/InternetMaximalism/polygon-plonky2.git", branch="intmax2-dev"}
-intmax2-zkp = {git ="https://github.com/InternetMaximalism/intmax2-zkp", branch = "cli"}
+plonky2 = {workspace = true} 
+intmax2-zkp = {workspace = true}
 serde = {version="1.0.210", features = ["derive"]}
 serde_json = "1.0.128"
 anyhow = "1.0.93"
