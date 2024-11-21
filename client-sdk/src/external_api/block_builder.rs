@@ -12,46 +12,20 @@ use intmax2_zkp::{
     common::{block_builder::BlockProposal, signature::flatten::FlatG2, tx::Tx},
     ethereum_types::u256::U256,
 };
-use reqwest_wasm::Client;
 
-use super::utils::retry::with_retry;
+use super::utils::query::post_request;
 
 #[derive(Debug, Clone)]
-pub struct TestBlockBuilder {
-    client: Client,
-}
+pub struct BlockBuilderClient;
 
-impl TestBlockBuilder {
+impl BlockBuilderClient {
     pub fn new() -> Self {
-        TestBlockBuilder {
-            client: Client::new(),
-        }
-    }
-
-    async fn post_request<T: serde::Serialize, U: serde::de::DeserializeOwned>(
-        &self,
-        base_url: &str,
-        endpoint: &str,
-        body: &T,
-    ) -> Result<U, ServerError> {
-        let url = format!("{}{}", base_url, endpoint);
-        let response = with_retry(|| async { self.client.post(&url).json(body).send().await })
-            .await
-            .map_err(|e| ServerError::NetworkError(e.to_string()))?;
-
-        if response.status().is_success() {
-            response
-                .json::<U>()
-                .await
-                .map_err(|e| ServerError::DeserializationError(e.to_string()))
-        } else {
-            Err(ServerError::ServerError(response.status().to_string()))
-        }
+        BlockBuilderClient
     }
 }
 
 #[async_trait(?Send)]
-impl BlockBuilderClientInterface for TestBlockBuilder {
+impl BlockBuilderClientInterface for BlockBuilderClient {
     async fn send_tx_request(
         &self,
         block_builder_url: &str,
@@ -64,8 +38,7 @@ impl BlockBuilderClientInterface for TestBlockBuilder {
             tx,
             fee_proof,
         };
-        self.post_request::<_, ()>(block_builder_url, "/block-builder/tx-request", &request)
-            .await
+        post_request::<_, ()>(block_builder_url, "/block-builder/tx-request", &request).await
     }
 
     async fn query_proposal(
@@ -75,9 +48,8 @@ impl BlockBuilderClientInterface for TestBlockBuilder {
         tx: Tx,
     ) -> Result<Option<BlockProposal>, ServerError> {
         let request = QueryProposalRequest { pubkey, tx };
-        let response: QueryProposalResponse = self
-            .post_request(block_builder_url, "/block-builder/query-proposal", &request)
-            .await?;
+        let response: QueryProposalResponse =
+            post_request(block_builder_url, "/block-builder/query-proposal", &request).await?;
         Ok(response.block_proposal)
     }
 
@@ -93,7 +65,6 @@ impl BlockBuilderClientInterface for TestBlockBuilder {
             tx,
             signature,
         };
-        self.post_request::<_, ()>(block_builder_url, "/block-builder/post-signature", &request)
-            .await
+        post_request::<_, ()>(block_builder_url, "/block-builder/post-signature", &request).await
     }
 }

@@ -3,83 +3,43 @@ use intmax2_interfaces::api::{
     error::ServerError,
     withdrawal_aggregator::{
         interface::{Fee, WithdrawalAggregatorClientInterface, WithdrawalInfo},
-        types::RequestWithdrawalRequest,
+        types::{
+            GetFeeResponse, GetWithdrawalInfoReqponse, GetWithdrawalInfoRequest,
+            RequestWithdrawalRequest,
+        },
     },
 };
+use intmax2_zkp::common::signature::{flatten::FlatG2, key_set::KeySet};
 use plonky2::{
     field::goldilocks_field::GoldilocksField,
     plonk::{config::PoseidonGoldilocksConfig, proof::ProofWithPublicInputs},
 };
-use reqwest_wasm::Client;
 
-use super::utils::retry::with_retry;
+use super::utils::query::{get_request, post_request};
 
 type F = GoldilocksField;
 type C = PoseidonGoldilocksConfig;
 const D: usize = 2;
 
 #[derive(Debug, Clone)]
-pub struct TestWithdrawalAggregator {
+pub struct WithdrawalAggregatorClient {
     base_url: String,
-    client: Client,
 }
 
-impl TestWithdrawalAggregator {
-    pub fn new(base_url: String) -> Self {
-        TestWithdrawalAggregator {
-            base_url,
-            client: Client::new(),
-        }
-    }
-
-    async fn post_request<T: serde::Serialize, U: serde::de::DeserializeOwned>(
-        &self,
-        endpoint: &str,
-        body: &T,
-    ) -> Result<U, ServerError> {
-        let url = format!("{}{}", self.base_url, endpoint);
-        let response = with_retry(|| async { self.client.post(&url).json(body).send().await })
-            .await
-            .map_err(|e| ServerError::NetworkError(e.to_string()))?;
-
-        if response.status().is_success() {
-            response
-                .json::<U>()
-                .await
-                .map_err(|e| ServerError::DeserializationError(e.to_string()))
-        } else {
-            Err(ServerError::ServerError(response.status().to_string()))
-        }
-    }
-
-    async fn get_request<T: serde::de::DeserializeOwned>(
-        &self,
-        endpoint: &str,
-    ) -> Result<T, ServerError> {
-        let url = format!("{}{}", self.base_url, endpoint);
-        let response = self
-            .client
-            .get(&url)
-            .send()
-            .await
-            .map_err(|e| ServerError::NetworkError(e.to_string()))?;
-
-        if response.status().is_success() {
-            response
-                .json::<T>()
-                .await
-                .map_err(|e| ServerError::DeserializationError(e.to_string()))
-        } else {
-            Err(ServerError::ServerError(response.status().to_string()))
+impl WithdrawalAggregatorClient {
+    pub fn new(base_url: &str) -> Self {
+        WithdrawalAggregatorClient {
+            base_url: base_url.to_string(),
         }
     }
 }
 
 #[async_trait(?Send)]
-impl WithdrawalAggregatorClientInterface for TestWithdrawalAggregator {
+impl WithdrawalAggregatorClientInterface for WithdrawalAggregatorClient {
     async fn fee(&self) -> Result<Vec<Fee>, ServerError> {
-        self.get_request::<Vec<Fee>>("/withdrawal-aggregator/fee")
-            .await
+        let response: GetFeeResponse =
+            get_request::<_, ()>(&self.base_url, "/withdrawal-aggregator/fee", None).await?;
+        Ok(response.fees)
     }
 
     async fn request_withdrawal(
@@ -89,11 +49,24 @@ impl WithdrawalAggregatorClientInterface for TestWithdrawalAggregator {
         let request = RequestWithdrawalRequest {
             single_withdrawal_proof: single_withdrawal_proof.clone(),
         };
-        self.post_request::<_, ()>("/withdrawal-aggregator/request-withdrawal", &request)
-            .await
+        post_request::<_, ()>(
+            &self.base_url,
+            "/withdrawal-aggregator/request-withdrawal",
+            &request,
+        )
+        .await
     }
 
-    async fn get_withdrawal_info(&self) -> Result<Vec<WithdrawalInfo>, ServerError> {
-        Ok(vec![])
+    async fn get_withdrawal_info(&self, key: KeySet) -> Result<Vec<WithdrawalInfo>, ServerError> {
+        let pubkey = key.pubkey;
+        let signature = FlatG2::default(); // todo: get signature from key
+        let query = GetWithdrawalInfoRequest { pubkey, signature };
+        let response: GetWithdrawalInfoReqponse = get_request(
+            &self.base_url,
+            "/withdrawal-aggregator/get-withdrawal-info",
+            Some(query),
+        )
+        .await?;
+        Ok(response.withdrawal_info)
     }
 }

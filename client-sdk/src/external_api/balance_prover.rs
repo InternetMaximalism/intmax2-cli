@@ -25,51 +25,28 @@ use plonky2::{
     field::goldilocks_field::GoldilocksField,
     plonk::{config::PoseidonGoldilocksConfig, proof::ProofWithPublicInputs},
 };
-use reqwest_wasm::Client;
 
-use super::utils::retry::with_retry;
+use super::utils::query::post_request;
 
 type F = GoldilocksField;
 type C = PoseidonGoldilocksConfig;
 const D: usize = 2;
 
 #[derive(Debug, Clone)]
-pub struct TestBalanceProver {
+pub struct BalanceProverClient {
     base_url: String,
-    client: Client,
 }
 
-impl TestBalanceProver {
-    pub fn new(base_url: String) -> Self {
-        TestBalanceProver {
-            base_url,
-            client: Client::new(),
-        }
-    }
-
-    async fn post_request<T: serde::Serialize, U: serde::de::DeserializeOwned>(
-        &self,
-        endpoint: &str,
-        body: &T,
-    ) -> Result<U, ServerError> {
-        let url = format!("{}{}", self.base_url, endpoint);
-        let response = with_retry(|| async { self.client.post(&url).json(body).send().await })
-            .await
-            .map_err(|e| ServerError::NetworkError(e.to_string()))?;
-
-        if response.status().is_success() {
-            response
-                .json::<U>()
-                .await
-                .map_err(|e| ServerError::DeserializationError(e.to_string()))
-        } else {
-            Err(ServerError::ServerError(response.status().to_string()))
+impl BalanceProverClient {
+    pub fn new(base_url: &str) -> Self {
+        BalanceProverClient {
+            base_url: base_url.to_string(),
         }
     }
 }
 
 #[async_trait(?Send)]
-impl BalanceProverClientInterface for TestBalanceProver {
+impl BalanceProverClientInterface for BalanceProverClient {
     async fn prove_spent(
         &self,
         _key: KeySet,
@@ -78,9 +55,8 @@ impl BalanceProverClientInterface for TestBalanceProver {
         let request = ProveSpentRequest {
             spent_witness: spent_witness.clone(),
         };
-        let response: ProveResponse = self
-            .post_request("/balance-prover/prove-spent", &request)
-            .await?;
+        let response: ProveResponse =
+            post_request(&self.base_url, "/balance-prover/prove-spent", &request).await?;
         Ok(response.proof)
     }
 
@@ -100,9 +76,8 @@ impl BalanceProverClientInterface for TestBalanceProver {
             spent_proof: spent_proof.clone(),
             prev_proof: prev_proof.clone(),
         };
-        let response: ProveResponse = self
-            .post_request("/balance-prover/prove-send", &request)
-            .await?;
+        let response: ProveResponse =
+            post_request(&self.base_url, "/balance-prover/prove-send", &request).await?;
         Ok(response.proof)
     }
 
@@ -118,9 +93,8 @@ impl BalanceProverClientInterface for TestBalanceProver {
             update_witness: update_witness.clone(),
             prev_proof: prev_proof.clone(),
         };
-        let response: ProveResponse = self
-            .post_request("/balance-prover/prove-update", &request)
-            .await?;
+        let response: ProveResponse =
+            post_request(&self.base_url, "/balance-prover/prove-update", &request).await?;
         Ok(response.proof)
     }
 
@@ -136,9 +110,12 @@ impl BalanceProverClientInterface for TestBalanceProver {
             receive_transfer_witness: receive_transfer_witness.clone(),
             prev_proof: prev_proof.clone(),
         };
-        let response: ProveResponse = self
-            .post_request("/balance-prover/prove-receive-transfer", &request)
-            .await?;
+        let response: ProveResponse = post_request(
+            &self.base_url,
+            "/balance-prover/prove-receive-transfer",
+            &request,
+        )
+        .await?;
         Ok(response.proof)
     }
 
@@ -154,9 +131,12 @@ impl BalanceProverClientInterface for TestBalanceProver {
             receive_deposit_witness: receive_deposit_witness.clone(),
             prev_proof: prev_proof.clone(),
         };
-        let response: ProveResponse = self
-            .post_request("/balance-prover/prove-receive-deposit", &request)
-            .await?;
+        let response: ProveResponse = post_request(
+            &self.base_url,
+            "/balance-prover/prove-receive-deposit",
+            &request,
+        )
+        .await?;
         Ok(response.proof)
     }
 
@@ -168,9 +148,12 @@ impl BalanceProverClientInterface for TestBalanceProver {
         let request = ProveSingleWithdrawalRequest {
             withdrawal_witness: withdrawal_witness.clone(),
         };
-        let response: ProveResponse = self
-            .post_request("/balance-prover/prove-single-withdrawal", &request)
-            .await?;
+        let response: ProveResponse = post_request(
+            &self.base_url,
+            "/balance-prover/prove-single-withdrawal",
+            &request,
+        )
+        .await?;
         Ok(response.proof)
     }
 }
