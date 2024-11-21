@@ -11,6 +11,8 @@ use intmax2_zkp::{
     utils::leafable::Leafable,
 };
 
+use super::encryption::{decrypt, encrypt};
+
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct DepositData {
@@ -28,13 +30,13 @@ impl DepositData {
         Ok(data)
     }
 
-    pub fn encrypt(&self, _pubkey: U256) -> Vec<u8> {
-        let bytes = self.to_bytes();
-        bytes
+    pub fn encrypt(&self, pubkey: U256) -> Vec<u8> {
+        encrypt(pubkey, &self.to_bytes())
     }
 
     pub fn decrypt(bytes: &[u8], key: KeySet) -> anyhow::Result<Self> {
-        let data = Self::from_bytes(bytes)?;
+        let data = decrypt(key, bytes)?;
+        let data = Self::from_bytes(&data)?;
         data.validate(key)?;
         Ok(data)
     }

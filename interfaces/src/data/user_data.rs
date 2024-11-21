@@ -11,6 +11,8 @@ use intmax2_zkp::{
     utils::poseidon_hash_out::PoseidonHashOut,
 };
 
+use super::encryption::{decrypt, encrypt};
+
 #[derive(Debug, Clone)]
 pub struct UserData {
     pub pubkey: U256,
@@ -102,18 +104,15 @@ impl UserData {
         })
     }
 
-    pub fn encrypt(&self, _pubkey: U256) -> Vec<u8> {
-        // this is a mock encryption
-        let bytes = self.to_bytes();
-        bytes
+    pub fn encrypt(&self, pubkey: U256) -> Vec<u8> {
+        encrypt(pubkey, &self.to_bytes())
     }
 
-    pub fn decrypt(bytes: &[u8], _key: KeySet) -> anyhow::Result<Self> {
-        // this is a mock decryption
-        let user_data = UserData::from_bytes(bytes)?;
-        Ok(user_data)
+    pub fn decrypt(bytes: &[u8], key: KeySet) -> anyhow::Result<Self> {
+        let data = decrypt(key, bytes)?;
+        let data = Self::from_bytes(&data)?;
+        Ok(data)
     }
-
     pub fn private_state(&self) -> PrivateState {
         self.full_private_state.to_private_state()
     }

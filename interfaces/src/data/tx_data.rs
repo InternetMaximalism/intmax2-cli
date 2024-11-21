@@ -8,7 +8,7 @@ use intmax2_zkp::{
     ethereum_types::u256::U256,
 };
 
-use super::common_tx_data::CommonTxData;
+use super::{common_tx_data::CommonTxData, encryption::{decrypt, encrypt}};
 
 // tx data for sender
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -37,14 +37,14 @@ where
         Ok(data)
     }
 
-    pub fn encrypt(&self, _pubkey: U256) -> Vec<u8> {
-        let bytes = self.to_bytes();
-        bytes
+    pub fn encrypt(&self, pubkey: U256) -> Vec<u8> {
+        encrypt(pubkey, &self.to_bytes())
     }
 
-    pub fn decrypt(bytes: &[u8], _key: KeySet) -> anyhow::Result<Self> {
-        let data = Self::from_bytes(bytes)?;
-        data.validate(_key)?;
+    pub fn decrypt(bytes: &[u8], key: KeySet) -> anyhow::Result<Self> {
+        let data = decrypt(key, bytes)?;
+        let data = Self::from_bytes(&data)?;
+        data.validate(key)?;
         Ok(data)
     }
 
