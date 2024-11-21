@@ -553,7 +553,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "interfaces"
+name = "intmax2-interfaces"
 version = "0.1.0"
 dependencies = [
  "anyhow",

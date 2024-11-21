@@ -27,7 +27,7 @@ pub struct FeeProof {
 }
 
 #[async_trait(?Send)]
-pub trait BlockBuilderInterface {
+pub trait BlockBuilderClientInterface {
     // Send tx request to the block builder
     async fn send_tx_request(
         &self,

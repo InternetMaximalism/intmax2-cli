@@ -11,6 +11,7 @@ use intmax2_zkp::{
     ethereum_types::{bytes32::Bytes32, u256::U256},
 };
 use plonky2::{field::goldilocks_field::GoldilocksField, plonk::config::PoseidonGoldilocksConfig};
+use serde::{Deserialize, Serialize};
 
 use crate::api::error::ServerError;
 
@@ -18,10 +19,17 @@ type F = GoldilocksField;
 type C = PoseidonGoldilocksConfig;
 const D: usize = 2;
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DepositInfo {
+    pub deposit_hash: Bytes32,
+    pub block_number: u32,
+    pub deposit_index: u32,
+}
+
 #[async_trait(?Send)]
-pub trait BlockValidityInterface {
-    // Returns the latest block number which the block validity prover synced to.
-    async fn block_number(&self) -> Result<u32, ServerError>;
+pub trait ValidityProverClientInterface {
+    async fn get_block_number(&self) -> Result<u32, ServerError>;
 
     async fn get_account_id(&self, pubkey: U256) -> Result<Option<u64>, ServerError>;
 
@@ -33,10 +41,10 @@ pub trait BlockValidityInterface {
         is_prev_account_tree: bool,
     ) -> Result<UpdateWitness<F, C, D>, ServerError>;
 
-    async fn get_deposit_index_and_block_number(
+    async fn get_deposit_info(
         &self,
         deposit_hash: Bytes32,
-    ) -> Result<Option<(u32, u32)>, ServerError>;
+    ) -> Result<Option<DepositInfo>, ServerError>;
 
     async fn get_block_number_by_tx_tree_root(
         &self,
