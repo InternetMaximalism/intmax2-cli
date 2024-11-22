@@ -3,10 +3,12 @@ use std::sync::Arc;
 use ethers::{
     core::k256::{ecdsa::SigningKey, SecretKey},
     middleware::SignerMiddleware,
-    providers::{Http, Provider},
+    providers::{Http, Middleware as _, Provider},
     signers::{Signer as _, Wallet},
     types::{Address, H256},
 };
+
+use crate::external_api::utils::retry::with_retry;
 
 use super::interface::BlockchainError;
 
@@ -38,4 +40,12 @@ pub async fn get_client_with_signer(
     let wallet = get_wallet(chain_id, private_key);
     let client = SignerMiddleware::new(provider, wallet);
     Ok(client)
+}
+
+pub async fn get_latest_block_number(rpc_url: &str) -> Result<u64, BlockchainError> {
+    let client = get_client(rpc_url).await?;
+    let block_number = with_retry(|| async { client.get_block_number().await })
+        .await
+        .map_err(|_| BlockchainError::NetworkError("failed to get block number".to_string()))?;
+    Ok(block_number.as_u64())
 }

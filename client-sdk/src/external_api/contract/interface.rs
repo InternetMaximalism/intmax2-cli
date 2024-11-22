@@ -11,6 +11,9 @@ pub enum BlockchainError {
     #[error("Transaction failed: {0}")]
     TransactionFailed(String),
 
+    #[error("Network error: {0}")]
+    NetworkError(String),
+
     #[error("Internal error: {0}")]
     InternalError(String),
 }
