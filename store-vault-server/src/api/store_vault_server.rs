@@ -6,30 +6,28 @@ use intmax2_zkp::{
     utils::poseidon_hash_out::PoseidonHashOut,
 };
 use plonky2::{
-    field::extension::Extendable,
-    hash::hash_types::RichField,
-    plonk::{config::GenericConfig, proof::ProofWithPublicInputs},
+    field::goldilocks_field::GoldilocksField,
+    plonk::{
+        config::PoseidonGoldilocksConfig,
+        proof::ProofWithPublicInputs,
+    },
 };
 use uuid::Uuid;
 
+type F = GoldilocksField;
+type C = PoseidonGoldilocksConfig;
+const D: usize = 2;
+
 // The proof of transfer is encrypted with the public key of the person who uses it. The
 // balance proof is stored without encryption because the private state is hidden.
-pub struct StoreVaultServer<F, C, const D: usize>
-where
-    F: RichField + Extendable<D>,
-    C: GenericConfig<D, F = F>,
-{
+pub struct StoreVaultServer {
     encrypted_user_data: HashMap<U256, Vec<u8>>, /* pubkey -> encrypted_user_data */
     balance_proofs: HashMap<U256, HashMap<u32, Vec<ProofWithPublicInputs<F, C, D>>>>, /* pubkey -> block_number -> proof */
 
     encrypted_data: HashMap<DataType, EncryptedDataMap>,
 }
 
-impl<F, C, const D: usize> StoreVaultServer<F, C, D>
-where
-    F: RichField + Extendable<D>,
-    C: GenericConfig<D, F = F>,
-{
+impl StoreVaultServer {
     pub fn new() -> Self {
         Self {
             encrypted_user_data: HashMap::new(),
