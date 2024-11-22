@@ -2730,6 +2730,7 @@ dependencies = [
  "rand",
  "rand_chacha",
  "regex",
+ "reqwest 0.12.9",
  "reqwest-wasm",
  "serde",
  "serde_json",
@@ -2755,6 +2756,7 @@ dependencies = [
  "serde",
  "serde_json",
  "thiserror 2.0.3",
+ "tokio",
 ]
 
 [[package]]
@@ -2770,6 +2772,7 @@ dependencies = [
  "num-bigint 0.4.6",
  "plonky2",
  "rand",
+ "reqwest 0.12.9",
  "serde",
  "serde_json",
  "wasm-bindgen",
@@ -4561,6 +4564,49 @@ dependencies = [
 ]
 
 [[package]]
+name = "server"
+version = "0.1.0"
+dependencies = [
+ "actix-cors",
+ "actix-web",
+ "aes-gcm",
+ "anyhow",
+ "async-trait",
+ "base64 0.22.1",
+ "bincode",
+ "chrono",
+ "clap",
+ "config",
+ "console",
+ "dialoguer",
+ "dotenv",
+ "env_logger",
+ "ethers",
+ "hashbrown 0.14.5",
+ "hex",
+ "intmax2-client-sdk",
+ "intmax2-zkp",
+ "itertools 0.13.0",
+ "log",
+ "num-bigint 0.4.6",
+ "plonky2",
+ "rand",
+ "rand_chacha",
+ "regex",
+ "reqwest 0.12.9",
+ "reqwest-wasm",
+ "serde",
+ "serde_json",
+ "sha3",
+ "simplelog",
+ "strum",
+ "strum_macros",
+ "sysinfo",
+ "thiserror 1.0.69",
+ "tokio",
+]
+
+[[package]]
 name = "sha1"
 version = "0.10.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4955,48 +5001,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "06794f8f6c5c898b3275aebefa6b8a1cb24cd2c6c79397ab15774837a0bc5755"
 dependencies = [
  "winapi-util",
-]
-
-[[package]]
-name = "test-server"
-version = "0.1.0"
-dependencies = [
- "actix-cors",
- "actix-web",
- "aes-gcm",
- "anyhow",
- "async-trait",
- "base64 0.22.1",
- "bincode",
- "chrono",
- "clap",
- "config",
- "console",
- "dialoguer",
- "dotenv",
- "env_logger",
- "ethers",
- "hashbrown 0.14.5",
- "hex",
- "intmax2-client-sdk",
- "intmax2-zkp",
- "itertools 0.13.0",
- "log",
- "num-bigint 0.4.6",
- "plonky2",
- "rand",
- "rand_chacha",
- "regex",
- "reqwest-wasm",
- "serde",
- "serde_json",
- "sha3",
- "simplelog",
- "strum",
- "strum_macros",
- "sysinfo",
- "thiserror 1.0.69",
- "tokio",
 ]
 
 [[package]]

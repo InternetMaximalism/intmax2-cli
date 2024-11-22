@@ -1,7 +1,4 @@
-use intmax2_zkp::{
-    ethereum_types::u256::U256, mock::data::meta_data::MetaData,
-    utils::poseidon_hash_out::PoseidonHashOut,
-};
+use intmax2_zkp::{ethereum_types::u256::U256, utils::poseidon_hash_out::PoseidonHashOut};
 use plonky2::{
     field::goldilocks_field::GoldilocksField,
     plonk::{config::PoseidonGoldilocksConfig, proof::ProofWithPublicInputs},

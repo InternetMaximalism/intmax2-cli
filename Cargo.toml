@@ -4,9 +4,15 @@ members = [
     "client-sdk",
     "interfaces",
     "wasm",
-    "test-server",
+    "server",
 ]
 
 [workspace.dependencies]
 plonky2 = { git="https://github.com/InternetMaximalism/polygon-plonky2.git", branch="intmax2-dev"}
 intmax2-zkp = {git ="https://github.com/InternetMaximalism/intmax2-zkp", branch = "cli"}
+# Only features sync,macros,io-util,rt,time are supported on wasm.
+tokio = { version = "1", features = ["sync", "macros", "io-util", "rt", "time"] }
+reqwest = { version = "0.12.9", features = ["json"] }
+serde_json = "1.0.133"
+serde = { version = "1.0.215", features = ["derive"] }
+ethers = "2.0"
