@@ -28,7 +28,7 @@ pub async fn get_liquidity_contract(
     Ok(contract)
 }
 
-pub async fn get_liquidity_contract_with_signer(
+async fn get_liquidity_contract_with_signer(
     rpc_url: &str,
     chain_id: u64,
     contract_address: Address,

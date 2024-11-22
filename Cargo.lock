@@ -5496,6 +5496,26 @@ dependencies = [
 ]
 
 [[package]]
+name = "validity-prover"
+version = "0.1.0"
+dependencies = [
+ "actix-cors",
+ "actix-web",
+ "anyhow",
+ "bincode",
+ "ethers",
+ "intmax2-client-sdk",
+ "intmax2-interfaces",
+ "intmax2-zkp",
+ "plonky2",
+ "reqwest 0.12.9",
+ "serde",
+ "serde_json",
+ "thiserror 1.0.69",
+ "tokio",
+]
+
+[[package]]
 name = "vcpkg"
 version = "0.2.15"
 source = "registry+https://github.com/rust-lang/crates.io-index"
