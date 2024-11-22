@@ -82,7 +82,7 @@ impl RollupContract {
                     .deposit_leaf_inserted_filter()
                     .address(self.contract_address.into())
                     .from_block(from_block)
-                    .to_block(from_block + EVENT_BLOCK_RANGE)
+                    .to_block(from_block + EVENT_BLOCK_RANGE - 1)
                     .query_with_meta()
                     .await
             })
@@ -100,15 +100,7 @@ impl RollupContract {
             }
         }
         let mut deposit_leaf_inserted_events = Vec::new();
-        let mut seen_deposit_indices = std::collections::HashSet::new();
         for (event, meta) in events {
-            // skip duplicated deposit
-            let deposit_index = event.deposit_index;
-            if seen_deposit_indices.contains(&deposit_index) {
-                continue;
-            } else {
-                seen_deposit_indices.insert(deposit_index);
-            }
             deposit_leaf_inserted_events.push(DepositLeafInserted {
                 deposit_index: event.deposit_index,
                 deposit_hash: Bytes32::from_bytes_be(&event.deposit_hash),
