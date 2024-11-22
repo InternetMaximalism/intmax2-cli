@@ -9,6 +9,7 @@ bincode = "1.3.3"
 plonky2 = {workspace = true} 
 intmax2-zkp = {workspace = true}
 intmax2-client-sdk = {path="../client-sdk"}
+intmax2-interfaces = {path="../interfaces"}
 tokio = { workspace = true }
 reqwest = { workspace = true}
 ethers = {workspace = true}

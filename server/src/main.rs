@@ -12,10 +12,6 @@
 // use log::init_logger;
 // use monitor::monitor_system;
 
-pub mod api;
-pub mod log;
-pub mod monitor;
-
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
     // init_logger()?;
