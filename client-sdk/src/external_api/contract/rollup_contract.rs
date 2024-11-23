@@ -1,6 +1,7 @@
 use std::sync::Arc;
 
 use ethers::{
+    abi::{Functions, Token},
     contract::abigen,
     core::k256::ecdsa::SigningKey,
     middleware::SignerMiddleware,
@@ -8,7 +9,23 @@ use ethers::{
     signers::Wallet,
     types::{Address, H256},
 };
-use intmax2_zkp::ethereum_types::{bytes32::Bytes32, u32limb_trait::U32LimbTrait as _};
+use intmax2_zkp::{
+    common::{
+        block::Block,
+        signature::{
+            self,
+            flatten::{FlatG1, FlatG2},
+            utils::get_pubkey_hash,
+            SignatureContent,
+        },
+        witness::full_block::FullBlock,
+    },
+    constants::NUM_SENDERS_IN_BLOCK,
+    ethereum_types::{
+        account_id_packed::AccountIdPacked, bytes16::Bytes16, bytes32::Bytes32, u256::U256,
+        u32limb_trait::U32LimbTrait as _,
+    },
+};
 
 use crate::external_api::{contract::utils::get_latest_block_number, utils::retry::with_retry};
 
@@ -110,4 +127,6 @@ impl RollupContract {
         deposit_leaf_inserted_events.sort_by_key(|event| event.deposit_index);
         Ok(deposit_leaf_inserted_events)
     }
+
+   
 }

@@ -14,6 +14,9 @@ pub enum BlockchainError {
     #[error("Network error: {0}")]
     NetworkError(String),
 
+    #[error("Decode call data error: {0}")]
+    DecodeCallDataError(String),
+
     #[error("Internal error: {0}")]
     InternalError(String),
 }
