@@ -61,13 +61,13 @@ impl RollupContract {
     pub fn new(
         rpc_url: String,
         chain_id: u64,
-        contract_address: &str,
+        contract_address: ethers::types::Address,
         deployed_block_number: u64,
     ) -> Self {
         Self {
             rpc_url,
             chain_id,
-            contract_address: contract_address.parse().unwrap(),
+            contract_address: contract_address,
             deployed_block_number,
         }
     }
@@ -208,7 +208,7 @@ impl RollupContract {
     }
 
     pub async fn post_registration_block(
-        &mut self,
+        &self,
         signer_private_key: H256,
         msg_value: U256,
         tx_tree_root: Bytes32,
@@ -242,15 +242,15 @@ impl RollupContract {
         let tx_hash = handle_contract_call(
             &mut tx,
             get_address(self.chain_id, signer_private_key),
-            "depositer",
-            "deposit_native_token",
+            "post_registration_block",
+            "post_registration_block",
         )
         .await?;
         Ok(tx_hash)
     }
 
     pub async fn post_non_registration_block(
-        &mut self,
+        &self,
         signer_private_key: H256,
         msg_value: U256,
         tx_tree_root: Bytes32,
@@ -284,8 +284,8 @@ impl RollupContract {
         let tx_hash = handle_contract_call(
             &mut tx,
             get_address(self.chain_id, signer_private_key),
-            "depositer",
-            "deposit_native_token",
+            "post_registration_block",
+            "post_registration_block",
         )
         .await?;
         Ok(tx_hash)
@@ -308,4 +308,91 @@ fn encode_flat_g2(g2: &FlatG2) -> [[u8; 32]; 4] {
         .collect::<Vec<[u8; 32]>>()
         .try_into()
         .unwrap()
+}
+
+#[cfg(test)]
+mod tests {
+    use std::{sync::Arc, time::Duration};
+
+    use ethers::{
+        core::utils::Anvil,
+        middleware::SignerMiddleware,
+        providers::{Http, Provider},
+        signers::{LocalWallet, Signer},
+        types::{H160, H256},
+    };
+    use intmax2_zkp::{
+        common::signature::{
+            flatten::{FlatG1, FlatG2},
+            SignatureContent,
+        },
+        ethereum_types::{
+            bytes16::Bytes16, bytes32::Bytes32, u256::U256, u32limb_trait::U32LimbTrait,
+        },
+    };
+
+    use crate::external_api::contract::rollup_contract::{Rollup, RollupContract};
+
+    #[tokio::test]
+    async fn test_contract_deployment() -> anyhow::Result<()> {
+        let anvil = Anvil::new().spawn();
+        let wallet: LocalWallet = anvil.keys()[0].clone().into();
+        let private_key: [u8; 32] = anvil.keys()[0].to_bytes().try_into().unwrap();
+        let private_key = H256::from_slice(&private_key);
+        let rpc_url = anvil.endpoint();
+        let chain_id = anvil.chain_id();
+        println!("RPC URL: {}", rpc_url);
+        let provider =
+            Provider::<Http>::try_from(anvil.endpoint())?.interval(Duration::from_millis(10u64));
+        let client = Arc::new(SignerMiddleware::new(
+            provider,
+            wallet.with_chain_id(anvil.chain_id()),
+        ));
+        let rollup_contract = Rollup::deploy::<()>(client, ())
+            .unwrap()
+            .send()
+            .await
+            .unwrap();
+        let contract_address: H160 = rollup_contract.address();
+        let zero_address = ethers::types::Address::zero();
+        rollup_contract
+            .initialize(zero_address, zero_address, zero_address)
+            .send()
+            .await
+            .unwrap();
+
+        let rollup_contract = RollupContract::new(rpc_url, chain_id, contract_address, 0);
+
+        let mut rng = rand::thread_rng();
+        let tx_tree_root = Bytes32::rand(&mut rng);
+        let sender_flag = Bytes16::rand(&mut rng);
+        let agg_pubkey = FlatG1([U256::rand(&mut rng), U256::rand(&mut rng)]);
+        let agg_signature = FlatG2([
+            U256::rand(&mut rng),
+            U256::rand(&mut rng),
+            U256::rand(&mut rng),
+            U256::rand(&mut rng),
+        ]);
+        let message_point = FlatG2([
+            U256::rand(&mut rng),
+            U256::rand(&mut rng),
+            U256::rand(&mut rng),
+            U256::rand(&mut rng),
+        ]);
+
+        rollup_contract
+            .post_registration_block(
+                private_key,
+                0.into(),
+                tx_tree_root,
+                sender_flag,
+                agg_pubkey,
+                agg_signature,
+                message_point,
+                vec![],
+            )
+            .await?;
+
+        Ok(())
+    }
 }
