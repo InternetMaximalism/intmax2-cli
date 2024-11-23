@@ -49,3 +49,14 @@ pub async fn get_latest_block_number(rpc_url: &str) -> Result<u64, BlockchainErr
         .map_err(|_| BlockchainError::NetworkError("failed to get block number".to_string()))?;
     Ok(block_number.as_u64())
 }
+
+pub async fn get_transaction(
+    rpc_url: &str,
+    tx_hash: H256,
+) -> Result<Option<ethers::types::Transaction>, BlockchainError> {
+    let client = get_client(rpc_url).await?;
+    let tx = with_retry(|| async { client.get_transaction(tx_hash).await })
+        .await
+        .map_err(|_| BlockchainError::NetworkError("failed to get transaction".to_string()))?;
+    Ok(tx)
+}
