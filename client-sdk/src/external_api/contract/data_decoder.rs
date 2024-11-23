@@ -230,7 +230,7 @@ fn parse_sender_public_keys(decoded: Token) -> anyhow::Result<Vec<U256>> {
     Ok(sender_public_keys)
 }
 
-//  account_ids: Vec<u8>, // dummy accounts are trimmed
+// account_ids: Vec<u8>,
 fn parse_account_ids(decoded: Token) -> anyhow::Result<Vec<u8>> {
     let account_ids = decoded
         .into_bytes()

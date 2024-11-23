@@ -6,19 +6,26 @@ use ethers::{
     middleware::SignerMiddleware,
     providers::{Http, Provider},
     signers::Wallet,
-    types::H256,
+    types::{Bytes, H256},
 };
 use intmax2_zkp::{
-    common::witness::full_block::FullBlock,
-    ethereum_types::{address::Address, bytes32::Bytes32, u32limb_trait::U32LimbTrait as _},
+    common::{
+        signature::flatten::{FlatG1, FlatG2},
+        witness::full_block::FullBlock,
+    },
+    ethereum_types::{
+        address::Address, bytes16::Bytes16, bytes32::Bytes32, u256::U256,
+        u32limb_trait::U32LimbTrait as _,
+    },
 };
 
 use crate::external_api::{contract::utils::get_latest_block_number, utils::retry::with_retry};
 
 use super::{
     data_decoder::decode_post_block_calldata,
+    handlers::handle_contract_call,
     interface::BlockchainError,
-    utils::{get_client, get_client_with_signer, get_transaction},
+    utils::{get_address, get_client, get_client_with_signer, get_transaction},
 };
 
 const EVENT_BLOCK_RANGE: u64 = 10000;
@@ -199,4 +206,106 @@ impl RollupContract {
         }
         Ok(full_blocks)
     }
+
+    pub async fn post_registration_block(
+        &mut self,
+        signer_private_key: H256,
+        msg_value: U256,
+        tx_tree_root: Bytes32,
+        sender_flag: Bytes16,
+        agg_pubkey: FlatG1,
+        agg_signature: FlatG2,
+        message_point: FlatG2,
+        sender_public_keys: Vec<U256>, // dummy pubkeys are trimmed
+    ) -> Result<H256, BlockchainError> {
+        let contract = self.get_contract_with_signer(signer_private_key).await?;
+        let tx_tree_root: [u8; 32] = tx_tree_root.to_bytes_be().try_into().unwrap();
+        let sender_flag: [u8; 16] = sender_flag.to_bytes_be().try_into().unwrap();
+        let agg_pubkey = encode_flat_g1(&agg_pubkey);
+        let agg_signature = encode_flat_g2(&agg_signature);
+        let message_point = encode_flat_g2(&message_point);
+        let sender_pubkeys: Vec<ethers::types::U256> = sender_public_keys
+            .iter()
+            .map(|e| ethers::types::U256::from_big_endian(&e.to_bytes_be()))
+            .collect();
+        let msg_value = ethers::types::U256::from_big_endian(&msg_value.to_bytes_be());
+        let mut tx = contract
+            .post_registration_block(
+                tx_tree_root,
+                sender_flag,
+                agg_pubkey,
+                agg_signature,
+                message_point,
+                sender_pubkeys,
+            )
+            .value(msg_value);
+        let tx_hash = handle_contract_call(
+            &mut tx,
+            get_address(self.chain_id, signer_private_key),
+            "depositer",
+            "deposit_native_token",
+        )
+        .await?;
+        Ok(tx_hash)
+    }
+
+    pub async fn post_non_registration_block(
+        &mut self,
+        signer_private_key: H256,
+        msg_value: U256,
+        tx_tree_root: Bytes32,
+        sender_flag: Bytes16,
+        agg_pubkey: FlatG1,
+        agg_signature: FlatG2,
+        message_point: FlatG2,
+        public_keys_hash: Bytes32,
+        account_ids: Vec<u8>, // dummy accounts are trimmed
+    ) -> Result<H256, BlockchainError> {
+        let contract = self.get_contract_with_signer(signer_private_key).await?;
+        let tx_tree_root: [u8; 32] = tx_tree_root.to_bytes_be().try_into().unwrap();
+        let sender_flag: [u8; 16] = sender_flag.to_bytes_be().try_into().unwrap();
+        let agg_pubkey = encode_flat_g1(&agg_pubkey);
+        let agg_signature = encode_flat_g2(&agg_signature);
+        let message_point = encode_flat_g2(&message_point);
+        let public_keys_hash: [u8; 32] = public_keys_hash.to_bytes_be().try_into().unwrap();
+        let account_ids: Bytes = Bytes::from(account_ids);
+        let msg_value = ethers::types::U256::from_big_endian(&msg_value.to_bytes_be());
+        let mut tx = contract
+            .post_non_registration_block(
+                tx_tree_root,
+                sender_flag,
+                agg_pubkey,
+                agg_signature,
+                message_point,
+                public_keys_hash,
+                account_ids,
+            )
+            .value(msg_value);
+        let tx_hash = handle_contract_call(
+            &mut tx,
+            get_address(self.chain_id, signer_private_key),
+            "depositer",
+            "deposit_native_token",
+        )
+        .await?;
+        Ok(tx_hash)
+    }
+}
+
+fn encode_flat_g1(g1: &FlatG1) -> [[u8; 32]; 2] {
+    g1.0.iter()
+        .map(|e| e.to_bytes_be())
+        .map(|e| e.try_into().unwrap())
+        .collect::<Vec<[u8; 32]>>()
+        .try_into()
+        .unwrap()
+}
+
+fn encode_flat_g2(g2: &FlatG2) -> [[u8; 32]; 4] {
+    g2.0.iter()
+        .map(|e| e.to_bytes_be())
+        .map(|e| e.try_into().unwrap())
+        .collect::<Vec<[u8; 32]>>()
+        .try_into()
+        .unwrap()
 }
