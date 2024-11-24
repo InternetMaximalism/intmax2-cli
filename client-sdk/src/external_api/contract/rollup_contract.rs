@@ -383,7 +383,7 @@ mod tests {
         rollup_contract
             .post_registration_block(
                 private_key,
-                10.into(),
+                0.into(),
                 signature.tx_tree_root,
                 signature.sender_flag,
                 signature.agg_pubkey.clone(),
