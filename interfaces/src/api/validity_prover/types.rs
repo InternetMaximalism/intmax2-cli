@@ -1,3 +1,5 @@
+use super::interface::DepositInfo;
+use crate::api::validity_prover::interface::AccountInfo;
 use intmax2_zkp::{
     circuits::validity::validity_pis::ValidityPublicInputs,
     common::{
@@ -11,9 +13,6 @@ use intmax2_zkp::{
 };
 use plonky2::{field::goldilocks_field::GoldilocksField, plonk::config::PoseidonGoldilocksConfig};
 use serde::{Deserialize, Serialize};
-
-use super::interface::DepositInfo;
-
 type F = GoldilocksField;
 type C = PoseidonGoldilocksConfig;
 const D: usize = 2;
@@ -123,4 +122,16 @@ pub struct GetDepositMerkleProofQuery {
 #[serde(rename_all = "camelCase")]
 pub struct GetDepositMerkleProofResponse {
     pub deposit_merkle_proof: DepositMerkleProof,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GetAccountInfoQuery {
+    pub pubkey: U256,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GetAccountInfoResponse {
+    pub account_info: AccountInfo,
 }

@@ -27,6 +27,13 @@ pub struct DepositInfo {
     pub deposit_index: u32,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AccountInfo {
+    pub account_id: Option<u64>,
+    pub block_number: u32,
+}
+
 #[async_trait(?Send)]
 pub trait ValidityProverClientInterface {
     async fn get_block_number(&self) -> Result<u32, ServerError>;
@@ -72,4 +79,6 @@ pub trait ValidityProverClientInterface {
         block_number: u32,
         deposit_index: u32,
     ) -> Result<DepositMerkleProof, ServerError>;
+
+    async fn get_account_info(&self, pubkey: U256) -> Result<AccountInfo, ServerError>;
 }
