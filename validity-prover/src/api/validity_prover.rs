@@ -7,11 +7,10 @@ use intmax2_zkp::{
     common::{
         block::Block,
         trees::{
-            account_tree::AccountTree, block_hash_tree::BlockHashTree, deposit_tree::DepositTree,
-            sender_tree::SenderLeaf,
+            account_tree::AccountTree, block_hash_tree::BlockHashTree, sender_tree::SenderLeaf,
         },
     },
-    constants::{BLOCK_HASH_TREE_HEIGHT, DEPOSIT_TREE_HEIGHT},
+    constants::BLOCK_HASH_TREE_HEIGHT,
     ethereum_types::bytes32::Bytes32,
 };
 use plonky2::{
@@ -19,6 +18,8 @@ use plonky2::{
     plonk::{config::PoseidonGoldilocksConfig, proof::ProofWithPublicInputs},
 };
 use tokio::sync::RwLock;
+
+use crate::utils::deposit_hash_tree::DepositHashTree;
 
 use super::observer::{Observer, ObserverError};
 
@@ -39,6 +40,9 @@ pub enum ValidityProverError {
 
     #[error("Validity prove error: {0}")]
     ValidityProveError(String),
+
+    #[error("Deposit tree root mismatch")]
+    DepositTreeRootMismatch(Bytes32, Bytes32),
 }
 
 pub struct ValidityProver {
@@ -54,7 +58,7 @@ struct Data {
     validity_proofs: HashMap<u32, ProofWithPublicInputs<F, C, D>>,
     account_trees: HashMap<u32, AccountTree>,
     block_trees: HashMap<u32, BlockHashTree>,
-    deposit_trees: HashMap<u32, DepositTree>,
+    deposit_hash_trees: HashMap<u32, DepositHashTree>,
     tx_tree_roots: HashMap<Bytes32, u32>,
     sender_leaves: HashMap<u32, Vec<SenderLeaf>>,
 }
@@ -71,9 +75,9 @@ impl Data {
         let mut block_trees = HashMap::new();
         block_trees.insert(last_block_number, block_tree);
 
-        let deposit_tree = DepositTree::new(DEPOSIT_TREE_HEIGHT);
-        let mut deposit_trees = HashMap::new();
-        deposit_trees.insert(last_block_number, deposit_tree);
+        let deposit_hash_tree = DepositHashTree::new();
+        let mut deposit_hash_trees = HashMap::new();
+        deposit_hash_trees.insert(last_block_number, deposit_hash_tree);
 
         let mut sender_leaves = HashMap::new();
         sender_leaves.insert(last_block_number, vec![]);
@@ -83,7 +87,7 @@ impl Data {
             validity_proofs: HashMap::new(),
             account_trees,
             block_trees,
-            deposit_trees,
+            deposit_hash_trees,
             tx_tree_roots: HashMap::new(),
             sender_leaves,
         }
@@ -138,7 +142,11 @@ impl ValidityProver {
         let last_block_number = data.last_block_number;
         let mut account_tree = data.account_trees.get(&last_block_number).unwrap().clone();
         let mut block_tree = data.block_trees.get(&last_block_number).unwrap().clone();
-        let mut deposit_tree = data.deposit_trees.get(&last_block_number).unwrap().clone();
+        let mut deposit_hash_tree = data
+            .deposit_hash_trees
+            .get(&last_block_number)
+            .unwrap()
+            .clone();
 
         let next_block_number = self.observer.get_next_block_number().await;
         for block_number in (last_block_number + 1)..next_block_number {
@@ -162,12 +170,20 @@ impl ValidityProver {
                 .validity_processor()
                 .prove(&prev_validity_proof, &validity_witness)
                 .map_err(|e| ValidityProverError::ValidityProveError(e.to_string()))?;
-            let deposits = self
+            let deposit_events = self
                 .observer
                 .get_deposits_between_blocks(block_number)
                 .await;
-            for deposit in deposits {
-                deposit_tree.push(deposit);
+            for event in deposit_events {
+                deposit_hash_tree.push(event.deposit_hash);
+            }
+
+            // assertion
+            if full_block.block.deposit_tree_root != deposit_hash_tree.get_root() {
+                return Err(ValidityProverError::DepositTreeRootMismatch(
+                    full_block.block.deposit_tree_root,
+                    deposit_hash_tree.get_root(),
+                ));
             }
 
             // update self
@@ -176,10 +192,11 @@ impl ValidityProver {
             data.account_trees
                 .insert(block_number, account_tree.clone());
             data.block_trees.insert(block_number, block_tree.clone());
+            data.deposit_hash_trees
+                .insert(block_number, deposit_hash_tree.clone());
             data.validity_proofs.insert(block_number, validity_proof);
             data.sender_leaves
                 .insert(block_number, block_witness.get_sender_tree().leaves());
-
             let tx_tree_root = full_block.signature.tx_tree_root;
             if tx_tree_root != Bytes32::default()
                 && validity_witness.to_validity_pis().unwrap().is_valid_block
@@ -187,8 +204,6 @@ impl ValidityProver {
                 data.tx_tree_roots.insert(tx_tree_root, block_number);
             }
         }
-        data.deposit_trees = contract.deposit_trees.clone();
-
         Ok(())
     }
 
