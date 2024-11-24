@@ -1,5 +1,21 @@
+use std::sync::Arc;
+
 use super::validity_prover::ValidityProver;
 
+#[derive(Clone)]
 pub struct State {
-    pub validity_prover: ValidityProver,
+    pub validity_prover: Arc<ValidityProver>,
+}
+
+impl State {
+    pub fn new(validity_prover: ValidityProver) -> Self {
+        Self {
+            validity_prover: Arc::new(validity_prover),
+        }
+    }
+
+    pub async fn sync_task(&self) -> anyhow::Result<()> {
+        self.validity_prover.sync().await?;
+        Ok(())
+    }
 }
