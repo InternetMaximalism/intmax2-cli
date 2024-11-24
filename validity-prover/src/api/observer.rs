@@ -185,6 +185,13 @@ impl Observer {
             .rollup_contract
             .get_deposit_leaf_inserted_events(sync_eth_block_number)
             .await?;
+        let last_block_number = full_blocks
+            .last()
+            .map(|fb| fb.full_block.block.block_number);
+        let last_deposit_index = deposit_leaf_events
+            .last()
+            .map(|dle| dle.deposit_index)
+            .unwrap_or(0);
 
         self.data.write().await.full_blocks.extend(full_blocks);
         self.data
@@ -197,10 +204,10 @@ impl Observer {
             .await
             .sync_eth_block_number
             .replace(current_eth_block_number);
-
         log::info!(
-            "Observer synced to block number: {}",
-            current_eth_block_number
+            "Observer synced to block number: {}, deposit index: {}",
+            last_block_number.unwrap_or(0),
+            last_deposit_index
         );
         Ok(())
     }

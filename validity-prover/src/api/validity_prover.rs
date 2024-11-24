@@ -48,7 +48,7 @@ pub enum ValidityProverError {
     #[error("Validity prove error: {0}")]
     ValidityProveError(String),
 
-    #[error("Deposit tree root mismatch")]
+    #[error("Deposit tree root mismatch: expected {0}, got {1}")]
     DepositTreeRootMismatch(Bytes32, Bytes32),
 
     #[error("Validity proof not found for block number {0}")]

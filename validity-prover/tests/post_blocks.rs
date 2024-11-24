@@ -2,7 +2,10 @@ use std::{thread::sleep, time::Duration};
 
 use ethers::types::H256;
 use intmax2_client_sdk::external_api::contract::rollup_contract::RollupContract;
-use intmax2_zkp::common::signature::SignatureContent;
+use intmax2_zkp::{
+    common::signature::SignatureContent,
+    ethereum_types::{bytes32::Bytes32, u32limb_trait::U32LimbTrait},
+};
 use serde::Deserialize;
 use validity_prover::Env;
 
@@ -40,6 +43,14 @@ async fn post_blocks() -> anyhow::Result<()> {
                 signature.agg_signature,
                 signature.message_point,
                 pubkeys,
+            )
+            .await?;
+
+        rollup_contract
+            .process_deposits(
+                priv_key_env.block_builder_private_key,
+                0,
+                &[Bytes32::rand(&mut rng)],
             )
             .await?;
 
