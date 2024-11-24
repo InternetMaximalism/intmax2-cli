@@ -285,7 +285,7 @@ impl RollupContract {
         agg_pubkey: FlatG1,
         agg_signature: FlatG2,
         message_point: FlatG2,
-        sender_public_keys: Vec<U256>, // dummy pubkeys are trimmed
+        sender_public_keys: Vec<U256>,
     ) -> Result<H256, BlockchainError> {
         let contract = self.get_contract_with_signer(signer_private_key).await?;
         let tx_tree_root: [u8; 32] = tx_tree_root.to_bytes_be().try_into().unwrap();
@@ -327,7 +327,7 @@ impl RollupContract {
         agg_signature: FlatG2,
         message_point: FlatG2,
         public_keys_hash: Bytes32,
-        account_ids: Vec<u8>, // dummy accounts are trimmed
+        account_ids: Vec<u8>,
     ) -> Result<H256, BlockchainError> {
         let contract = self.get_contract_with_signer(signer_private_key).await?;
         let tx_tree_root: [u8; 32] = tx_tree_root.to_bytes_be().try_into().unwrap();
