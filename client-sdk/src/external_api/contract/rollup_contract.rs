@@ -357,6 +357,29 @@ impl RollupContract {
         .await?;
         Ok(tx_hash)
     }
+
+    pub async fn process_deposits(
+        &self,
+        signer_private_key: H256,
+        last_processed_deposit_id: u32,
+        deposit_hashes: &[Bytes32],
+    ) -> Result<H256, BlockchainError> {
+        let contract = self.get_contract_with_signer(signer_private_key).await?;
+        let deposit_hashes: Vec<[u8; 32]> = deposit_hashes
+            .iter()
+            .map(|e| e.to_bytes_be())
+            .map(|e| e.try_into().unwrap())
+            .collect();
+        let mut tx = contract.process_deposits(last_processed_deposit_id.into(), deposit_hashes);
+        let tx_hash = handle_contract_call(
+            &mut tx,
+            get_address(self.chain_id, signer_private_key),
+            "process_deposits",
+            "process_deposits",
+        )
+        .await?;
+        Ok(tx_hash)
+    }
 }
 
 fn encode_flat_g1(g1: &FlatG1) -> [[u8; 32]; 2] {
