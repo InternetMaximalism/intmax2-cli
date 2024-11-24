@@ -6,7 +6,7 @@ use ethers::{
     middleware::SignerMiddleware,
     providers::{Http, Provider},
     signers::Wallet,
-    types::{Bytes, H256},
+    types::{self, Bytes, H256},
 };
 use intmax2_zkp::{
     common::{
@@ -25,6 +25,7 @@ use super::{
     data_decoder::decode_post_block_calldata,
     handlers::handle_contract_call,
     interface::BlockchainError,
+    proxy_contract::ProxyContract,
     utils::{get_address, get_client, get_client_with_signer, get_transaction},
 };
 
@@ -53,7 +54,7 @@ pub struct BlockPosted {
 pub struct RollupContract {
     pub rpc_url: String,
     pub chain_id: u64,
-    pub contract_address: ethers::types::Address,
+    pub address: ethers::types::Address,
     pub deployed_block_number: u64,
 }
 
@@ -61,25 +62,40 @@ impl RollupContract {
     pub fn new(
         rpc_url: String,
         chain_id: u64,
-        contract_address: ethers::types::Address,
+        address: ethers::types::Address,
         deployed_block_number: u64,
     ) -> Self {
         Self {
             rpc_url,
             chain_id,
-            contract_address: contract_address,
+            address,
             deployed_block_number,
         }
     }
 
     pub async fn deploy(rpc_url: &str, chain_id: u64, private_key: H256) -> anyhow::Result<Self> {
         let client = get_client_with_signer(rpc_url, chain_id, private_key).await?;
-        todo!()
+        let impl_contract = Rollup::deploy::<()>(Arc::new(client), ())?.send().await?;
+        let impl_address = impl_contract.address();
+        let proxy =
+            ProxyContract::deploy(rpc_url, chain_id, private_key, impl_address, &[]).await?;
+        let address = proxy.address();
+        let deployed_block_number = proxy.deployed_block_number();
+        Ok(Self::new(
+            rpc_url.to_string(),
+            chain_id,
+            address,
+            deployed_block_number,
+        ))
+    }
+
+    pub fn address(&self) -> ethers::types::Address {
+        self.address
     }
 
     pub async fn get_contract(&self) -> Result<rollup::Rollup<Provider<Http>>, BlockchainError> {
         let client = get_client(&self.rpc_url).await?;
-        let contract = Rollup::new(self.contract_address, client);
+        let contract = Rollup::new(self.address, client);
         Ok(contract)
     }
 
@@ -89,7 +105,7 @@ impl RollupContract {
     ) -> Result<rollup::Rollup<SignerMiddleware<Provider<Http>, Wallet<SigningKey>>>, BlockchainError>
     {
         let client = get_client_with_signer(&self.rpc_url, self.chain_id, private_key).await?;
-        let contract = Rollup::new(self.contract_address, Arc::new(client));
+        let contract = Rollup::new(self.address, Arc::new(client));
         Ok(contract)
     }
 
@@ -106,7 +122,7 @@ impl RollupContract {
             let new_events = with_retry(|| async {
                 contract
                     .deposit_leaf_inserted_filter()
-                    .address(self.contract_address.into())
+                    .address(self.address.into())
                     .from_block(from_block)
                     .to_block(from_block + EVENT_BLOCK_RANGE - 1)
                     .query_with_meta()
@@ -150,7 +166,7 @@ impl RollupContract {
             let new_events = with_retry(|| async {
                 contract
                     .block_posted_filter()
-                    .address(self.contract_address.into())
+                    .address(self.address.into())
                     .from_block(from_block)
                     .to_block(from_block + EVENT_BLOCK_RANGE - 1)
                     .query_with_meta()
@@ -210,6 +226,29 @@ impl RollupContract {
             full_blocks.push(full_block);
         }
         Ok(full_blocks)
+    }
+
+    pub async fn initialize(
+        &self,
+        signer_private_key: H256,
+        scroll_messenger_address: types::Address,
+        liquidity_address: types::Address,
+        constribution_address: types::Address,
+    ) -> Result<H256, BlockchainError> {
+        let contract = self.get_contract_with_signer(signer_private_key).await?;
+        let mut tx = contract.initialize(
+            scroll_messenger_address,
+            liquidity_address,
+            constribution_address,
+        );
+        let tx_hash = handle_contract_call(
+            &mut tx,
+            get_address(self.chain_id, signer_private_key),
+            "initialize",
+            "initialize",
+        )
+        .await?;
+        Ok(tx_hash)
     }
 
     pub async fn post_registration_block(
@@ -317,15 +356,7 @@ fn encode_flat_g2(g2: &FlatG2) -> [[u8; 32]; 4] {
 
 #[cfg(test)]
 mod tests {
-    use std::{sync::Arc, time::Duration};
-
-    use ethers::{
-        core::utils::Anvil,
-        middleware::SignerMiddleware,
-        providers::{Http, Provider},
-        signers::{LocalWallet, Signer},
-        types::{H160, H256},
-    };
+    use ethers::{core::utils::Anvil, types::H256};
     use intmax2_zkp::{
         common::signature::{
             flatten::{FlatG1, FlatG2},
@@ -334,67 +365,39 @@ mod tests {
         ethereum_types::{
             bytes16::Bytes16, bytes32::Bytes32, u256::U256, u32limb_trait::U32LimbTrait,
         },
+        utils::test_utils::signature,
     };
 
-    use crate::external_api::contract::rollup_contract::{Rollup, RollupContract};
+    use crate::external_api::contract::rollup_contract::RollupContract;
 
     #[tokio::test]
     async fn test_contract_deployment() -> anyhow::Result<()> {
         let anvil = Anvil::new().spawn();
-        let wallet: LocalWallet = anvil.keys()[0].clone().into();
         let private_key: [u8; 32] = anvil.keys()[0].to_bytes().try_into().unwrap();
         let private_key = H256::from_slice(&private_key);
         let rpc_url = anvil.endpoint();
         let chain_id = anvil.chain_id();
-        println!("RPC URL: {}", rpc_url);
-        let provider =
-            Provider::<Http>::try_from(anvil.endpoint())?.interval(Duration::from_millis(10u64));
-        let client = Arc::new(SignerMiddleware::new(
-            provider,
-            wallet.with_chain_id(anvil.chain_id()),
-        ));
-        let rollup_contract = Rollup::deploy::<()>(client, ())
-            .unwrap()
-            .send()
-            .await
-            .unwrap();
-        let contract_address: H160 = rollup_contract.address();
-        let zero_address = ethers::types::Address::random();
-        rollup_contract
-            .initialize(zero_address, zero_address, zero_address)
-            .send()
-            .await
-            .unwrap();
 
-        let rollup_contract = RollupContract::new(rpc_url, chain_id, contract_address, 0);
+        let rollup_contract = RollupContract::deploy(&rpc_url, chain_id, private_key).await?;
+        let zero_address = ethers::types::Address::zero();
+        rollup_contract
+            .initialize(private_key, zero_address, zero_address, zero_address)
+            .await?;
 
         let mut rng = rand::thread_rng();
-        let tx_tree_root = Bytes32::rand(&mut rng);
-        let sender_flag = Bytes16::rand(&mut rng);
-        let agg_pubkey = FlatG1([U256::rand(&mut rng), U256::rand(&mut rng)]);
-        let agg_signature = FlatG2([
-            U256::rand(&mut rng),
-            U256::rand(&mut rng),
-            U256::rand(&mut rng),
-            U256::rand(&mut rng),
-        ]);
-        let message_point = FlatG2([
-            U256::rand(&mut rng),
-            U256::rand(&mut rng),
-            U256::rand(&mut rng),
-            U256::rand(&mut rng),
-        ]);
+        let (keys, signature) = SignatureContent::rand(&mut rng);
+        let pubkeys = keys.iter().map(|e| e.pubkey).collect::<Vec<_>>();
 
         rollup_contract
             .post_registration_block(
                 private_key,
-                0.into(),
-                tx_tree_root,
-                sender_flag,
-                agg_pubkey,
-                agg_signature,
-                message_point,
-                vec![],
+                10.into(),
+                signature.tx_tree_root,
+                signature.sender_flag,
+                signature.agg_pubkey,
+                signature.agg_signature,
+                signature.message_point,
+                pubkeys,
             )
             .await?;
 
