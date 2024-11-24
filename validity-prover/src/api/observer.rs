@@ -10,7 +10,7 @@ use tokio::sync::Mutex;
 pub struct Observer {
     rollup_contract: RollupContract,
 
-    // TODO: make this DB backed
+    // TODO: make these DB backed
     sync_eth_block_number: Arc<Mutex<Option<u64>>>,
     full_blocks: Arc<Mutex<Vec<FullBlockWithMeta>>>,
     deposit_leaf_events: Arc<Mutex<Vec<DepositLeafInserted>>>,
@@ -20,9 +20,6 @@ pub struct Observer {
 pub enum ObserverError {
     #[error("Blockchain error: {0}")]
     BlockchainError(#[from] BlockchainError),
-
-    #[error("Given block number is out of range: {0}")]
-    InvalidBlockNumber(u64),
 }
 
 impl Observer {
