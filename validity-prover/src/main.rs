@@ -24,7 +24,13 @@ struct Config {
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
     init_logger();
-    let config: Config = envy::from_env().map_err(|e| io::Error::new(io::ErrorKind::Other, e))?;
+    dotenv::dotenv().ok();
+    let config: Config = envy::from_env().map_err(|e| {
+        io::Error::new(
+            io::ErrorKind::Other,
+            format!("Failed to parse environment variables: {}", e),
+        )
+    })?;
     let validity_prover = ValidityProver::new(
         &config.rpc_url,
         config.chain_id,
