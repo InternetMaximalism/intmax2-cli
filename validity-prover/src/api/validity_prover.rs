@@ -1,12 +1,17 @@
 use std::sync::{Arc, Mutex, OnceLock};
 
 use hashbrown::HashMap;
+use intmax2_client_sdk::external_api::contract::rollup_contract::{self, RollupContract};
 use intmax2_zkp::{
     circuits::validity::validity_processor::ValidityProcessor,
-    common::trees::{
-        account_tree::AccountTree, block_hash_tree::BlockHashTree, deposit_tree::DepositTree,
-        sender_tree::SenderLeaf,
+    common::{
+        block::Block,
+        trees::{
+            account_tree::AccountTree, block_hash_tree::BlockHashTree, deposit_tree::DepositTree,
+            sender_tree::SenderLeaf,
+        },
     },
+    constants::{BLOCK_HASH_TREE_HEIGHT, DEPOSIT_TREE_HEIGHT},
     ethereum_types::bytes32::Bytes32,
 };
 use plonky2::{
@@ -39,18 +44,56 @@ pub struct Data {
 }
 
 impl Data {
-    // pub fn new() -> Self {
-    //     let last_block_number = 0;
-    //     let account_tree = AccountTree::initialize();
-    //     let mut block_tree = BlockHashTree::new(BLOCK_HASH_TREE_HEIGHT);
-    //     block_tree.push(Block::genesis().hash());
+    pub fn new() -> Self {
+        let last_block_number = 0;
+        let account_tree = AccountTree::initialize();
+        let mut block_tree = BlockHashTree::new(BLOCK_HASH_TREE_HEIGHT);
+        block_tree.push(Block::genesis().hash());
 
-    //     let mut account_trees = HashMap::new();
-    //     account_trees.insert(last_block_number, account_tree);
-    //     let mut block_trees = HashMap::new();
-    //     block_trees.insert(last_block_number, block_tree);
-    //     let deposit_trees = HashMap::new();
-    // }
+        let mut account_trees = HashMap::new();
+        account_trees.insert(last_block_number, account_tree);
+        let mut block_trees = HashMap::new();
+        block_trees.insert(last_block_number, block_tree);
+
+        let deposit_tree = DepositTree::new(DEPOSIT_TREE_HEIGHT);
+        let mut deposit_trees = HashMap::new();
+        deposit_trees.insert(last_block_number, deposit_tree);
+
+        let mut sender_leaves = HashMap::new();
+        sender_leaves.insert(last_block_number, vec![]);
+
+        Self {
+            last_block_number,
+            validity_proofs: HashMap::new(),
+            account_trees,
+            block_trees,
+            deposit_trees,
+            tx_tree_roots: HashMap::new(),
+            sender_leaves,
+        }
+    }
 }
 
-impl ValidityProver {}
+impl ValidityProver {
+    pub fn new(
+        rpc_url: &str,
+        chain_id: u64,
+        rollup_contract_address: ethers::types::Address,
+        rollup_contract_deployed_block_number: u64,
+    ) -> Self {
+        let rollup_contract = RollupContract::new(
+            rpc_url,
+            chain_id,
+            rollup_contract_address,
+            rollup_contract_deployed_block_number,
+        );
+        let observer = Observer::new(rollup_contract);
+        let validity_processor = OnceLock::new();
+        let data = Arc::new(Mutex::new(Data::new()));
+        Self {
+            validity_processor,
+            observer,
+            data,
+        }
+    }
+}
