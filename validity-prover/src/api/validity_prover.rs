@@ -2,7 +2,7 @@ use std::sync::{Arc, OnceLock};
 
 use hashbrown::HashMap;
 use intmax2_client_sdk::external_api::contract::rollup_contract::RollupContract;
-use intmax2_interfaces::api::validity_prover::interface::DepositInfo;
+use intmax2_interfaces::api::validity_prover::interface::{AccountInfo, DepositInfo};
 use intmax2_zkp::{
     circuits::validity::{
         validity_pis::ValidityPublicInputs, validity_processor::ValidityProcessor,
@@ -266,6 +266,20 @@ impl ValidityProver {
             .ok_or(ValidityProverError::AccountTreeNotFound(last_block_number))?
             .index(pubkey);
         Ok(index)
+    }
+
+    pub async fn get_account_info(&self, pubkey: U256) -> Result<AccountInfo, ValidityProverError> {
+        let data = self.data.read().await;
+        let block_number = data.last_block_number;
+        let account_tree = data
+            .account_trees
+            .get(&block_number)
+            .ok_or(ValidityProverError::AccountTreeNotFound(block_number))?;
+        let account_id = account_tree.index(pubkey);
+        Ok(AccountInfo {
+            block_number,
+            account_id,
+        })
     }
 
     pub async fn get_deposit_info(&self, deposit_hash: Bytes32) -> Option<DepositInfo> {
