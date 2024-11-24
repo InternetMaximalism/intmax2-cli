@@ -4,3 +4,4 @@ pub mod interface;
 pub mod liquidity_contract;
 pub mod rollup_contract;
 pub mod utils;
+pub mod proxy_contract;

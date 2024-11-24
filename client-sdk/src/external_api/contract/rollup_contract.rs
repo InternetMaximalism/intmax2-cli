@@ -72,6 +72,11 @@ impl RollupContract {
         }
     }
 
+    pub async fn deploy(rpc_url: &str, chain_id: u64, private_key: H256) -> anyhow::Result<Self> {
+        let client = get_client_with_signer(rpc_url, chain_id, private_key).await?;
+        todo!()
+    }
+
     pub async fn get_contract(&self) -> Result<rollup::Rollup<Provider<Http>>, BlockchainError> {
         let client = get_client(&self.rpc_url).await?;
         let contract = Rollup::new(self.contract_address, client);
@@ -354,7 +359,7 @@ mod tests {
             .await
             .unwrap();
         let contract_address: H160 = rollup_contract.address();
-        let zero_address = ethers::types::Address::zero();
+        let zero_address = ethers::types::Address::random();
         rollup_contract
             .initialize(zero_address, zero_address, zero_address)
             .send()
