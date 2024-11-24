@@ -4,7 +4,8 @@ use intmax2_client_sdk::external_api::contract::{
     interface::BlockchainError,
     rollup_contract::{DepositLeafInserted, FullBlockWithMeta, RollupContract},
 };
-use intmax2_zkp::common::witness::full_block::FullBlock;
+use intmax2_interfaces::api::validity_prover::interface::DepositInfo;
+use intmax2_zkp::{common::witness::full_block::FullBlock, ethereum_types::bytes32::Bytes32};
 use tokio::sync::Mutex;
 
 pub struct Observer {
@@ -34,6 +35,46 @@ impl Observer {
 
     pub async fn sync_eth_block_number(&self) -> Option<u64> {
         self.sync_eth_block_number.lock().await.clone()
+    }
+
+    /// Get the DepositInfo corresponding to the given deposit_hash.
+    pub async fn get_deposit_info(&self, deposit_hash: Bytes32) -> Option<DepositInfo> {
+        let event = self
+            .deposit_leaf_events
+            .lock()
+            .await
+            .iter()
+            .find(|deposit| deposit.deposit_hash == deposit_hash)
+            .cloned();
+        let event = if let Some(e) = event {
+            e
+        } else {
+            return None;
+        };
+        let is_after = |a: (u64, u64), b: (u64, u64)| a.0 > b.0 || (a.0 == b.0 && a.1 > b.1);
+        let deposit_time = (event.eth_block_number, event.eth_tx_index);
+
+        let block = self
+            .full_blocks
+            .lock()
+            .await
+            .iter()
+            .filter(|block| {
+                let block_time = (block.eth_block_number, block.eth_tx_index);
+                is_after(block_time, deposit_time)
+            })
+            .min_by_key(|block| (block.eth_block_number, block.eth_tx_index))
+            .cloned();
+        let block = if let Some(b) = block {
+            b
+        } else {
+            return None;
+        };
+        Some(DepositInfo {
+            deposit_hash,
+            block_number: block.full_block.block.block_number,
+            deposit_index: event.deposit_index,
+        })
     }
 
     /// Get the FullBlocks that were newly added from the specified block number.
