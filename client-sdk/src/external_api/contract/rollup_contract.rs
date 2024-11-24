@@ -254,7 +254,7 @@ impl RollupContract {
     pub async fn post_registration_block(
         &self,
         signer_private_key: H256,
-        msg_value: U256,
+        msg_value: ethers::types::U256,
         tx_tree_root: Bytes32,
         sender_flag: Bytes16,
         agg_pubkey: FlatG1,
@@ -272,7 +272,6 @@ impl RollupContract {
             .iter()
             .map(|e| ethers::types::U256::from_big_endian(&e.to_bytes_be()))
             .collect();
-        let msg_value = ethers::types::U256::from_big_endian(&msg_value.to_bytes_be());
         let mut tx = contract
             .post_registration_block(
                 tx_tree_root,
@@ -296,7 +295,7 @@ impl RollupContract {
     pub async fn post_non_registration_block(
         &self,
         signer_private_key: H256,
-        msg_value: U256,
+        msg_value: ethers::types::U256,
         tx_tree_root: Bytes32,
         sender_flag: Bytes16,
         agg_pubkey: FlatG1,
@@ -313,7 +312,6 @@ impl RollupContract {
         let message_point = encode_flat_g2(&message_point);
         let public_keys_hash: [u8; 32] = public_keys_hash.to_bytes_be().try_into().unwrap();
         let account_ids: Bytes = Bytes::from(account_ids);
-        let msg_value = ethers::types::U256::from_big_endian(&msg_value.to_bytes_be());
         let mut tx = contract
             .post_non_registration_block(
                 tx_tree_root,
@@ -358,14 +356,8 @@ fn encode_flat_g2(g2: &FlatG2) -> [[u8; 32]; 4] {
 mod tests {
     use ethers::{core::utils::Anvil, types::H256};
     use intmax2_zkp::{
-        common::signature::{
-            flatten::{FlatG1, FlatG2},
-            SignatureContent,
-        },
-        ethereum_types::{
-            bytes16::Bytes16, bytes32::Bytes32, u256::U256, u32limb_trait::U32LimbTrait,
-        },
-        utils::test_utils::signature,
+        common::signature::SignatureContent,
+        ethereum_types::{bytes32::Bytes32, u32limb_trait::U32LimbTrait as _},
     };
 
     use crate::external_api::contract::rollup_contract::RollupContract;
@@ -394,12 +386,29 @@ mod tests {
                 10.into(),
                 signature.tx_tree_root,
                 signature.sender_flag,
+                signature.agg_pubkey.clone(),
+                signature.agg_signature.clone(),
+                signature.message_point.clone(),
+                pubkeys.clone(),
+            )
+            .await?;
+
+        rollup_contract
+            .post_non_registration_block(
+                private_key,
+                ethers::utils::parse_ether("1").unwrap().into(),
+                Bytes32::rand(&mut rng),
+                signature.sender_flag,
                 signature.agg_pubkey,
                 signature.agg_signature,
                 signature.message_point,
-                pubkeys,
+                Bytes32::rand(&mut rng),
+                vec![],
             )
             .await?;
+
+        let full_blocks = rollup_contract.get_full_blocks(None).await?;
+        assert_eq!(full_blocks.len(), 2);
 
         Ok(())
     }
