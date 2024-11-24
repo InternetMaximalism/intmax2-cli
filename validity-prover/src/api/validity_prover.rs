@@ -2,6 +2,11 @@ use std::sync::{Arc, OnceLock};
 
 use hashbrown::HashMap;
 use intmax2_client_sdk::external_api::contract::rollup_contract::RollupContract;
+use intmax2_interfaces::api::validity_prover::interface::DepositInfo;
+use intmax2_zkp::circuits::validity::validity_pis::ValidityPublicInputs;
+use intmax2_zkp::common::trees::account_tree::AccountMembershipProof;
+use intmax2_zkp::common::trees::deposit_tree::DepositMerkleProof;
+use intmax2_zkp::common::witness::update_witness::UpdateWitness;
 use intmax2_zkp::{
     circuits::validity::validity_processor::ValidityProcessor,
     common::{
@@ -11,7 +16,6 @@ use intmax2_zkp::{
             block_hash_tree::{BlockHashMerkleProof, BlockHashTree},
             sender_tree::SenderLeaf,
         },
-        witness::update_witness::UpdateWitness,
     },
     constants::BLOCK_HASH_TREE_HEIGHT,
     ethereum_types::{bytes32::Bytes32, u256::U256},
@@ -49,6 +53,12 @@ pub enum ValidityProverError {
 
     #[error("Validity proof not found for block number {0}")]
     ValidityProofNotFound(u32),
+
+    #[error("Block tree not found for block number {0}")]
+    BlockTreeNotFound(u32),
+
+    #[error("Account tree not found for block number {0}")]
+    AccountTreeNotFound(u32),
 
     #[error("Input error {0}")]
     InputError(String),
@@ -217,118 +227,113 @@ impl ValidityProver {
         Ok(())
     }
 
-    // pub async fn get_update_witness(
-    //     &self,
-    //     pubkey: U256,
-    //     root_block_number: u32,
-    //     leaf_block_number: u32,
-    //     is_prev_account_tree: bool,
-    // ) -> Result<UpdateWitness<F, C, D>, ValidityProverError> {
-    //     let validity_proof = self.get_validity_proof(root_block_number).await.ok_or(
-    //         ValidityProverError::ValidityProofNotFound(root_block_number),
-    //     )?;
-    //     let block_merkle_proof = self
-    //         .get_block_merkle_proof(root_block_number, leaf_block_number)
-    //         .map_err(|e| anyhow::anyhow!("failed to get block merkle proof: {}", e))?;
-    //     let account_tree_block_number = if is_prev_account_tree {
-    //         root_block_number - 1
-    //     } else {
-    //         root_block_number
-    //     };
-    //     let account_membership_proof = self
-    //         .get_account_membership_proof(account_tree_block_number, pubkey)
-    //         .map_err(|e| anyhow::anyhow!("failed to get account membership proof: {}", e))?;
-    //     Ok(UpdateWitness {
-    //         is_prev_account_tree,
-    //         validity_proof,
-    //         block_merkle_proof,
-    //         account_membership_proof,
-    //     })
-    // }
+    pub async fn get_update_witness(
+        &self,
+        pubkey: U256,
+        root_block_number: u32,
+        leaf_block_number: u32,
+        is_prev_account_tree: bool,
+    ) -> Result<UpdateWitness<F, C, D>, ValidityProverError> {
+        let validity_proof = self.get_validity_proof(root_block_number).await.ok_or(
+            ValidityProverError::ValidityProofNotFound(root_block_number),
+        )?;
+        let block_merkle_proof = self
+            .get_block_merkle_proof(root_block_number, leaf_block_number)
+            .await?;
+        let account_tree_block_number = if is_prev_account_tree {
+            root_block_number - 1
+        } else {
+            root_block_number
+        };
+        let account_membership_proof = self
+            .get_account_membership_proof(account_tree_block_number, pubkey)
+            .await?;
+        Ok(UpdateWitness {
+            is_prev_account_tree,
+            validity_proof,
+            block_merkle_proof,
+            account_membership_proof,
+        })
+    }
 
-    // // utilities
-    // pub fn get_account_id(&self, pubkey: U256) -> Option<u64> {
-    //     self.account_trees
-    //         .get(&self.last_block_number)
-    //         .unwrap()
-    //         .index(pubkey)
-    // }
+    // utilities
+    pub async fn get_account_id(&self, pubkey: U256) -> Result<Option<u64>, ValidityProverError> {
+        let data = self.data.read().await;
+        let last_block_number = data.last_block_number;
+        let index = data
+            .account_trees
+            .get(&last_block_number)
+            .ok_or(ValidityProverError::AccountTreeNotFound(last_block_number))?
+            .index(pubkey);
+        Ok(index)
+    }
 
-    // // returns deposit index and block number
-    // pub fn get_deposit_index_and_block_number(&self, deposit_hash: Bytes32) -> Option<(u32, u32)> {
-    //     self.deposit_correspondence.get(&deposit_hash).cloned()
-    // }
+    pub async fn get_deposit_info(&self, deposit_hash: Bytes32) -> Option<DepositInfo> {
+        self.observer.get_deposit_info(deposit_hash).await
+    }
 
-    // pub fn get_block_number_by_tx_tree_root(&self, tx_tree_root: Bytes32) -> Option<u32> {
-    //     self.tx_tree_roots.get(&tx_tree_root).cloned()
-    // }
+    pub async fn get_block_number_by_tx_tree_root(&self, tx_tree_root: Bytes32) -> Option<u32> {
+        let data = self.data.read().await;
+        data.tx_tree_roots.get(&tx_tree_root).cloned()
+    }
 
-    // pub fn get_validity_pis(&self, block_number: u32) -> Option<ValidityPublicInputs> {
-    //     self.validity_proofs
-    //         .get(&block_number)
-    //         .map(|proof| ValidityPublicInputs::from_pis(&proof.public_inputs))
-    // }
+    pub async fn get_validity_pis(&self, block_number: u32) -> Option<ValidityPublicInputs> {
+        let validity_proof = self.get_validity_proof(block_number).await;
+        validity_proof.map(|proof| ValidityPublicInputs::from_pis(&proof.public_inputs))
+    }
 
-    // pub fn get_sender_leaves(&self, block_number: u32) -> Option<Vec<SenderLeaf>> {
-    //     self.sender_leaves.get(&block_number).cloned()
-    // }
+    pub async fn get_sender_leaves(&self, block_number: u32) -> Option<Vec<SenderLeaf>> {
+        let data = self.data.read().await;
+        data.sender_leaves.get(&block_number).cloned()
+    }
 
-    // pub fn get_block_merkle_proof(
-    //     &self,
-    //     root_block_number: u32,
-    //     leaf_block_number: u32,
-    // ) -> Result<BlockHashMerkleProof, ValidityProverError> {
-    //     // if leaf_block_number > root_block_number {
-    //     //     return Err
-    //     // }
+    pub async fn get_block_merkle_proof(
+        &self,
+        root_block_number: u32,
+        leaf_block_number: u32,
+    ) -> Result<BlockHashMerkleProof, ValidityProverError> {
+        if leaf_block_number > root_block_number {
+            return Err(ValidityProverError::InputError(
+                "leaf_block_number should be smaller than root_block_number".to_string(),
+            ));
+        }
+        let data = self.data.read().await;
+        let block_tree = data
+            .block_trees
+            .get(&root_block_number)
+            .ok_or(ValidityProverError::BlockTreeNotFound(root_block_number))?;
+        Ok(block_tree.prove(leaf_block_number as u64))
+    }
 
-    //     // ensure!(
-    //     //     leaf_block_number <= root_block_number,
-    //     //     "leaf_block_number should be smaller than root_block_number"
-    //     // );
-    //     let block_tree = &self
-    //         .block_trees
-    //         .get(&root_block_number)
-    //         .ok_or(anyhow::anyhow!(
-    //             "block tree not found for block number {}",
-    //             root_block_number
-    //         ))?;
-    //     Ok(block_tree.prove(leaf_block_number as u64))
-    // }
+    async fn get_account_membership_proof(
+        &self,
+        block_number: u32,
+        pubkey: U256,
+    ) -> Result<AccountMembershipProof, ValidityProverError> {
+        let data = self.data.read().await;
+        let account_tree = data
+            .account_trees
+            .get(&block_number)
+            .ok_or(ValidityProverError::AccountTreeNotFound(block_number))?;
+        Ok(account_tree.prove_membership(pubkey))
+    }
 
-    // fn get_account_membership_proof(
-    //     &self,
-    //     block_number: u32,
-    //     pubkey: U256,
-    // ) -> anyhow::Result<AccountMembershipProof> {
-    //     let account_tree = &self
-    //         .account_trees
-    //         .get(&block_number)
-    //         .ok_or(anyhow::anyhow!(
-    //             "account tree not found for block number {}",
-    //             block_number
-    //         ))?;
-    //     Ok(account_tree.prove_membership(pubkey))
-    // }
+    pub async fn get_block_number(&self) -> u32 {
+        self.data.read().await.last_block_number
+    }
 
-    // pub fn block_number(&self) -> u32 {
-    //     self.last_block_number
-    // }
-
-    // pub fn get_deposit_merkle_proof(
-    //     &self,
-    //     block_number: u32,
-    //     deposit_index: u32,
-    // ) -> anyhow::Result<DepositMerkleProof> {
-    //     let deposit_tree = &self
-    //         .deposit_trees
-    //         .get(&block_number)
-    //         .ok_or(anyhow::anyhow!(
-    //             "deposit tree not found for block number {}",
-    //             block_number
-    //         ))?;
-    //     Ok(deposit_tree.prove(deposit_index as u64))
-    // }
+    pub async fn get_deposit_merkle_proof(
+        &self,
+        block_number: u32,
+        deposit_index: u32,
+    ) -> Result<DepositMerkleProof, ValidityProverError> {
+        let data = self.data.read().await;
+        let deposit_tree = data
+            .deposit_hash_trees
+            .get(&block_number)
+            .ok_or(ValidityProverError::BlockTreeNotFound(block_number))?;
+        Ok(deposit_tree.prove(deposit_index))
+    }
 
     pub fn validity_processor(&self) -> &ValidityProcessor<F, C, D> {
         self.validity_processor
