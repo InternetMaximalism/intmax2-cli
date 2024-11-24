@@ -37,7 +37,10 @@ abigen!(Rollup, "abi/Rollup.json",);
 pub struct DepositLeafInserted {
     pub deposit_index: u32,
     pub deposit_hash: Bytes32,
-    pub block_number: u64,
+
+    // meta data
+    pub eth_block_number: u64,
+    pub eth_tx_index: u64,
 }
 
 #[derive(Clone, Debug)]
@@ -47,7 +50,18 @@ pub struct BlockPosted {
     pub block_number: u32,
     pub deposit_tree_root: Bytes32,
     pub signature_hash: Bytes32,
+
+    // meta data
     pub tx_hash: H256,
+    pub eth_block_number: u64,
+    pub eth_tx_index: u64,
+}
+
+#[derive(Clone, Debug)]
+pub struct FullBlockWithMeta {
+    pub full_block: FullBlock,
+    pub eth_block_number: u64,
+    pub eth_tx_index: u64,
 }
 
 #[derive(Debug, Clone)]
@@ -71,6 +85,10 @@ impl RollupContract {
             address,
             deployed_block_number,
         }
+    }
+
+    pub async fn get_block_number(&self) -> Result<u64, BlockchainError> {
+        get_latest_block_number(&self.rpc_url).await
     }
 
     pub async fn deploy(rpc_url: &str, chain_id: u64, private_key: H256) -> anyhow::Result<Self> {
@@ -109,7 +127,7 @@ impl RollupContract {
         Ok(contract)
     }
 
-    pub async fn get_deposit_leaf_inserted_event(
+    pub async fn get_deposit_leaf_inserted_events(
         &self,
         from_block: Option<u64>,
     ) -> Result<Vec<DepositLeafInserted>, BlockchainError> {
@@ -146,7 +164,8 @@ impl RollupContract {
             deposit_leaf_inserted_events.push(DepositLeafInserted {
                 deposit_index: event.deposit_index,
                 deposit_hash: Bytes32::from_bytes_be(&event.deposit_hash),
-                block_number: meta.block_number.as_u64(),
+                eth_block_number: meta.block_number.as_u64(),
+                eth_tx_index: meta.transaction_index.as_u64(),
             });
         }
         deposit_leaf_inserted_events.sort_by_key(|event| event.deposit_index);
@@ -192,16 +211,18 @@ impl RollupContract {
                 deposit_tree_root: Bytes32::from_bytes_be(&event.deposit_tree_root),
                 signature_hash: Bytes32::from_bytes_be(&event.signature_hash),
                 tx_hash: meta.transaction_hash,
+                eth_block_number: meta.block_number.as_u64(),
+                eth_tx_index: meta.transaction_index.as_u64(),
             });
         }
         blocks_posted_events.sort_by_key(|event| event.block_number);
         Ok(blocks_posted_events)
     }
 
-    pub async fn get_full_blocks(
+    pub async fn get_full_block_with_meta(
         &self,
         from_block: Option<u64>,
-    ) -> Result<Vec<FullBlock>, BlockchainError> {
+    ) -> Result<Vec<FullBlockWithMeta>, BlockchainError> {
         let blocks_posted_events = self.get_blocks_posted_event(from_block).await?;
         let mut full_blocks = Vec::new();
         for event in blocks_posted_events {
@@ -223,7 +244,11 @@ impl RollupContract {
                     e
                 ))
             })?;
-            full_blocks.push(full_block);
+            full_blocks.push(FullBlockWithMeta {
+                full_block,
+                eth_block_number: event.eth_block_number,
+                eth_tx_index: event.eth_tx_index,
+            });
         }
         Ok(full_blocks)
     }
@@ -363,7 +388,7 @@ mod tests {
     use crate::external_api::contract::rollup_contract::RollupContract;
 
     #[tokio::test]
-    async fn test_contract_deployment() -> anyhow::Result<()> {
+    async fn test_rollup_contract() -> anyhow::Result<()> {
         let anvil = Anvil::new().spawn();
         let private_key: [u8; 32] = anvil.keys()[0].to_bytes().try_into().unwrap();
         let private_key = H256::from_slice(&private_key);
@@ -407,7 +432,7 @@ mod tests {
             )
             .await?;
 
-        let full_blocks = rollup_contract.get_full_blocks(None).await?;
+        let full_blocks = rollup_contract.get_full_block_with_meta(None).await?;
         assert_eq!(full_blocks.len(), 2);
 
         Ok(())
