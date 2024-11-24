@@ -1,7 +1,7 @@
-use std::sync::{Arc, Mutex, OnceLock};
+use std::sync::{Arc, OnceLock};
 
 use hashbrown::HashMap;
-use intmax2_client_sdk::external_api::contract::rollup_contract::{self, RollupContract};
+use intmax2_client_sdk::external_api::contract::rollup_contract::RollupContract;
 use intmax2_zkp::{
     circuits::validity::validity_processor::ValidityProcessor,
     common::{
@@ -18,22 +18,38 @@ use plonky2::{
     field::goldilocks_field::GoldilocksField,
     plonk::{config::PoseidonGoldilocksConfig, proof::ProofWithPublicInputs},
 };
+use tokio::sync::RwLock;
 
-use super::observer::Observer;
+use super::observer::{Observer, ObserverError};
 
 type F = GoldilocksField;
 type C = PoseidonGoldilocksConfig;
 const D: usize = 2;
+
+#[derive(Debug, thiserror::Error)]
+pub enum ValidityProverError {
+    #[error("Observer error: {0}")]
+    ObserverError(#[from] ObserverError),
+
+    #[error("Block witness generation error: {0}")]
+    BlockWitnessGenerationError(String),
+
+    #[error("Failed to update trees: {0}")]
+    FailedToUpdateTrees(String),
+
+    #[error("Validity prove error: {0}")]
+    ValidityProveError(String),
+}
 
 pub struct ValidityProver {
     validity_processor: OnceLock<ValidityProcessor<F, C, D>>, // delayed initialization
     observer: Observer,
 
     // TODO: make these DB backed & more efficient snaphots (e.g. DB merkle tree)
-    data: Arc<Mutex<Data>>,
+    data: Arc<RwLock<Data>>,
 }
 
-pub struct Data {
+struct Data {
     last_block_number: u32,
     validity_proofs: HashMap<u32, ProofWithPublicInputs<F, C, D>>,
     account_trees: HashMap<u32, AccountTree>,
@@ -89,11 +105,95 @@ impl ValidityProver {
         );
         let observer = Observer::new(rollup_contract);
         let validity_processor = OnceLock::new();
-        let data = Arc::new(Mutex::new(Data::new()));
+        let data = Arc::new(RwLock::new(Data::new()));
         Self {
             validity_processor,
             observer,
             data,
         }
+    }
+
+    pub async fn sync_observer(&self) -> Result<(), ValidityProverError> {
+        self.observer.sync().await?;
+        Ok(())
+    }
+
+    pub async fn get_validity_proof(
+        &self,
+        block_number: u32,
+    ) -> Option<ProofWithPublicInputs<F, C, D>> {
+        self.data
+            .read()
+            .await
+            .validity_proofs
+            .get(&block_number)
+            .cloned()
+    }
+
+    pub async fn sync(&self) -> Result<(), ValidityProverError> {
+        self.sync_observer().await?; // todo: make this independent job
+
+        // todo: make it without loading to memory
+        let data = self.data.read().await;
+        let last_block_number = data.last_block_number;
+        let mut account_tree = data.account_trees.get(&last_block_number).unwrap().clone();
+        let mut block_tree = data.block_trees.get(&last_block_number).unwrap().clone();
+        let mut deposit_tree = data.deposit_trees.get(&last_block_number).unwrap().clone();
+
+        let next_block_number = self.observer.get_next_block_number().await;
+        for block_number in (last_block_number + 1)..next_block_number {
+            log::info!(
+                "Sync validity prover: syncing block number {}",
+                block_number
+            );
+            let prev_validity_proof = self.get_validity_proof(block_number - 1).await;
+            assert!(
+                prev_validity_proof.is_some() || block_number == 1,
+                "prev validity proof not found"
+            );
+            let full_block = self.observer.get_full_block(block_number).await?;
+            let block_witness = full_block
+                .to_block_witness(&account_tree, &block_tree)
+                .map_err(|e| ValidityProverError::BlockWitnessGenerationError(e.to_string()))?;
+            let validity_witness = block_witness
+                .update_trees(&mut account_tree, &mut block_tree)
+                .map_err(|e| ValidityProverError::FailedToUpdateTrees(e.to_string()))?;
+            let validity_proof = self
+                .validity_processor()
+                .prove(&prev_validity_proof, &validity_witness)
+                .map_err(|e| ValidityProverError::ValidityProveError(e.to_string()))?;
+            let deposits = self
+                .observer
+                .get_deposits_between_blocks(block_number)
+                .await;
+            for deposit in deposits {
+                deposit_tree.push(deposit);
+            }
+
+            // update self
+            let mut data = self.data.write().await;
+            data.last_block_number = block_number;
+            data.account_trees
+                .insert(block_number, account_tree.clone());
+            data.block_trees.insert(block_number, block_tree.clone());
+            data.validity_proofs.insert(block_number, validity_proof);
+            data.sender_leaves
+                .insert(block_number, block_witness.get_sender_tree().leaves());
+
+            let tx_tree_root = full_block.signature.tx_tree_root;
+            if tx_tree_root != Bytes32::default()
+                && validity_witness.to_validity_pis().unwrap().is_valid_block
+            {
+                data.tx_tree_roots.insert(tx_tree_root, block_number);
+            }
+        }
+        data.deposit_trees = contract.deposit_trees.clone();
+
+        Ok(())
+    }
+
+    pub fn validity_processor(&self) -> &ValidityProcessor<F, C, D> {
+        self.validity_processor
+            .get_or_init(|| ValidityProcessor::new())
     }
 }

@@ -6,43 +6,65 @@ use intmax2_client_sdk::external_api::contract::{
 };
 use intmax2_interfaces::api::validity_prover::interface::DepositInfo;
 use intmax2_zkp::{common::witness::full_block::FullBlock, ethereum_types::bytes32::Bytes32};
-use tokio::sync::Mutex;
+use tokio::sync::RwLock;
 
 pub struct Observer {
     rollup_contract: RollupContract,
 
     // TODO: make these DB backed
-    sync_eth_block_number: Arc<Mutex<Option<u64>>>,
-    full_blocks: Arc<Mutex<Vec<FullBlockWithMeta>>>,
-    deposit_leaf_events: Arc<Mutex<Vec<DepositLeafInserted>>>,
+    data: Arc<RwLock<Data>>,
+}
+
+#[derive(Debug, Default)]
+struct Data {
+    sync_eth_block_number: Option<u64>,
+    full_blocks: Vec<FullBlockWithMeta>,
+    deposit_leaf_events: Vec<DepositLeafInserted>,
 }
 
 #[derive(Debug, thiserror::Error)]
 pub enum ObserverError {
     #[error("Blockchain error: {0}")]
     BlockchainError(#[from] BlockchainError),
+
+    #[error("Block not found: {0}")]
+    BlockNotFound(u32),
 }
 
 impl Observer {
     pub fn new(rollup_contract: RollupContract) -> Self {
         Observer {
             rollup_contract,
-            sync_eth_block_number: Arc::new(Mutex::new(None)),
-            full_blocks: Arc::new(Mutex::new(Vec::new())),
-            deposit_leaf_events: Arc::new(Mutex::new(Vec::new())),
+            data: Arc::new(RwLock::new(Data::default())),
         }
     }
 
     pub async fn sync_eth_block_number(&self) -> Option<u64> {
-        self.sync_eth_block_number.lock().await.clone()
+        self.data.read().await.sync_eth_block_number.clone()
+    }
+
+    pub async fn get_next_block_number(&self) -> u32 {
+        self.data.read().await.full_blocks.len() as u32
+    }
+
+    pub async fn get_full_block(&self, block_number: u32) -> Result<FullBlock, ObserverError> {
+        self.data
+            .read()
+            .await
+            .full_blocks
+            .get(block_number as usize)
+            .cloned()
+            .map(|fm| fm.full_block)
+            .ok_or(ObserverError::BlockNotFound(block_number))
     }
 
     /// Get the DepositInfo corresponding to the given deposit_hash.
     pub async fn get_deposit_info(&self, deposit_hash: Bytes32) -> Option<DepositInfo> {
         let event = self
-            .deposit_leaf_events
-            .lock()
+            .data
+            .read()
             .await
+            .deposit_leaf_events
             .iter()
             .find(|deposit| deposit.deposit_hash == deposit_hash)
             .cloned();
@@ -55,9 +77,10 @@ impl Observer {
         let deposit_time = (event.eth_block_number, event.eth_tx_index);
 
         let block = self
-            .full_blocks
-            .lock()
+            .data
+            .read()
             .await
+            .full_blocks
             .iter()
             .filter(|block| {
                 let block_time = (block.eth_block_number, block.eth_tx_index);
@@ -79,9 +102,10 @@ impl Observer {
 
     /// Get the FullBlocks that were newly added from the specified block number.
     pub async fn get_full_blocks_from(&self, from_block_number: u32) -> Vec<FullBlock> {
-        self.full_blocks
-            .lock()
+        self.data
+            .read()
             .await
+            .full_blocks
             .iter()
             .map(|full_block_with_meta| full_block_with_meta.full_block.clone())
             .filter(|full_block| full_block.block.block_number >= from_block_number)
@@ -89,9 +113,10 @@ impl Observer {
     }
 
     pub async fn get_full_block_with_meta(&self, block_number: u32) -> Option<FullBlockWithMeta> {
-        self.full_blocks
-            .lock()
+        self.data
+            .read()
             .await
+            .full_blocks
             .iter()
             .find(|full_block_with_meta| {
                 full_block_with_meta.full_block.block.block_number == block_number
@@ -116,9 +141,10 @@ impl Observer {
         // Helper function to compare temporal order of events
         let is_after = |a: (u64, u64), b: (u64, u64)| a.0 > b.0 || (a.0 == b.0 && a.1 > b.1);
 
-        self.deposit_leaf_events
-            .lock()
+        self.data
+            .read()
             .await
+            .deposit_leaf_events
             .iter()
             .filter(|deposit| {
                 let deposit_time = (deposit.eth_block_number, deposit.eth_tx_index);
@@ -144,14 +170,16 @@ impl Observer {
             .get_deposit_leaf_inserted_events(sync_eth_block_number)
             .await?;
 
-        self.full_blocks.lock().await.extend(full_blocks);
-        self.deposit_leaf_events
-            .lock()
+        self.data.write().await.full_blocks.extend(full_blocks);
+        self.data
+            .write()
             .await
+            .deposit_leaf_events
             .extend(deposit_leaf_events);
-        self.sync_eth_block_number
-            .lock()
+        self.data
+            .write()
             .await
+            .sync_eth_block_number
             .replace(current_eth_block_number);
         Ok(())
     }
