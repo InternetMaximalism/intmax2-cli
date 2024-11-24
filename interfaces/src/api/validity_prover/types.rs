@@ -25,18 +25,6 @@ pub struct GetBlockNumberResponse {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct GetAccountIdQuery {
-    pub pubkey: U256,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct GetAccountIdResponse {
-    pub account_id: Option<u64>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct GetUpdateWitnessQuery {
     pub pubkey: U256,
     pub root_block_number: u32,

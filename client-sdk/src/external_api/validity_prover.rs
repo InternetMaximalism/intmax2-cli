@@ -2,9 +2,9 @@ use async_trait::async_trait;
 use intmax2_interfaces::api::{
     error::ServerError,
     validity_prover::{
-        interface::{DepositInfo, ValidityProverClientInterface},
+        interface::{AccountInfo, DepositInfo, ValidityProverClientInterface},
         types::{
-            GetAccountIdQuery, GetAccountIdResponse, GetBlockMerkleProofQuery,
+            GetAccountInfoQuery, GetAccountInfoResponse, GetBlockMerkleProofQuery,
             GetBlockMerkleProofResponse, GetBlockNumberByTxTreeRootQuery,
             GetBlockNumberByTxTreeRootResponse, GetBlockNumberResponse, GetDepositInfoQuery,
             GetDepositInfoResponse, GetDepositMerkleProofQuery, GetDepositMerkleProofResponse,
@@ -57,17 +57,6 @@ impl ValidityProverClientInterface for ValidityProverClient {
             get_request::<_, ()>(&self.base_url, "/block-validity-prover/block-number", None)
                 .await?;
         Ok(response.block_number)
-    }
-
-    async fn get_account_id(&self, pubkey: U256) -> Result<Option<u64>, ServerError> {
-        let query = GetAccountIdQuery { pubkey };
-        let response: GetAccountIdResponse = get_request(
-            &self.base_url,
-            "/block-validity-prover/get-account-id",
-            Some(query),
-        )
-        .await?;
-        Ok(response.account_id)
     }
 
     async fn get_update_witness(
@@ -182,5 +171,16 @@ impl ValidityProverClientInterface for ValidityProverClient {
         )
         .await?;
         Ok(response.deposit_merkle_proof)
+    }
+
+    async fn get_account_info(&self, pubkey: U256) -> Result<AccountInfo, ServerError> {
+        let query = GetAccountInfoQuery { pubkey };
+        let response: GetAccountInfoResponse = get_request(
+            &self.base_url,
+            "/block-validity-prover/get-account-info",
+            Some(query),
+        )
+        .await?;
+        Ok(response.account_info)
     }
 }
