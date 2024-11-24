@@ -3,19 +3,19 @@ use std::sync::{Arc, OnceLock};
 use hashbrown::HashMap;
 use intmax2_client_sdk::external_api::contract::rollup_contract::RollupContract;
 use intmax2_interfaces::api::validity_prover::interface::DepositInfo;
-use intmax2_zkp::circuits::validity::validity_pis::ValidityPublicInputs;
-use intmax2_zkp::common::trees::account_tree::AccountMembershipProof;
-use intmax2_zkp::common::trees::deposit_tree::DepositMerkleProof;
-use intmax2_zkp::common::witness::update_witness::UpdateWitness;
 use intmax2_zkp::{
-    circuits::validity::validity_processor::ValidityProcessor,
+    circuits::validity::{
+        validity_pis::ValidityPublicInputs, validity_processor::ValidityProcessor,
+    },
     common::{
         block::Block,
         trees::{
-            account_tree::AccountTree,
+            account_tree::{AccountMembershipProof, AccountTree},
             block_hash_tree::{BlockHashMerkleProof, BlockHashTree},
+            deposit_tree::DepositMerkleProof,
             sender_tree::SenderLeaf,
         },
+        witness::update_witness::UpdateWitness,
     },
     constants::BLOCK_HASH_TREE_HEIGHT,
     ethereum_types::{bytes32::Bytes32, u256::U256},

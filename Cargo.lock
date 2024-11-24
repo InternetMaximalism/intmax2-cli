@@ -2804,7 +2804,7 @@ dependencies = [
 [[package]]
 name = "intmax2-zkp"
 version = "0.1.0"
-source = "git+https://github.com/InternetMaximalism/intmax2-zkp?branch=cli#5db35df632d0eee71b82beca78d20edf55bfafe2"
+source = "git+https://github.com/InternetMaximalism/intmax2-zkp?branch=cli#0949b67b89f2aeeda2196396bbebd2670ec40e72"
 dependencies = [
  "anyhow",
  "ark-bn254",
@@ -5504,10 +5504,13 @@ dependencies = [
  "anyhow",
  "bincode",
  "ethers",
+ "hashbrown 0.14.5",
  "intmax2-client-sdk",
  "intmax2-interfaces",
  "intmax2-zkp",
+ "log",
  "plonky2",
+ "rand",
  "reqwest 0.12.9",
  "serde",
  "serde_json",

@@ -74,13 +74,13 @@ pub struct RollupContract {
 
 impl RollupContract {
     pub fn new(
-        rpc_url: String,
+        rpc_url: &str,
         chain_id: u64,
         address: ethers::types::Address,
         deployed_block_number: u64,
     ) -> Self {
         Self {
-            rpc_url,
+            rpc_url: rpc_url.to_string(),
             chain_id,
             address,
             deployed_block_number,
@@ -99,12 +99,7 @@ impl RollupContract {
             ProxyContract::deploy(rpc_url, chain_id, private_key, impl_address, &[]).await?;
         let address = proxy.address();
         let deployed_block_number = proxy.deployed_block_number();
-        Ok(Self::new(
-            rpc_url.to_string(),
-            chain_id,
-            address,
-            deployed_block_number,
-        ))
+        Ok(Self::new(rpc_url, chain_id, address, deployed_block_number))
     }
 
     pub fn address(&self) -> ethers::types::Address {
