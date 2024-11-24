@@ -9,6 +9,7 @@ pub struct State {
 
 impl State {
     pub fn new(validity_prover: ValidityProver) -> Self {
+        let _ = validity_prover.validity_processor(); // initialize
         Self {
             validity_prover: Arc::new(validity_prover),
         }
