@@ -45,7 +45,7 @@ impl ValidityProverClient {
     }
 
     pub async fn sync(&self) -> Result<(), ServerError> {
-        get_request::<(), ()>(&self.base_url, "/block-validity-prover/sync", None).await?;
+        get_request::<(), ()>(&self.base_url, "/validity-prover/sync", None).await?;
         Ok(())
     }
 }
@@ -54,8 +54,7 @@ impl ValidityProverClient {
 impl ValidityProverClientInterface for ValidityProverClient {
     async fn get_block_number(&self) -> Result<u32, ServerError> {
         let response: GetBlockNumberResponse =
-            get_request::<_, ()>(&self.base_url, "/block-validity-prover/block-number", None)
-                .await?;
+            get_request::<_, ()>(&self.base_url, "/validity-prover/block-number", None).await?;
         Ok(response.block_number)
     }
 
@@ -74,7 +73,7 @@ impl ValidityProverClientInterface for ValidityProverClient {
         };
         let response: GetUpdateWitnessResponse = get_request(
             &self.base_url,
-            "/block-validity-prover/get-update-witness",
+            "/validity-prover/get-update-witness",
             Some(query),
         )
         .await?;
@@ -88,7 +87,7 @@ impl ValidityProverClientInterface for ValidityProverClient {
         let query = GetDepositInfoQuery { deposit_hash };
         let response: GetDepositInfoResponse = get_request(
             &self.base_url,
-            "/block-validity-prover/get-deposit-info",
+            "/validity-prover/get-deposit-info",
             Some(query),
         )
         .await?;
@@ -102,7 +101,7 @@ impl ValidityProverClientInterface for ValidityProverClient {
         let query = GetBlockNumberByTxTreeRootQuery { tx_tree_root };
         let response: GetBlockNumberByTxTreeRootResponse = get_request(
             &self.base_url,
-            "/block-validity-prover/get-block-number-by-tx-tree-root",
+            "/validity-prover/get-block-number-by-tx-tree-root",
             Some(query),
         )
         .await?;
@@ -116,7 +115,7 @@ impl ValidityProverClientInterface for ValidityProverClient {
         let query = GetValidityPisQuery { block_number };
         let response: GetValidityPisResponse = get_request(
             &self.base_url,
-            "/block-validity-prover/get-validity-pis",
+            "/validity-prover/get-validity-pis",
             Some(query),
         )
         .await?;
@@ -130,7 +129,7 @@ impl ValidityProverClientInterface for ValidityProverClient {
         let query = GetSenderLeavesQuery { block_number };
         let response: GetSenderLeavesResponse = get_request(
             &self.base_url,
-            "/block-validity-prover/get-sender-leaves",
+            "/validity-prover/get-sender-leaves",
             Some(query),
         )
         .await?;
@@ -148,7 +147,7 @@ impl ValidityProverClientInterface for ValidityProverClient {
         };
         let response: GetBlockMerkleProofResponse = get_request(
             &self.base_url,
-            "/block-validity-prover/get-block-merkle-proof",
+            "/validity-prover/get-block-merkle-proof",
             Some(query),
         )
         .await?;
@@ -166,7 +165,7 @@ impl ValidityProverClientInterface for ValidityProverClient {
         };
         let response: GetDepositMerkleProofResponse = get_request(
             &self.base_url,
-            "/block-validity-prover/get-deposit-merkle-proof",
+            "/validity-prover/get-deposit-merkle-proof",
             Some(query),
         )
         .await?;
@@ -177,7 +176,7 @@ impl ValidityProverClientInterface for ValidityProverClient {
         let query = GetAccountInfoQuery { pubkey };
         let response: GetAccountInfoResponse = get_request(
             &self.base_url,
-            "/block-validity-prover/get-account-info",
+            "/validity-prover/get-account-info",
             Some(query),
         )
         .await?;

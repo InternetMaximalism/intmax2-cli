@@ -135,7 +135,7 @@ pub async fn get_deposit_merkle_proof(
 }
 
 pub fn block_validity_prover_scope() -> actix_web::Scope {
-    actix_web::web::scope("/block-validity-prover")
+    actix_web::web::scope("/validity-prover")
         .service(get_block_number)
         .service(get_account_info)
         .service(get_update_witness)
