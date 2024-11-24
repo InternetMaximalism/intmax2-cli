@@ -10,6 +10,7 @@ pub struct State {
 impl State {
     pub fn new(validity_prover: ValidityProver) -> Self {
         let _ = validity_prover.validity_processor(); // initialize
+        log::info!("State initialized");
         Self {
             validity_prover: Arc::new(validity_prover),
         }
