@@ -15,11 +15,27 @@ pub struct Observer {
     data: Arc<RwLock<Data>>,
 }
 
-#[derive(Debug, Default)]
+#[derive(Debug)]
 struct Data {
     sync_eth_block_number: Option<u64>,
     full_blocks: Vec<FullBlockWithMeta>,
     deposit_leaf_events: Vec<DepositLeafInserted>,
+}
+
+impl Data {
+    pub fn new() -> Self {
+        // Initialize with the genesis block
+        let full_blocks = vec![FullBlockWithMeta {
+            full_block: FullBlock::genesis(),
+            eth_block_number: 0,
+            eth_tx_index: 0,
+        }];
+        Data {
+            sync_eth_block_number: None,
+            full_blocks,
+            deposit_leaf_events: Vec::new(),
+        }
+    }
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -35,7 +51,7 @@ impl Observer {
     pub fn new(rollup_contract: RollupContract) -> Self {
         Observer {
             rollup_contract,
-            data: Arc::new(RwLock::new(Data::default())),
+            data: Arc::new(RwLock::new(Data::new())),
         }
     }
 
@@ -181,6 +197,11 @@ impl Observer {
             .await
             .sync_eth_block_number
             .replace(current_eth_block_number);
+
+        log::info!(
+            "Observer synced to block number: {}",
+            current_eth_block_number
+        );
         Ok(())
     }
 }

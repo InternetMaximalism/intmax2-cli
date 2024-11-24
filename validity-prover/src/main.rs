@@ -1,4 +1,11 @@
-use std::{io, time::Duration};
+use std::{
+    io,
+    sync::{
+        atomic::{AtomicBool, Ordering},
+        Arc,
+    },
+    time::Duration,
+};
 
 use actix_cors::Cors;
 use actix_web::{middleware::Logger, web::Data, App, HttpServer};
@@ -28,14 +35,33 @@ async fn main() -> std::io::Result<()> {
     );
     let inner_state = State::new(validity_prover);
     let state = Data::new(inner_state.clone());
+
+    let is_syncing = Arc::new(AtomicBool::new(false));
+    let is_syncing_clone = is_syncing.clone();
     actix_web::rt::spawn(async move {
         let mut interval = interval(Duration::from_secs(env.sync_interval));
         loop {
             interval.tick().await;
-            match inner_state.sync_task().await {
-                Ok(_) => {}
-                Err(e) => log::error!("Error in sync task: {:?}", e),
+
+            // Skip if previous task is still running
+            if is_syncing_clone.load(Ordering::SeqCst) {
+                log::warn!("Previous sync task is still running, skipping this interval");
+                continue;
             }
+
+            is_syncing_clone.store(true, Ordering::SeqCst);
+
+            match inner_state.sync_task().await {
+                Ok(_) => {
+                    log::debug!("Sync task completed successfully");
+                }
+                Err(e) => {
+                    log::error!("Error in sync task: {:?}", e);
+                }
+            }
+
+            // Reset the flag after task completion
+            is_syncing_clone.store(false, Ordering::SeqCst);
         }
     });
     HttpServer::new(move || {

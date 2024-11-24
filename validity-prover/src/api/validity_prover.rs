@@ -88,13 +88,13 @@ impl Data {
         let account_tree = AccountTree::initialize();
         let mut block_tree = BlockHashTree::new(BLOCK_HASH_TREE_HEIGHT);
         block_tree.push(Block::genesis().hash());
+        let deposit_hash_tree = DepositHashTree::new();
 
         let mut account_trees = HashMap::new();
         account_trees.insert(last_block_number, account_tree);
         let mut block_trees = HashMap::new();
         block_trees.insert(last_block_number, block_tree);
 
-        let deposit_hash_tree = DepositHashTree::new();
         let mut deposit_hash_trees = HashMap::new();
         deposit_hash_trees.insert(last_block_number, deposit_hash_tree);
 
@@ -166,6 +166,7 @@ impl ValidityProver {
             .get(&last_block_number)
             .unwrap()
             .clone();
+        drop(data);
 
         let next_block_number = self.observer.get_next_block_number().await;
         for block_number in (last_block_number + 1)..next_block_number {
@@ -189,6 +190,10 @@ impl ValidityProver {
                 .validity_processor()
                 .prove(&prev_validity_proof, &validity_witness)
                 .map_err(|e| ValidityProverError::ValidityProveError(e.to_string()))?;
+            log::info!(
+                "Sync validity prover: block number {} validity proof generated",
+                block_number
+            );
             let deposit_events = self
                 .observer
                 .get_deposits_between_blocks(block_number)
@@ -223,6 +228,7 @@ impl ValidityProver {
                 // even if there are duplicate tx_tree_roots, it's fine to overwrite
                 data.tx_tree_roots.insert(tx_tree_root, block_number);
             }
+            drop(data);
         }
         Ok(())
     }
