@@ -1,12 +1,8 @@
-use std::env;
-
 use ethers::types::H256;
 use intmax2_client_sdk::{
     client::{client::Client, config::ClientConfig},
     external_api::{
-        balance_prover::BalanceProverClient, block_builder::BlockBuilderClient,
-        indexer::IndexerClient, store_vault_server::StoreVaultServerClient,
-        validity_prover::ValidityProverClient, withdrawal_server::WithdrawalServerClient,
+        balance_prover::BalanceProverClient, block_builder::BlockBuilderClient, contract::liquidity_contract, indexer::IndexerClient, store_vault_server::StoreVaultServerClient, validity_prover::ValidityProverClient, withdrawal_server::WithdrawalServerClient
     },
 };
 use intmax2_interfaces::api::indexer::interface::IndexerClientInterface;
@@ -17,32 +13,25 @@ use intmax2_zkp::{
     ethereum_types::u256::U256,
 };
 
+use crate::Env;
+
 type BB = BlockBuilderClient;
 type S = StoreVaultServerClient;
 type V = ValidityProverClient;
 type B = BalanceProverClient;
 type W = WithdrawalServerClient;
 
-pub fn get_base_url() -> String {
-    env::var("BASE_URL").expect("BASE_URL must be set")
-}
-
-pub fn get_indexer_url() -> String {
-    // todo: remove this line in production
-    "https://dev.builder.indexer.intmax.xyz".to_string()
-}
-
 pub fn get_client() -> anyhow::Result<Client<BB, S, V, B, W>> {
-    let base_url = get_base_url();
+    let env = envy::from_env::<Env>()?;
     let block_builder = BB::new();
-    let store_vault_server = S::new(&base_url);
-    let validity_prover = V::new(&base_url);
-    let balance_prover = B::new(&base_url);
-    let withdrawal_aggregator = W::new(&base_url);
+    let store_vault_server = S::new(&env.store_vault_server_base_url);
+    let validity_prover = V::new(&env.validity_prover_base_url);
+    let balance_prover = B::new(&env.balance_prover_base_url);
+    let withdrawal_server = W::new(&env.withdrawal_server_base_url);
 
     let config = ClientConfig {
-        deposit_timeout: 3600,
-        tx_timeout: 60,
+        deposit_timeout: env.deposit_timeout,
+        tx_timeout: env.tx_timeout,
     };
 
     let client = Client {
@@ -50,23 +39,22 @@ pub fn get_client() -> anyhow::Result<Client<BB, S, V, B, W>> {
         store_vault_server,
         validity_prover,
         balance_prover,
-        withdrawal_aggregator,
+        withdrawal_server,
         config,
     };
 
     Ok(client)
 }
 
-pub fn get_contract() -> BC {
-    let base_url = get_base_url();
-    let contract = BC::new(base_url.clone());
-    contract
-}
-
 pub async fn deposit(key: KeySet, amount: U256, token_index: u32) -> anyhow::Result<()> {
     let client = get_client()?;
     let deposit_call = client.prepare_deposit(key, token_index, amount).await?;
 
+    let liquidity_contract  = LiquidityContract::new(
+        "http://localhost:8545".to_string(),
+        1,
+        "0x
+    );
     let contract = get_contract();
     contract
         .deposit(
@@ -85,16 +73,21 @@ pub async fn tx(
     amount: U256,
     token_index: u32,
 ) -> anyhow::Result<()> {
+    let env = envy::from_env::<Env>()?;
     let client = get_client()?;
 
     // get block builder info
-    let indexer = IndexerClient::new(&&get_indexer_url());
+    let indexer = IndexerClient::new(&env.indexer_base_url);
     let block_builder_info = indexer.get_block_builder_info().await?;
-    if block_builder_info.is_empty() {
-        anyhow::bail!("No block builder available");
-    }
-    let _block_builder_url = block_builder_info.first().unwrap().url.clone();
-    let block_builder_url = &get_base_url(); // todo: remove this line in production
+    // override block builder base url if it is set in the env
+    let block_builder_url = if let Some(block_builder_base_url) = env.block_builder_base_url {
+        block_builder_base_url
+    } else {
+        if block_builder_info.is_empty() {
+            anyhow::bail!("No block builder available");
+        }
+        block_builder_info.first().unwrap().url.clone()
+    };
 
     let mut rng = rand::thread_rng();
     let salt = Salt::rand(&mut rng);
@@ -105,7 +98,7 @@ pub async fn tx(
         salt,
     };
     let memo = client
-        .send_tx_request(block_builder_url, key, vec![transfer])
+        .send_tx_request(&block_builder_url, key, vec![transfer])
         .await?;
     let is_registration_block = memo.is_registration_block;
     let tx = memo.tx.clone();
@@ -117,7 +110,7 @@ pub async fn tx(
     let mut tries = 0;
     let proposal = loop {
         let proposal = client
-            .query_proposal(block_builder_url, key, is_registration_block, tx)
+            .query_proposal(&block_builder_url, key, is_registration_block, tx)
             .await?;
         if proposal.is_some() {
             break proposal.unwrap();
@@ -131,7 +124,7 @@ pub async fn tx(
 
     log::info!("Finalizing tx");
     client
-        .finalize_tx(block_builder_url, key, &memo, &proposal)
+        .finalize_tx(&block_builder_url, key, &memo, &proposal)
         .await?;
 
     Ok(())

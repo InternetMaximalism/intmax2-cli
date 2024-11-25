@@ -11,4 +11,6 @@ pub struct Env {
     pub withdrawal_server_base_url: String,
     pub deposit_timeout: u64,
     pub tx_timeout: u64,
+
+    pub block_builder_base_url: Option<String>,
 }
