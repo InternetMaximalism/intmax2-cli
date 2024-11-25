@@ -3,8 +3,13 @@ use std::env;
 use ethers::types::H256;
 use intmax2_client_sdk::{
     client::{client::Client, config::ClientConfig},
-    external_api::indexer::IndexerClient,
+    external_api::{
+        balance_prover::BalanceProverClient, block_builder::BlockBuilderClient,
+        indexer::IndexerClient, store_vault_server::StoreVaultServerClient,
+        validity_prover::ValidityProverClient, withdrawal_server::WithdrawalServerClient,
+    },
 };
+use intmax2_interfaces::api::indexer::interface::IndexerClientInterface;
 use intmax2_zkp::{
     common::{
         generic_address::GenericAddress, salt::Salt, signature::key_set::KeySet, transfer::Transfer,
@@ -12,12 +17,11 @@ use intmax2_zkp::{
     ethereum_types::u256::U256,
 };
 
-type BC = TestContract;
-type BB = TestBlockBuilder;
-type S = TestStoreVaultServer;
-type V = TestBlockValidityProver;
-type B = TestBalanceProver;
-type W = TestWithdrawalAggregator;
+type BB = BlockBuilderClient;
+type S = StoreVaultServerClient;
+type V = ValidityProverClient;
+type B = BalanceProverClient;
+type W = WithdrawalServerClient;
 
 pub fn get_base_url() -> String {
     env::var("BASE_URL").expect("BASE_URL must be set")
@@ -31,10 +35,10 @@ pub fn get_indexer_url() -> String {
 pub fn get_client() -> anyhow::Result<Client<BB, S, V, B, W>> {
     let base_url = get_base_url();
     let block_builder = BB::new();
-    let store_vault_server = S::new(base_url.clone());
-    let validity_prover = V::new(base_url.clone());
-    let balance_prover = B::new(base_url.clone());
-    let withdrawal_aggregator = W::new(base_url.clone());
+    let store_vault_server = S::new(&base_url);
+    let validity_prover = V::new(&base_url);
+    let balance_prover = B::new(&base_url);
+    let withdrawal_aggregator = W::new(&base_url);
 
     let config = ClientConfig {
         deposit_timeout: 3600,
@@ -106,8 +110,7 @@ pub async fn tx(
     log::info!("Waiting for block builder to build the block");
 
     // sleep for a while to wait for the block builder to build the block
-    tokio::time::sleep(std::time::Duration::from_secs(2)).await;
-    construct_block(block_builder_url).await?; // todo: remove this line in production
+    tokio::time::sleep(std::time::Duration::from_secs(15)).await;
 
     let mut tries = 0;
     let proposal = loop {

@@ -1,4 +1,5 @@
 use ethers::{
+    abi::Detokenize,
     core::k256::ecdsa::SigningKey,
     middleware::SignerMiddleware,
     providers::{Http, Provider},
@@ -8,10 +9,10 @@ use ethers::{
 
 use super::interface::BlockchainError;
 
-pub async fn handle_contract_call<S: ToString>(
+pub async fn handle_contract_call<S: ToString, O: Detokenize>(
     tx: &mut ethers::contract::builders::ContractCall<
         SignerMiddleware<Provider<Http>, Wallet<SigningKey>>,
-        (),
+        O,
     >,
     from_address: Address,
     from_name: S,
@@ -62,10 +63,10 @@ pub async fn handle_contract_call<S: ToString>(
     }
 }
 
-fn set_gas_price(
+fn set_gas_price<O>(
     _tx: &mut ethers::contract::builders::ContractCall<
         SignerMiddleware<Provider<Http>, Wallet<SigningKey>>,
-        (),
+        O,
     >,
 ) -> Result<(), BlockchainError> {
     // todo: implement gas price setting
