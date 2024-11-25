@@ -87,7 +87,7 @@ impl RollupContract {
         }
     }
 
-    pub async fn get_block_number(&self) -> Result<u64, BlockchainError> {
+    pub async fn get_eth_block_number(&self) -> Result<u64, BlockchainError> {
         get_latest_block_number(&self.rpc_url).await
     }
 

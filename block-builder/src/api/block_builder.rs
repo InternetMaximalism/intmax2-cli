@@ -5,7 +5,10 @@ use hashbrown::HashMap;
 use intmax2_client_sdk::external_api::{
     contract::rollup_contract::RollupContract, validity_prover::ValidityProverClient,
 };
-use intmax2_interfaces::api::validity_prover::interface::ValidityProverClientInterface;
+use intmax2_interfaces::api::{
+    block_builder::interface::BlockBuilderStatus,
+    validity_prover::interface::ValidityProverClientInterface,
+};
 use intmax2_zkp::{
     common::{
         block_builder::{BlockProposal, UserSignature},
@@ -25,14 +28,10 @@ use intmax2_zkp::{
     },
 };
 use num::BigUint;
-use plonky2::{field::goldilocks_field::GoldilocksField, plonk::config::PoseidonGoldilocksConfig};
 use plonky2_bn254::fields::recover::RecoverFromX as _;
+use serde::{Deserialize, Serialize};
 
 use super::error::BlockBuilderError;
-
-type F = GoldilocksField;
-type C = PoseidonGoldilocksConfig;
-const D: usize = 2;
 
 #[derive(Debug, Clone)]
 pub struct BlockBuilder {
@@ -54,15 +53,6 @@ struct ProposalMemo {
     pubkeys: Vec<U256>, // padded pubkeys
     pubkey_hash: Bytes32,
     proposals: Vec<BlockProposal>,
-}
-
-#[derive(Clone, Copy, Debug, PartialEq)]
-enum BlockBuilderStatus {
-    Pausing,                     // not accepting tx requests
-    AcceptingRegistrationTxs,    // accepting registration tx requests
-    AcceptingNonRegistrationTxs, // accepting non-registration tx requests
-    Proposing(bool),             // after constructed the block, accepting signatures.
-                                 // bool is true if the block is a registration block
 }
 
 impl BlockBuilder {
@@ -110,9 +100,7 @@ impl BlockBuilder {
 
     // Send a tx request by the user.
     pub async fn send_tx_request(&mut self, pubkey: U256, tx: Tx) -> Result<(), BlockBuilderError> {
-        if self.status != BlockBuilderStatus::AcceptingRegistrationTxs
-            && self.status != BlockBuilderStatus::AcceptingNonRegistrationTxs
-        {
+        if !self.status.is_accepting_tx() {
             return Err(BlockBuilderError::NotAcceptingTx);
         }
         if self.tx_requests.len() >= NUM_SENDERS_IN_BLOCK {
@@ -150,9 +138,7 @@ impl BlockBuilder {
 
     // Construct a block with the given tx requests by the block builder.
     pub fn construct_block(&mut self) -> Result<(), BlockBuilderError> {
-        if self.status != BlockBuilderStatus::AcceptingRegistrationTxs
-            && self.status != BlockBuilderStatus::AcceptingNonRegistrationTxs
-        {
+        if !self.status.is_accepting_tx() {
             return Err(BlockBuilderError::NotAcceptingTx);
         }
 
@@ -191,10 +177,10 @@ impl BlockBuilder {
         };
         match self.status {
             BlockBuilderStatus::AcceptingRegistrationTxs => {
-                self.status = BlockBuilderStatus::Proposing(true);
+                self.status = BlockBuilderStatus::ProposingRegistrationBlock;
             }
             BlockBuilderStatus::AcceptingNonRegistrationTxs => {
-                self.status = BlockBuilderStatus::Proposing(false);
+                self.status = BlockBuilderStatus::ProposingNonRegistrationBlock;
             }
             _ => unreachable!(),
         }
@@ -216,12 +202,14 @@ impl BlockBuilder {
             BlockBuilderStatus::AcceptingRegistrationTxs
             | BlockBuilderStatus::AcceptingNonRegistrationTxs => {
                 if self.is_request_contained(pubkey, tx) {
+                    // not constructed yet
                     return Ok(None);
                 } else {
                     return Err(BlockBuilderError::TxRequestNotFound);
                 }
             }
-            BlockBuilderStatus::Proposing(_) => {
+            BlockBuilderStatus::ProposingRegistrationBlock
+            | BlockBuilderStatus::ProposingNonRegistrationBlock => {
                 // continue
             }
         }
@@ -236,7 +224,7 @@ impl BlockBuilder {
         tx: Tx,
         signature: UserSignature,
     ) -> Result<(), BlockBuilderError> {
-        if !matches!(self.status, BlockBuilderStatus::Proposing(_)) {
+        if !self.status.is_proposing() {
             return Err(BlockBuilderError::NotProposing);
         }
         if self.is_request_contained(signature.pubkey, tx) {
@@ -254,7 +242,7 @@ impl BlockBuilder {
     pub async fn post_block(&mut self) -> Result<(), BlockBuilderError> {
         let mut account_id_packed = None;
         let is_registration_block = match self.status {
-            BlockBuilderStatus::Proposing(true) => {
+            BlockBuilderStatus::ProposingRegistrationBlock => {
                 for pubkey in self.memo.as_ref().unwrap().pubkeys.iter() {
                     if pubkey.is_dummy_pubkey() {
                         // ignore dummy pubkey
@@ -273,7 +261,7 @@ impl BlockBuilder {
                 }
                 true
             }
-            BlockBuilderStatus::Proposing(false) => {
+            BlockBuilderStatus::ProposingNonRegistrationBlock => {
                 let mut account_ids = Vec::new();
                 for pubkey in self.memo.as_ref().unwrap().pubkeys.iter() {
                     let account_info = self

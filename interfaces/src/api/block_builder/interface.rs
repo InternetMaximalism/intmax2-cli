@@ -26,8 +26,39 @@ pub struct FeeProof {
     pub transfer_witness: TransferWitness,
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum BlockBuilderStatus {
+    Pausing,                       // not accepting tx requests
+    AcceptingRegistrationTxs,      // accepting registration tx requests
+    AcceptingNonRegistrationTxs,   // accepting non-registration tx requests
+    ProposingRegistrationBlock, // after constructed the block, accepting signatures for registration txs.
+    ProposingNonRegistrationBlock, // after constructed the block, accepting signatures for non-registration txs.
+}
+
+impl BlockBuilderStatus {
+    pub fn is_accepting_tx(&self) -> bool {
+        matches!(
+            self,
+            BlockBuilderStatus::AcceptingRegistrationTxs
+                | BlockBuilderStatus::AcceptingNonRegistrationTxs
+        )
+    }
+
+    pub fn is_proposing(&self) -> bool {
+        matches!(
+            self,
+            BlockBuilderStatus::ProposingRegistrationBlock
+                | BlockBuilderStatus::ProposingNonRegistrationBlock
+        )
+    }
+}
+
 #[async_trait(?Send)]
 pub trait BlockBuilderClientInterface {
+    // Get the status of the block builder
+    async fn get_status(&self, block_builder_url: &str) -> Result<BlockBuilderStatus, ServerError>;
+
     // Send tx request to the block builder
     async fn send_tx_request(
         &self,

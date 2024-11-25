@@ -174,7 +174,7 @@ impl Observer {
     }
 
     pub async fn sync(&self) -> Result<(), ObserverError> {
-        let current_eth_block_number = self.rollup_contract.get_block_number().await?;
+        let current_eth_block_number = self.rollup_contract.get_eth_block_number().await?;
         let sync_eth_block_number = self.sync_eth_block_number().await;
 
         let full_blocks = self

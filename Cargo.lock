@@ -766,6 +766,8 @@ dependencies = [
  "actix-cors",
  "actix-web",
  "anyhow",
+ "ark-bn254",
+ "ark-ec",
  "bincode",
  "dotenv",
  "envy",
@@ -775,7 +777,10 @@ dependencies = [
  "intmax2-interfaces",
  "intmax2-zkp",
  "log",
+ "num",
+ "num-bigint 0.4.6",
  "plonky2",
+ "plonky2_bn254",
  "rand",
  "reqwest 0.12.9",
  "serde",
@@ -2884,7 +2889,7 @@ dependencies = [
 [[package]]
 name = "intmax2-zkp"
 version = "0.1.0"
-source = "git+https://github.com/InternetMaximalism/intmax2-zkp?branch=cli#0949b67b89f2aeeda2196396bbebd2670ec40e72"
+source = "git+https://github.com/InternetMaximalism/intmax2-zkp?branch=cli#40f799efa73feca9c7ba8818a9f9de5cfed0f745"
 dependencies = [
  "anyhow",
  "ark-bn254",
