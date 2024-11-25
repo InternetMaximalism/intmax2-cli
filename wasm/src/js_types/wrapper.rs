@@ -1,4 +1,4 @@
-use intmax2_core_sdk::client::client::TxRequestMemo;
+use intmax2_client_sdk::client::client::TxRequestMemo;
 use intmax2_zkp::common::block_builder::BlockProposal;
 use wasm_bindgen::{prelude::wasm_bindgen, JsError};
 
@@ -29,6 +29,11 @@ impl JsTxRequestMemo {
         let memo = self.to_tx_request_memo()?;
         let tx = JsTx::from_tx(&memo.tx);
         Ok(tx)
+    }
+
+    pub fn is_registration_block(&self) -> Result<bool, JsError> {
+        let memo = self.to_tx_request_memo()?;
+        Ok(memo.is_registration_block)
     }
 }
 

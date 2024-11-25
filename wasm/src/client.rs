@@ -1,14 +1,4 @@
-use intmax2_core_sdk::{
-    client::{client::Client, config::ClientConfig},
-    external_api::{
-        balance_prover::test_server::server::TestBalanceProver,
-        block_builder::test_server::server::TestBlockBuilder,
-        block_validity_prover::test_server::server::TestBlockValidityProver,
-        contract::test_server::server::TestContract,
-        store_vault_server::test_server::server::TestStoreVaultServer,
-        withdrawal_aggregator::test_server::server::TestWithdrawalAggregator,
-    },
-};
+use intmax2_client_sdk::client::{client::Client, config::ClientConfig};
 use serde::{Deserialize, Serialize};
 use wasm_bindgen::prelude::wasm_bindgen;
 

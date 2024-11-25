@@ -22,6 +22,7 @@ abigen!(
     r#"[
         function balanceOf(address account) external view returns (uint256)
         function approve(address spender, uint256 amount) external returns (bool)
+        function allowance(address owner, address spender) external view returns (uint256)
     ]"#,
 );
 
@@ -80,5 +81,19 @@ impl ERC20Contract {
         )
         .await?;
         Ok(())
+    }
+
+    pub async fn allowance(
+        &self,
+        owner: Address,
+        spender: Address,
+    ) -> Result<U256, BlockchainError> {
+        let contract = self.get_contract().await?;
+        let allowance = with_retry(|| async { contract.allowance(owner, spender).call().await })
+            .await
+            .map_err(|e| {
+                BlockchainError::NetworkError(format!("Failed to get allowance: {}", e))
+            })?;
+        Ok(allowance)
     }
 }

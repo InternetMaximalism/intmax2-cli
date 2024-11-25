@@ -107,6 +107,8 @@ pub async fn tx(
     let memo = client
         .send_tx_request(block_builder_url, key, vec![transfer])
         .await?;
+    let is_registration_block = memo.is_registration_block;
+    let tx = memo.tx.clone();
     log::info!("Waiting for block builder to build the block");
 
     // sleep for a while to wait for the block builder to build the block
@@ -115,7 +117,7 @@ pub async fn tx(
     let mut tries = 0;
     let proposal = loop {
         let proposal = client
-            .query_proposal(block_builder_url, key, memo.tx.clone())
+            .query_proposal(block_builder_url, key, is_registration_block, tx)
             .await?;
         if proposal.is_some() {
             break proposal.unwrap();

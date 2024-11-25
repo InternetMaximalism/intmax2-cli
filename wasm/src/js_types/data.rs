@@ -1,11 +1,8 @@
-use intmax2_zkp::mock::data::transfer_data::TransferData;
-use intmax2_zkp::mock::data::tx_data::TxData;
-use intmax2_zkp::mock::data::user_data::UserData;
-use intmax2_zkp::{
-    ethereum_types::u32limb_trait::U32LimbTrait as _, mock::data::deposit_data::DepositData,
+use intmax2_interfaces::data::{
+    deposit_data::DepositData, transfer_data::TransferData, tx_data::TxData, user_data::UserData,
 };
-use plonky2::field::goldilocks_field::GoldilocksField;
-use plonky2::plonk::config::PoseidonGoldilocksConfig;
+use intmax2_zkp::ethereum_types::u32limb_trait::U32LimbTrait as _;
+use plonky2::{field::goldilocks_field::GoldilocksField, plonk::config::PoseidonGoldilocksConfig};
 use wasm_bindgen::prelude::wasm_bindgen;
 
 use super::common::{JsTransfer, JsTx};

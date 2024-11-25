@@ -1,15 +1,14 @@
 use crate::js_types::common::JsTx;
 use client::{get_client, get_mock_contract, Config};
 use ethers::types::H256;
-use intmax2_core_sdk::{
-    client::account::generate_intmax_account_from_eth_key as inner_generate_intmax_account_from_eth_key,
-    external_api::contract::interface::ContractInterface,
+use intmax2_client_sdk::client::account::generate_intmax_account_from_eth_key as inner_generate_intmax_account_from_eth_key;
+use intmax2_interfaces::data::{
+    deposit_data::DepositData, transfer_data::TransferData, tx_data::TxData,
 };
 use intmax2_zkp::{
     common::transfer::Transfer,
     constants::NUM_TRANSFERS_IN_TX,
     ethereum_types::{u256::U256, u32limb_trait::U32LimbTrait},
-    mock::data::{deposit_data::DepositData, transfer_data::TransferData, tx_data::TxData},
 };
 use js_types::{
     common::JsTransfer,
