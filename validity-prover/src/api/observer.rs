@@ -43,8 +43,17 @@ pub enum ObserverError {
     #[error("Blockchain error: {0}")]
     BlockchainError(#[from] BlockchainError),
 
+    #[error("Full block sync error: {0}")]
+    FullBlockSyncError(String),
+
+    #[error("Deposit sync error: {0}")]
+    DepositSyncError(String),
+
     #[error("Block not found: {0}")]
     BlockNotFound(u32),
+
+    #[error("Block number mismatch: {0} != {1}")]
+    BlockNumberMismatch(u32, u32),
 }
 
 impl Observer {
@@ -63,15 +72,27 @@ impl Observer {
         self.data.read().await.full_blocks.len() as u32
     }
 
+    pub async fn get_next_deposit_index(&self) -> u32 {
+        self.data.read().await.deposit_leaf_events.len() as u32
+    }
+
     pub async fn get_full_block(&self, block_number: u32) -> Result<FullBlock, ObserverError> {
-        self.data
+        let full_block = self
+            .data
             .read()
             .await
             .full_blocks
             .get(block_number as usize)
             .cloned()
             .map(|fm| fm.full_block)
-            .ok_or(ObserverError::BlockNotFound(block_number))
+            .ok_or(ObserverError::BlockNotFound(block_number))?;
+        if full_block.block.block_number != block_number {
+            return Err(ObserverError::BlockNumberMismatch(
+                full_block.block.block_number,
+                block_number,
+            ));
+        }
+        Ok(full_block)
     }
 
     /// Get the DepositInfo corresponding to the given deposit_hash.
@@ -174,17 +195,58 @@ impl Observer {
     }
 
     pub async fn sync(&self) -> Result<(), ObserverError> {
-        let current_eth_block_number = self.rollup_contract.get_eth_block_number().await?;
         let sync_eth_block_number = self.sync_eth_block_number().await;
+        log::info!("Syncing from eth block number: {:?}", sync_eth_block_number);
 
+        // Get full blocks and validate
         let full_blocks = self
             .rollup_contract
             .get_full_block_with_meta(sync_eth_block_number)
             .await?;
+        if let Some(first) = full_blocks.first() {
+            if first.full_block.block.block_number != self.get_next_block_number().await {
+                return Err(ObserverError::FullBlockSyncError(format!(
+                    "First block mismatch: full_block.block.block_number {} != next_block_number {}",
+                    first.full_block.block.block_number,
+                    self.get_next_block_number().await
+                )));
+            }
+        }
+
+        // Get deposit leaf events and validate
         let deposit_leaf_events = self
             .rollup_contract
             .get_deposit_leaf_inserted_events(sync_eth_block_number)
             .await?;
+        if let Some(first) = deposit_leaf_events.first() {
+            if first.deposit_index != self.get_next_deposit_index().await {
+                return Err(ObserverError::FullBlockSyncError(format!(
+                    "First deposit index mismatch: deposit_index {} != next_deposit_index {}",
+                    first.deposit_index,
+                    self.get_next_deposit_index().await
+                )));
+            }
+        }
+
+        // todo: refactor this
+        let new_sync_eth_block_number = {
+            let last_full_block_eth_block_number = full_blocks.last().map(|fb| fb.eth_block_number);
+            let last_deposit_event = deposit_leaf_events.last().map(|dle| dle.eth_block_number);
+            let candidate = vec![last_full_block_eth_block_number, last_deposit_event]
+                .into_iter()
+                .flatten()
+                .max();
+            if candidate.is_some() {
+                candidate.map(|x| x + 1) // next block
+            } else {
+                sync_eth_block_number
+            }
+        };
+        log::info!(
+            "Synced to eth block number: {:?}",
+            new_sync_eth_block_number
+        );
+
         let last_block_number = full_blocks
             .last()
             .map(|fb| fb.full_block.block.block_number);
@@ -199,11 +261,7 @@ impl Observer {
             .await
             .deposit_leaf_events
             .extend(deposit_leaf_events);
-        self.data
-            .write()
-            .await
-            .sync_eth_block_number
-            .replace(current_eth_block_number);
+        self.data.write().await.sync_eth_block_number = new_sync_eth_block_number;
         log::info!(
             "Observer synced to block number: {}, deposit index: {}",
             last_block_number.unwrap_or(0),
