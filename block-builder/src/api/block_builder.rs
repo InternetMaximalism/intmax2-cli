@@ -41,7 +41,7 @@ pub struct BlockBuilder {
     eth_allowance_for_block: ethers::types::U256,
 
     status: BlockBuilderStatus,
-    senders: HashMap<U256, usize>, // pubkey -> tx request order
+    senders: HashMap<U256, usize>, // pubkey -> position in tx_requests
     tx_requests: Vec<(U256, Tx)>,
     memo: Option<ProposalMemo>,
     signatures: Vec<UserSignature>,
@@ -369,15 +369,18 @@ impl BlockBuilder {
         Ok(())
     }
 
+    /// Reset the block builder.
     pub fn reset(&mut self) {
-        let cloned = self.clone();
         *self = Self {
+            validity_prover_client: self.validity_prover_client.clone(),
+            rollup_contract: self.rollup_contract.clone(),
+            block_builder_private_key: self.block_builder_private_key,
+            eth_allowance_for_block: self.eth_allowance_for_block,
             status: BlockBuilderStatus::Pausing,
             senders: HashMap::new(),
             tx_requests: Vec::new(),
             memo: None,
             signatures: Vec::new(),
-            ..cloned
         }
     }
 }
