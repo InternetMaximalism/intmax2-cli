@@ -9,9 +9,6 @@ use intmax2_zkp::{
 };
 use num_bigint::BigUint;
 
-pub mod cli;
-pub mod external_api;
-pub mod state_manager;
 
 #[derive(Parser)]
 #[clap(name = "intmax2_cli")]

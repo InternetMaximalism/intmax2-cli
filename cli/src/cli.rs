@@ -1,16 +1,9 @@
 use std::env;
 
 use ethers::types::H256;
-use intmax2_core_sdk::{
+use intmax2_client_sdk::{
     client::{client::Client, config::ClientConfig},
-    external_api::{
-        balance_prover::test_server::server::TestBalanceProver,
-        block_builder::test_server::server::TestBlockBuilder,
-        block_validity_prover::test_server::server::TestBlockValidityProver,
-        contract::{interface::ContractInterface, test_server::server::TestContract},
-        store_vault_server::test_server::server::TestStoreVaultServer,
-        withdrawal_aggregator::test_server::server::TestWithdrawalAggregator,
-    },
+    external_api::indexer::IndexerClient,
 };
 use intmax2_zkp::{
     common::{
@@ -18,8 +11,6 @@ use intmax2_zkp::{
     },
     ethereum_types::u256::U256,
 };
-
-use crate::{external_api::indexer::api::IndexerApi, state_manager::construct_block};
 
 type BC = TestContract;
 type BB = TestBlockBuilder;
@@ -93,7 +84,7 @@ pub async fn tx(
     let client = get_client()?;
 
     // get block builder info
-    let indexer = IndexerApi::new(&&get_indexer_url());
+    let indexer = IndexerClient::new(&&get_indexer_url());
     let block_builder_info = indexer.get_block_builder_info().await?;
     if block_builder_info.is_empty() {
         anyhow::bail!("No block builder available");
