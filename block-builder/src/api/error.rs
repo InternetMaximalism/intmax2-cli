@@ -19,9 +19,24 @@ pub enum BlockBuilderError {
     #[error("Only one sender allowed in a block")]
     OnlyOneSenderAllowed,
 
+    #[error("Validity prover is not synced onchain:{0} validity prover:{1}")]
+    ValidityProverIsNotSynced(u32, u32),
+
     #[error("Account already registered pubkey: {0}, account_id: {1}")]
     AccountAlreadyRegistered(U256, u64),
 
     #[error("Account not found pubkey: {0}")]
     AccountNotFound(U256),
+
+    #[error("Block builder is pausing")]
+    BlockBuilderIsPausing,
+
+    #[error("Not proposing")]
+    NotProposing,
+
+    #[error("Tx request is not found")]
+    TxRequestNotFound,
+
+    #[error("Invalid signature: {0}")]
+    InvalidSignature(String),
 }
