@@ -12,6 +12,8 @@ use intmax2_client_sdk::utils::init_logger::init_logger;
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
     init_logger();
+    dotenv::dotenv().ok();
+
     let env = envy::from_env::<Env>()
         .map_err(|e| io::Error::new(io::ErrorKind::Other, format!("env error: {}", e)))?;
 
