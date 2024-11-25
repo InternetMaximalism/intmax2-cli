@@ -137,6 +137,10 @@ impl BlockBuilder {
         &mut self,
         is_registration_block: bool,
     ) -> Result<(), BlockBuilderError> {
+        log::info!(
+            "construct_block is_registration_block: {}",
+            is_registration_block
+        );
         let mut status = if is_registration_block {
             self.registration_state.clone()
         } else {
@@ -187,6 +191,10 @@ impl BlockBuilder {
         tx: Tx,
         signature: UserSignature,
     ) -> Result<(), BlockBuilderError> {
+        log::info!(
+            "post_signature is_registration_block: {}",
+            is_registration_block
+        );
         let mut status = if is_registration_block {
             self.registration_state.clone()
         } else {
@@ -202,6 +210,8 @@ impl BlockBuilder {
         signature
             .verify(memo.tx_tree_root, memo.pubkey_hash)
             .map_err(|e| BlockBuilderError::InvalidSignature(e.to_string()))?;
+
+        // update state
         status.append_signature(signature);
         if is_registration_block {
             self.registration_state = status;
@@ -216,6 +226,10 @@ impl BlockBuilder {
         &mut self,
         is_registration_block: bool,
     ) -> Result<(), BlockBuilderError> {
+        log::info!(
+            "post_block is_registration_block: {}",
+            is_registration_block
+        );
         let mut status = if is_registration_block {
             self.registration_state.clone()
         } else {
@@ -337,6 +351,10 @@ impl BlockBuilder {
         &mut self,
         is_registration_block: bool,
     ) -> Result<(), BlockBuilderError> {
+        log::info!(
+            "start_accepting_txs is_registration_block: {}",
+            is_registration_block
+        );
         let mut status = if is_registration_block {
             self.registration_state.clone()
         } else {
@@ -355,6 +373,7 @@ impl BlockBuilder {
     }
 
     pub async fn post_empty_block(&mut self) -> Result<(), BlockBuilderError> {
+        log::info!("post_empty_block");
         let is_registration_block = false;
         self.start_accepting_txs(is_registration_block)?;
         self.construct_block(is_registration_block)?;
@@ -364,6 +383,7 @@ impl BlockBuilder {
 
     /// Reset the block builder.
     pub fn reset(&mut self) {
+        log::info!("reset");
         *self = Self {
             validity_prover_client: self.validity_prover_client.clone(),
             rollup_contract: self.rollup_contract.clone(),
