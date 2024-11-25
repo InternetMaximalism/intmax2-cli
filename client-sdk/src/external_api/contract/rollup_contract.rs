@@ -375,6 +375,17 @@ impl RollupContract {
         .await?;
         Ok(tx_hash)
     }
+
+    pub async fn get_latest_block_number(&self) -> Result<u32, BlockchainError> {
+        let contract = self.get_contract().await?;
+        let latest_block_number =
+            with_retry(|| async { contract.get_latest_block_number().call().await })
+                .await
+                .map_err(|_| {
+                    BlockchainError::NetworkError("failed to get latest block number".to_string())
+                })?;
+        Ok(latest_block_number)
+    }
 }
 
 fn encode_flat_g1(g1: &FlatG1) -> [[u8; 32]; 2] {
