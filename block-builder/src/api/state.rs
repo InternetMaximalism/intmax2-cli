@@ -2,12 +2,14 @@ use std::{sync::Arc, time::Duration};
 
 use tokio::sync::RwLock;
 
+use crate::Env;
+
 use super::{block_builder::BlockBuilder, error::BlockBuilderError};
 
 #[derive(Debug, Clone)]
 pub struct State {
-    is_shutting_down: Arc<RwLock<bool>>,
-    block_builder: Arc<RwLock<BlockBuilder>>,
+    pub is_shutting_down: Arc<RwLock<bool>>,
+    pub block_builder: Arc<RwLock<BlockBuilder>>,
 }
 
 impl State {
@@ -38,21 +40,21 @@ impl State {
     }
 
     async fn cycle(&self, is_registration_block: bool) -> Result<(), BlockBuilderError> {
+        let env = envy::from_env::<Env>().unwrap();
+
         self.block_builder
             .write()
             .await
             .start_accepting_txs(is_registration_block)?;
 
-        // accepting txs for 60 seconds
-        tokio::time::sleep(Duration::from_secs(60)).await;
+        tokio::time::sleep(Duration::from_secs(env.accepting_tx_interval)).await;
 
         self.block_builder
             .write()
             .await
             .construct_block(is_registration_block)?;
 
-        // proposing block for 15 seconds
-        tokio::time::sleep(Duration::from_secs(15)).await;
+        tokio::time::sleep(Duration::from_secs(env.proposing_block_interval)).await;
 
         self.block_builder
             .write()
