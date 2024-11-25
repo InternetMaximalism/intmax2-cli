@@ -1,20 +1,18 @@
-use std::io;
+use std::env;
 
 use actix_cors::Cors;
 use actix_web::{middleware::Logger, web::Data, App, HttpServer};
-use block_builder::{
-    api::{api::block_builder_scope, block_builder::BlockBuilder, state::State},
-    health_check::health_check,
-    Env,
-};
 use intmax2_client_sdk::utils::init_logger::init_logger;
-use tokio::time::sleep;
+use withdrawal_server::{
+    api::{api::withdrawal_server_scope, state::State},
+    health_check::health_check,
+};
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
     init_logger();
-    let port = 
-    let state = State;
+    let port = env::var("PORT").unwrap_or_else(|_| "8080".to_string());
+    let state = State {};
     let state = Data::new(state);
     HttpServer::new(move || {
         let cors = Cors::permissive();
@@ -25,7 +23,7 @@ async fn main() -> std::io::Result<()> {
             .service(health_check)
             .service(withdrawal_server_scope())
     })
-    .bind(format!("0.0.0.0:{}", env.port))?
+    .bind(format!("0.0.0.0:{}", port))?
     .run()
     .await
 }
