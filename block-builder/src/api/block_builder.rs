@@ -263,6 +263,10 @@ impl BlockBuilder {
         } else {
             let mut account_ids = Vec::new();
             for pubkey in memo.pubkeys.iter() {
+                if pubkey.is_dummy_pubkey() {
+                    account_ids.push(1); // dummy account id
+                    continue;
+                }
                 let account_info = self
                     .validity_prover_client
                     .get_account_info(*pubkey)

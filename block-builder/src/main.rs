@@ -8,6 +8,7 @@ use block_builder::{
     Env,
 };
 use intmax2_client_sdk::utils::init_logger::init_logger;
+use tokio::time::sleep;
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
@@ -17,13 +18,14 @@ async fn main() -> std::io::Result<()> {
     let env = envy::from_env::<Env>()
         .map_err(|e| io::Error::new(io::ErrorKind::Other, format!("env error: {}", e)))?;
 
+    let eth_allowance_for_block = ethers::utils::parse_ether(env.eth_allowance_for_block).unwrap();
     let block_builder = BlockBuilder::new(
         &env.rpc_url,
         env.chain_id,
         env.rollup_contract_address,
         env.rollup_contract_deployed_block_number,
         env.block_builder_private_key,
-        env.eth_allowance_for_block.into(),
+        eth_allowance_for_block.into(),
         &env.validity_prover_base_url,
     );
     let state = State::new(block_builder);
@@ -31,6 +33,10 @@ async fn main() -> std::io::Result<()> {
     // Start the block builder job
     let state_for_registration_cycle = state.clone();
     state_for_registration_cycle.job(true).await;
+    sleep(tokio::time::Duration::from_secs(
+        env.proposing_block_interval / 2,
+    ))
+    .await;
     let state_for_non_registration_cycle = state.clone();
     state_for_non_registration_cycle.job(false).await;
 

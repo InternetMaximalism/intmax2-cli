@@ -15,7 +15,7 @@ pub struct Env {
     pub validity_prover_base_url: String,
 
     pub block_builder_private_key: H256,
-    pub eth_allowance_for_block: u128,
+    pub eth_allowance_for_block: String,
 
     pub accepting_tx_interval: u64,
     pub proposing_block_interval: u64,
