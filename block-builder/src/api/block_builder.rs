@@ -1,10 +1,12 @@
 use anyhow::ensure;
 use ark_bn254::{Bn254, Fr, G1Affine, G2Affine};
 use ark_ec::{pairing::Pairing as _, AffineRepr as _};
+use ethers::types::Address;
 use hashbrown::HashMap;
 use intmax2_client_sdk::external_api::{
     contract::rollup_contract::RollupContract, validity_prover::ValidityProverClient,
 };
+use intmax2_interfaces::api::validity_prover::interface::ValidityProverClientInterface;
 use intmax2_zkp::{
     common::{
         block_builder::{BlockProposal, UserSignature},
@@ -25,11 +27,17 @@ use intmax2_zkp::{
 };
 use num::BigUint;
 use plonky2::{
-    field::extension::Extendable,
+    field::{extension::Extendable, goldilocks_field::GoldilocksField},
     hash::hash_types::RichField,
-    plonk::config::{AlgebraicHasher, GenericConfig},
+    plonk::config::{AlgebraicHasher, GenericConfig, PoseidonGoldilocksConfig},
 };
 use plonky2_bn254::fields::recover::RecoverFromX as _;
+
+use super::error::BlockBuilderError;
+
+type F = GoldilocksField;
+type C = PoseidonGoldilocksConfig;
+const D: usize = 2;
 
 pub struct BlockBuilder {
     validity_prover_client: ValidityProverClient,
@@ -60,8 +68,23 @@ enum BlockBuilderStatus {
 }
 
 impl BlockBuilder {
-    pub fn new() -> Self {
+    pub fn new(
+        rpc_url: &str,
+        chain_id: u64,
+        rollup_contract_address: Address,
+        rollup_contract_deployed_block_number: u64,
+        validity_prover_base_url: &str,
+    ) -> Self {
+        let validity_prover_client = ValidityProverClient::new(validity_prover_base_url);
+        let rollup_contract = RollupContract::new(
+            rpc_url,
+            chain_id,
+            rollup_contract_address,
+            rollup_contract_deployed_block_number,
+        );
         Self {
+            validity_prover_client,
+            rollup_contract,
             status: BlockBuilderStatus::Pausing,
             is_registration_block: None,
             senders: HashMap::new(),
@@ -71,47 +94,39 @@ impl BlockBuilder {
         }
     }
 
+    pub fn get_status(&self) -> BlockBuilderStatus {
+        self.status
+    }
+
     // Send a tx request by the user.
-    pub fn send_tx_request<F, C, const D: usize>(
-        &mut self,
-        validity_prover: &BlockValidityProver<F, C, D>, // used to get the account id
-        pubkey: U256,
-        tx: Tx,
-    ) -> anyhow::Result<()>
-    where
-        F: RichField + Extendable<D>,
-        C: GenericConfig<D, F = F> + 'static,
-        <C as GenericConfig<D>>::Hasher: AlgebraicHasher<F>,
-    {
-        ensure!(
-            self.status == BlockBuilderStatus::AcceptingTxs,
-            "not accepting txs"
-        );
-        ensure!(
-            self.tx_requests.len() < NUM_SENDERS_IN_BLOCK,
-            "too many txs"
-        );
-
+    pub async fn send_tx_request(&mut self, pubkey: U256, tx: Tx) -> Result<(), BlockBuilderError> {
+        if self.status != BlockBuilderStatus::AcceptingRegistrationTxs
+            && self.status != BlockBuilderStatus::AcceptingNonRegistrationTxs
+        {
+            return Err(BlockBuilderError::NotAcceptingTx);
+        }
+        if self.tx_requests.len() >= NUM_SENDERS_IN_BLOCK {
+            return Err(BlockBuilderError::BlockIsFull);
+        }
         // duplication check
-        ensure!(
-            self.senders
-                .insert(pubkey, self.tx_requests.len())
-                .is_none(),
-            "duplicated pubkey in the txs"
-        );
-
+        if self.senders.contains_key(&pubkey) {
+            return Err(BlockBuilderError::OnlyOneSenderAllowed);
+        }
         // registration check
-        let account_id = validity_prover.get_account_id(pubkey);
-        let is_registration_block = account_id.is_none();
-        if self.is_registration_block.is_none() {
-            self.is_registration_block = Some(is_registration_block);
+        let account_info = self.validity_prover_client.get_account_info(pubkey).await?;
+        if self.status == BlockBuilderStatus::AcceptingRegistrationTxs {
+            if let Some(account_id) = account_info.account_id {
+                return Err(BlockBuilderError::AccountAlreadyRegistered(
+                    pubkey, account_id,
+                ));
+            }
         } else {
-            ensure!(
-                self.is_registration_block.unwrap() == is_registration_block,
-                "block type mismatch"
-            );
+            if account_info.account_id.is_none() {
+                return Err(BlockBuilderError::AccountNotFound(pubkey));
+            }
         }
 
+        self.senders.insert(pubkey, self.tx_requests.len()); // position and pubkey
         self.tx_requests.push((pubkey, tx));
 
         Ok(())
@@ -202,11 +217,7 @@ impl BlockBuilder {
     }
 
     // Post the block with the given signatures.
-    pub fn post_block<F, C, const D: usize>(
-        &mut self,
-        contract: &mut MockContract,
-        validity_prover: &BlockValidityProver<F, C, D>, // used to get the account id
-    ) -> anyhow::Result<()>
+    pub fn post_block<F, C, const D: usize>(&mut self) -> anyhow::Result<()>
     where
         F: RichField + Extendable<D>,
         C: GenericConfig<D, F = F> + 'static,
@@ -384,10 +395,7 @@ fn construct_signature(
 #[cfg(test)]
 mod tests {
     use super::BlockBuilder;
-    use crate::{
-        common::{signature::key_set::KeySet, tx::Tx},
-        mock::{block_validity_prover::BlockValidityProver, contract::MockContract},
-    };
+    use intmax2_zkp::common::{signature::key_set::KeySet, tx::Tx};
     use plonky2::{
         field::goldilocks_field::GoldilocksField, plonk::config::PoseidonGoldilocksConfig,
     };
