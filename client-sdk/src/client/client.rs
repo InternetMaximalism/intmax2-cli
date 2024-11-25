@@ -82,6 +82,7 @@ pub enum SyncStatus {
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct TxRequestMemo {
+    pub is_registration_block: bool,
     pub tx: Tx,
     pub transfers: Vec<Transfer>,
     pub spent_witness: SpentWitness,
@@ -219,11 +220,22 @@ where
         })?;
         let spent_proof = self.balance_prover.prove_spent(key, &spent_witness).await?;
 
+        // fetch if this is first time tx
+        let account_info = self.validity_prover.get_account_info(key.pubkey).await?;
+        let is_registration_block = account_info.account_id.is_none();
+
         self.block_builder
-            .send_tx_request(block_builder_url, key.pubkey, tx, None)
+            .send_tx_request(
+                block_builder_url,
+                is_registration_block,
+                key.pubkey,
+                tx,
+                None,
+            )
             .await?;
 
         let memo = TxRequestMemo {
+            is_registration_block,
             tx,
             transfers,
             spent_witness,
@@ -238,11 +250,12 @@ where
         &self,
         block_builder_url: &str,
         key: KeySet,
+        is_registration_block: bool,
         tx: Tx,
     ) -> Result<Option<BlockProposal>, ClientError> {
         let proposal = self
             .block_builder
-            .query_proposal(block_builder_url, key.pubkey, tx)
+            .query_proposal(block_builder_url, is_registration_block, key.pubkey, tx)
             .await?;
         Ok(proposal)
     }
@@ -320,6 +333,7 @@ where
         self.block_builder
             .post_signature(
                 block_builder_url,
+                memo.is_registration_block,
                 signature.pubkey,
                 memo.tx,
                 signature.signature,

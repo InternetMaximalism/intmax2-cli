@@ -29,7 +29,6 @@ use intmax2_zkp::{
 };
 use num::BigUint;
 use plonky2_bn254::fields::recover::RecoverFromX as _;
-use serde::{Deserialize, Serialize};
 
 use super::error::BlockBuilderError;
 

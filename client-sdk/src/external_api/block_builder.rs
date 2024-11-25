@@ -1,9 +1,10 @@
 use async_trait::async_trait;
 use intmax2_interfaces::api::{
     block_builder::{
-        interface::{BlockBuilderClientInterface, FeeProof},
+        interface::{BlockBuilderClientInterface, BlockBuilderStatus, FeeProof},
         types::{
-            PostSignatureRequest, QueryProposalRequest, QueryProposalResponse, TxRequestRequest,
+            GetBlockBuilderStatusQuery, GetBlockBuilderStatusResponse, PostSignatureRequest,
+            QueryProposalRequest, QueryProposalResponse, TxRequestRequest,
         },
     },
     error::ServerError,
@@ -13,7 +14,7 @@ use intmax2_zkp::{
     ethereum_types::u256::U256,
 };
 
-use super::utils::query::post_request;
+use super::utils::query::{get_request, post_request};
 
 #[derive(Debug, Clone)]
 pub struct BlockBuilderClient;
@@ -26,14 +27,33 @@ impl BlockBuilderClient {
 
 #[async_trait(?Send)]
 impl BlockBuilderClientInterface for BlockBuilderClient {
+    async fn get_status(
+        &self,
+        block_builder_url: &str,
+        is_registration_block: bool,
+    ) -> Result<BlockBuilderStatus, ServerError> {
+        let query = GetBlockBuilderStatusQuery {
+            is_registration_block,
+        };
+        let response = get_request::<GetBlockBuilderStatusResponse, GetBlockBuilderStatusQuery>(
+            block_builder_url,
+            "/block-builder/status",
+            Some(query),
+        )
+        .await?;
+        Ok(response.status)
+    }
+
     async fn send_tx_request(
         &self,
         block_builder_url: &str,
+        is_registration_block: bool,
         pubkey: U256,
         tx: Tx,
         fee_proof: Option<FeeProof>,
     ) -> Result<(), ServerError> {
         let request = TxRequestRequest {
+            is_registration_block,
             pubkey,
             tx,
             fee_proof,
@@ -44,10 +64,15 @@ impl BlockBuilderClientInterface for BlockBuilderClient {
     async fn query_proposal(
         &self,
         block_builder_url: &str,
+        is_registration_block: bool,
         pubkey: U256,
         tx: Tx,
     ) -> Result<Option<BlockProposal>, ServerError> {
-        let request = QueryProposalRequest { pubkey, tx };
+        let request = QueryProposalRequest {
+            is_registration_block,
+            pubkey,
+            tx,
+        };
         let response: QueryProposalResponse =
             post_request(block_builder_url, "/block-builder/query-proposal", &request).await?;
         Ok(response.block_proposal)
@@ -56,11 +81,13 @@ impl BlockBuilderClientInterface for BlockBuilderClient {
     async fn post_signature(
         &self,
         block_builder_url: &str,
+        is_registration_block: bool,
         pubkey: U256,
         tx: Tx,
         signature: FlatG2,
     ) -> Result<(), ServerError> {
         let request = PostSignatureRequest {
+            is_registration_block,
             pubkey,
             tx,
             signature,
