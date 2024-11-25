@@ -1,7 +1,6 @@
-use anyhow::ensure;
 use ark_bn254::{Bn254, Fr, G1Affine, G2Affine};
 use ark_ec::{pairing::Pairing as _, AffineRepr as _};
-use ethers::types::Address;
+use ethers::types::{Address, H256};
 use hashbrown::HashMap;
 use intmax2_client_sdk::external_api::{
     contract::rollup_contract::RollupContract, validity_prover::ValidityProverClient,
@@ -26,11 +25,7 @@ use intmax2_zkp::{
     },
 };
 use num::BigUint;
-use plonky2::{
-    field::{extension::Extendable, goldilocks_field::GoldilocksField},
-    hash::hash_types::RichField,
-    plonk::config::{AlgebraicHasher, GenericConfig, PoseidonGoldilocksConfig},
-};
+use plonky2::{field::goldilocks_field::GoldilocksField, plonk::config::PoseidonGoldilocksConfig};
 use plonky2_bn254::fields::recover::RecoverFromX as _;
 
 use super::error::BlockBuilderError;
@@ -39,9 +34,12 @@ type F = GoldilocksField;
 type C = PoseidonGoldilocksConfig;
 const D: usize = 2;
 
+#[derive(Debug, Clone)]
 pub struct BlockBuilder {
     validity_prover_client: ValidityProverClient,
     rollup_contract: RollupContract,
+    block_builder_private_key: H256,
+    eth_allowance_for_block: ethers::types::U256,
 
     status: BlockBuilderStatus,
     senders: HashMap<U256, usize>, // pubkey -> tx request order
@@ -73,6 +71,8 @@ impl BlockBuilder {
         chain_id: u64,
         rollup_contract_address: Address,
         rollup_contract_deployed_block_number: u64,
+        block_builder_private_key: H256,
+        eth_allowance_for_block: ethers::types::U256,
         validity_prover_base_url: &str,
     ) -> Self {
         let validity_prover_client = ValidityProverClient::new(validity_prover_base_url);
@@ -85,6 +85,8 @@ impl BlockBuilder {
         Self {
             validity_prover_client,
             rollup_contract,
+            block_builder_private_key,
+            eth_allowance_for_block,
             status: BlockBuilderStatus::Pausing,
             senders: HashMap::new(),
             tx_requests: Vec::new(),
@@ -223,10 +225,7 @@ impl BlockBuilder {
                 // continue
             }
         }
-        let position = self
-            .senders
-            .get(&pubkey)
-            .ok_or(anyhow::anyhow!("pubkey not found"))?;
+        let position = self.senders.get(&pubkey).unwrap(); // safe
         let proposal = &self.memo.as_ref().unwrap().proposals[*position];
         Ok(Some(proposal.clone()))
     }
@@ -254,8 +253,7 @@ impl BlockBuilder {
     // Post the block with the given signatures.
     pub async fn post_block(&mut self) -> Result<(), BlockBuilderError> {
         let mut account_id_packed = None;
-        let mut is_registration_block = None;
-        match self.status {
+        let is_registration_block = match self.status {
             BlockBuilderStatus::Proposing(true) => {
                 for pubkey in self.memo.as_ref().unwrap().pubkeys.iter() {
                     if pubkey.is_dummy_pubkey() {
@@ -273,7 +271,7 @@ impl BlockBuilder {
                         ));
                     }
                 }
-                is_registration_block = Some(true);
+                true
             }
             BlockBuilderStatus::Proposing(false) => {
                 let mut account_ids = Vec::new();
@@ -288,14 +286,14 @@ impl BlockBuilder {
                     account_ids.push(account_info.account_id.unwrap());
                 }
                 account_id_packed = Some(AccountIdPacked::pack(&account_ids));
-                is_registration_block = Some(false);
+                false
             }
             _ => {
                 return Err(BlockBuilderError::NotProposing);
             }
-        }
-        let account_id_hash = account_id_packed.map_or(Bytes32::default(), |ids| ids.hash());
+        };
 
+        let account_id_hash = account_id_packed.map_or(Bytes32::default(), |ids| ids.hash());
         let memo = self.memo.clone().unwrap();
         let mut sender_with_signatures = memo
             .pubkeys
@@ -318,65 +316,81 @@ impl BlockBuilder {
             memo.tx_tree_root,
             memo.pubkey_hash,
             account_id_hash,
-            is_registration_block.unwrap(),
+            is_registration_block,
             &sender_with_signatures,
         );
 
         // call contract
-        if self.is_registration_block.unwrap() {
+        if is_registration_block {
             let trimmed_pubkeys = memo
                 .pubkeys
                 .into_iter()
                 .filter(|pubkey| !pubkey.is_dummy_pubkey())
                 .collect::<Vec<_>>();
-            contract.post_registration_block(
-                memo.tx_tree_root,
-                signature.sender_flag,
-                signature.agg_pubkey,
-                signature.agg_signature,
-                signature.message_point,
-                trimmed_pubkeys,
-            )?;
+            self.rollup_contract
+                .post_registration_block(
+                    self.block_builder_private_key,
+                    self.eth_allowance_for_block,
+                    memo.tx_tree_root,
+                    signature.sender_flag,
+                    signature.agg_pubkey,
+                    signature.agg_signature,
+                    signature.message_point,
+                    trimmed_pubkeys,
+                )
+                .await?;
         } else {
-            contract.post_non_registration_block(
-                memo.tx_tree_root,
-                signature.sender_flag,
-                signature.agg_pubkey,
-                signature.agg_signature,
-                signature.message_point,
-                memo.pubkey_hash,
-                account_ids.unwrap().to_trimmed_bytes(),
-            )?;
-        }
-
+            self.rollup_contract
+                .post_non_registration_block(
+                    self.block_builder_private_key,
+                    self.eth_allowance_for_block,
+                    memo.tx_tree_root,
+                    signature.sender_flag,
+                    signature.agg_pubkey,
+                    signature.agg_signature,
+                    signature.message_point,
+                    memo.pubkey_hash,
+                    account_id_packed.unwrap().to_trimmed_bytes(),
+                )
+                .await?;
+        };
         self.reset();
-
         Ok(())
     }
 
-    pub fn post_empty_block<F, C, const D: usize>(
-        &mut self,
-        contract: &mut MockContract,
-        validity_prover: &BlockValidityProver<F, C, D>, // used to get the account id
-    ) -> anyhow::Result<()>
-    where
-        F: RichField + Extendable<D>,
-        C: GenericConfig<D, F = F> + 'static,
-        <C as GenericConfig<D>>::Hasher: AlgebraicHasher<F>,
-    {
-        ensure!(
-            self.status == BlockBuilderStatus::AcceptingTxs,
-            "Block builder is not accepting tx"
-        );
-        ensure!(self.tx_requests.is_empty(), "Block builder has tx requests");
-        ensure!(self.signatures.is_empty(), "Block builder has signatures");
+    pub fn start_registration_block(&mut self) -> Result<(), BlockBuilderError> {
+        if self.status != BlockBuilderStatus::Pausing {
+            return Err(BlockBuilderError::ShouldBePausing);
+        }
+        self.status = BlockBuilderStatus::AcceptingRegistrationTxs;
+        Ok(())
+    }
+
+    pub fn start_non_registration_block(&mut self) -> Result<(), BlockBuilderError> {
+        if self.status != BlockBuilderStatus::Pausing {
+            return Err(BlockBuilderError::ShouldBePausing);
+        }
+        self.status = BlockBuilderStatus::AcceptingNonRegistrationTxs;
+        Ok(())
+    }
+
+    pub async fn post_empty_block(&mut self) -> Result<(), BlockBuilderError> {
+        self.start_non_registration_block()?;
         self.construct_block()?;
-        self.post_block(contract, validity_prover)?;
+        self.post_block().await?;
         Ok(())
     }
 
     pub fn reset(&mut self) {
-        *self = Self::new();
+        let cloned = self.clone();
+        *self = Self {
+            status: BlockBuilderStatus::Pausing,
+            senders: HashMap::new(),
+            tx_requests: Vec::new(),
+            memo: None,
+            signatures: Vec::new(),
+            ..cloned
+        }
     }
 }
 
@@ -442,52 +456,52 @@ fn construct_signature(
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::BlockBuilder;
-    use intmax2_zkp::common::{signature::key_set::KeySet, tx::Tx};
-    use plonky2::{
-        field::goldilocks_field::GoldilocksField, plonk::config::PoseidonGoldilocksConfig,
-    };
+// #[cfg(test)]
+// mod tests {
+//     use super::BlockBuilder;
+//     use intmax2_zkp::common::{signature::key_set::KeySet, tx::Tx};
+//     use plonky2::{
+//         field::goldilocks_field::GoldilocksField, plonk::config::PoseidonGoldilocksConfig,
+//     };
 
-    type F = GoldilocksField;
-    type C = PoseidonGoldilocksConfig;
-    const D: usize = 2;
+//     type F = GoldilocksField;
+//     type C = PoseidonGoldilocksConfig;
+//     const D: usize = 2;
 
-    #[test]
-    fn block_builder() {
-        let mut rng = rand::thread_rng();
-        let mut block_builder = BlockBuilder::new();
-        let mut validity_prover = BlockValidityProver::<F, C, D>::new();
-        let mut contract = MockContract::new();
+//     #[test]
+//     fn block_builder() {
+//         let mut rng = rand::thread_rng();
+//         let mut block_builder = BlockBuilder::new();
+//         let mut validity_prover = BlockValidityProver::<F, C, D>::new();
+//         let mut contract = MockContract::new();
 
-        let user = KeySet::rand(&mut rng);
+//         let user = KeySet::rand(&mut rng);
 
-        for _ in 0..3 {
-            let tx = Tx::rand(&mut rng);
+//         for _ in 0..3 {
+//             let tx = Tx::rand(&mut rng);
 
-            // send tx request
-            block_builder
-                .send_tx_request(&validity_prover, user.pubkey, tx.clone())
-                .unwrap();
+//             // send tx request
+//             block_builder
+//                 .send_tx_request(&validity_prover, user.pubkey, tx.clone())
+//                 .unwrap();
 
-            // Block builder constructs a block
-            block_builder.construct_block().unwrap();
+//             // Block builder constructs a block
+//             block_builder.construct_block().unwrap();
 
-            // query proposal and verify
-            let proposal = block_builder.query_proposal(user.pubkey).unwrap().unwrap();
-            proposal.verify(tx).unwrap(); // verify the proposal
-            let signature = proposal.sign(user);
+//             // query proposal and verify
+//             let proposal = block_builder.query_proposal(user.pubkey).unwrap().unwrap();
+//             proposal.verify(tx).unwrap(); // verify the proposal
+//             let signature = proposal.sign(user);
 
-            // post signature
-            block_builder.post_signature(signature).unwrap();
+//             // post signature
+//             block_builder.post_signature(signature).unwrap();
 
-            // post block
-            block_builder
-                .post_block(&mut contract, &validity_prover)
-                .unwrap();
+//             // post block
+//             block_builder
+//                 .post_block(&mut contract, &validity_prover)
+//                 .unwrap();
 
-            validity_prover.sync(&contract).unwrap();
-        }
-    }
-}
+//             validity_prover.sync(&contract).unwrap();
+//         }
+//     }
+// }

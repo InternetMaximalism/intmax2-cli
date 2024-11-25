@@ -39,4 +39,7 @@ pub enum BlockBuilderError {
 
     #[error("Invalid signature: {0}")]
     InvalidSignature(String),
+
+    #[error("Block builder should be pausing")]
+    ShouldBePausing,
 }
