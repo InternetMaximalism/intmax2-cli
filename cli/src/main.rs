@@ -9,7 +9,6 @@ use intmax2_zkp::{
 };
 use num_bigint::BigUint;
 
-
 #[derive(Parser)]
 #[clap(name = "intmax2_cli")]
 #[clap(about = "Intmax2 CLI tool")]
