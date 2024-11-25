@@ -4,4 +4,4 @@ pub mod contract;
 pub mod store_vault_server;
 pub mod utils;
 pub mod validity_prover;
-pub mod withdrawal_aggregator;
+pub mod withdrawal_server;

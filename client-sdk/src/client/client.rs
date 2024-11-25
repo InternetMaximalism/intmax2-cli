@@ -4,7 +4,7 @@ use intmax2_interfaces::{
         block_builder::interface::BlockBuilderClientInterface,
         store_vault_server::interface::{DataType, StoreVaultClientInterface},
         validity_prover::interface::ValidityProverClientInterface,
-        withdrawal_aggregator::interface::WithdrawalAggregatorClientInterface,
+        withdrawal_server::interface::WithdrawalServerClientInterface,
     },
     data::{
         common_tx_data::CommonTxData, deposit_data::DepositData, meta_data::MetaData,
@@ -61,7 +61,7 @@ pub struct Client<
     S: StoreVaultClientInterface,
     V: ValidityProverClientInterface,
     B: BalanceProverClientInterface,
-    W: WithdrawalAggregatorClientInterface,
+    W: WithdrawalServerClientInterface,
 > {
     pub config: ClientConfig,
 
@@ -105,7 +105,7 @@ where
     S: StoreVaultClientInterface,
     V: ValidityProverClientInterface,
     B: BalanceProverClientInterface,
-    W: WithdrawalAggregatorClientInterface,
+    W: WithdrawalServerClientInterface,
 {
     /// Back up deposit information before calling the contract's deposit function
     pub async fn prepare_deposit(

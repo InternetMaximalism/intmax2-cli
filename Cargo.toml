@@ -4,7 +4,10 @@ members = [
     "client-sdk",
     "interfaces",
     "wasm",
-    "server", "balance-prover", "store-vault-server", "validity-prover", "block-builder",
+    "balance-prover",
+    "store-vault-server", 
+    "validity-prover", 
+    "block-builder", "withdrawal-server",
 ]
 resolver = "2"
 

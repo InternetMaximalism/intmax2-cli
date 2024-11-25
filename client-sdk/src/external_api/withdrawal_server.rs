@@ -1,8 +1,8 @@
 use async_trait::async_trait;
 use intmax2_interfaces::api::{
     error::ServerError,
-    withdrawal_aggregator::{
-        interface::{Fee, WithdrawalAggregatorClientInterface, WithdrawalInfo},
+    withdrawal_server::{
+        interface::{Fee, WithdrawalInfo, WithdrawalServerClientInterface},
         types::{
             GetFeeResponse, GetWithdrawalInfoReqponse, GetWithdrawalInfoRequest,
             RequestWithdrawalRequest,
@@ -22,23 +22,23 @@ type C = PoseidonGoldilocksConfig;
 const D: usize = 2;
 
 #[derive(Debug, Clone)]
-pub struct WithdrawalAggregatorClient {
+pub struct WithdrawalServerClient {
     base_url: String,
 }
 
-impl WithdrawalAggregatorClient {
+impl WithdrawalServerClient {
     pub fn new(base_url: &str) -> Self {
-        WithdrawalAggregatorClient {
+        WithdrawalServerClient {
             base_url: base_url.to_string(),
         }
     }
 }
 
 #[async_trait(?Send)]
-impl WithdrawalAggregatorClientInterface for WithdrawalAggregatorClient {
+impl WithdrawalServerClientInterface for WithdrawalServerClient {
     async fn fee(&self) -> Result<Vec<Fee>, ServerError> {
         let response: GetFeeResponse =
-            get_request::<_, ()>(&self.base_url, "/withdrawal-aggregator/fee", None).await?;
+            get_request::<_, ()>(&self.base_url, "/withdrawal-server/fee", None).await?;
         Ok(response.fees)
     }
 
@@ -51,7 +51,7 @@ impl WithdrawalAggregatorClientInterface for WithdrawalAggregatorClient {
         };
         post_request::<_, ()>(
             &self.base_url,
-            "/withdrawal-aggregator/request-withdrawal",
+            "/withdrawal-server/request-withdrawal",
             &request,
         )
         .await
@@ -63,7 +63,7 @@ impl WithdrawalAggregatorClientInterface for WithdrawalAggregatorClient {
         let query = GetWithdrawalInfoRequest { pubkey, signature };
         let response: GetWithdrawalInfoReqponse = get_request(
             &self.base_url,
-            "/withdrawal-aggregator/get-withdrawal-info",
+            "/withdrawal-server/get-withdrawal-info",
             Some(query),
         )
         .await?;

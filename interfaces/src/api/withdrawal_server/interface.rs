@@ -61,7 +61,7 @@ pub enum WithdrawalStatus {
 }
 
 #[async_trait(?Send)]
-pub trait WithdrawalAggregatorClientInterface {
+pub trait WithdrawalServerClientInterface {
     async fn fee(&self) -> Result<Vec<Fee>, ServerError>;
 
     async fn request_withdrawal(
