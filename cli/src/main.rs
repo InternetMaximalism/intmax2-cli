@@ -2,7 +2,7 @@ use anyhow::{bail, ensure};
 use clap::{Parser, Subcommand};
 use ethers::types::{Address, H256};
 use intmax2_cli::cli::{
-    deposit::{self, deposit_ft},
+    deposit::deposit_ft,
     get::balance,
     send::tx,
     sync::{sync, sync_withdrawals},
@@ -119,7 +119,6 @@ async fn main() -> anyhow::Result<()> {
             println!("Public key: {}", key.pubkey.to_hex());
         }
     }
-
     Ok(())
 }
 
@@ -135,10 +134,6 @@ fn parse_generic_address(address: &str) -> anyhow::Result<GenericAddress> {
     } else {
         bail!("Invalid length");
     }
-}
-
-fn u128_to_u256(u128: u128) -> intmax2_zkp::ethereum_types::u256::U256 {
-    BigUint::from(u128).try_into().unwrap()
 }
 
 fn h256_to_keyset(h256: H256) -> KeySet {

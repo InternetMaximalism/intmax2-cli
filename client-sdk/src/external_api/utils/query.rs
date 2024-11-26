@@ -9,7 +9,7 @@ pub async fn post_request<T: serde::Serialize, U: serde::de::DeserializeOwned>(
 ) -> Result<U, ServerError> {
     let url = format!("{}{}", base_url, endpoint);
     let response = with_retry(|| async {
-        reqwest_wasm::Client::new()
+        reqwest::Client::new()
             .post(&url)
             .json(body)
             .send()
@@ -40,7 +40,7 @@ where
 
     let response = if let Some(params) = query {
         with_retry(|| async {
-            reqwest_wasm::Client::new()
+            reqwest::Client::new()
                 .get(&url)
                 .query(&params)
                 .send()
@@ -48,7 +48,7 @@ where
         })
         .await
     } else {
-        with_retry(|| async { reqwest_wasm::Client::new().get(&url).send().await }).await
+        with_retry(|| async { reqwest::Client::new().get(&url).send().await }).await
     }
     .map_err(|e| ServerError::NetworkError(e.to_string()))?;
 
