@@ -1,11 +1,8 @@
 use ethers::types::U256;
 use intmax2_client_sdk::external_api::indexer::IndexerClient;
 use intmax2_interfaces::api::indexer::interface::IndexerClientInterface;
-use intmax2_zkp::{
-    common::{
-        generic_address::GenericAddress, salt::Salt, signature::key_set::KeySet, transfer::Transfer,
-    },
-    ethereum_types::u32limb_trait::U32LimbTrait as _,
+use intmax2_zkp::common::{
+    generic_address::GenericAddress, salt::Salt, signature::key_set::KeySet, transfer::Transfer,
 };
 
 use crate::{
@@ -15,8 +12,7 @@ use crate::{
 
 pub async fn tx(
     key: KeySet,
-    is_pubkey: bool,
-    to: &[u8], // 20 bytes for address, 32 bytes for pubkey
+    recipient: GenericAddress,
     amount: U256,
     token_index: u32,
 ) -> anyhow::Result<()> {
@@ -40,8 +36,6 @@ pub async fn tx(
     let mut rng = rand::thread_rng();
     let salt = Salt::rand(&mut rng);
 
-    let data = intmax2_zkp::ethereum_types::u256::U256::from_bytes_be(&to);
-    let recipient = GenericAddress { is_pubkey, data };
     let amount = convert_u256(amount);
     let transfer = Transfer {
         recipient,

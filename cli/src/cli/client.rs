@@ -1,8 +1,11 @@
 use intmax2_client_sdk::{
     client::{client::Client, config::ClientConfig},
     external_api::{
-        balance_prover::BalanceProverClient, block_builder::BlockBuilderClient,
-        store_vault_server::StoreVaultServerClient, validity_prover::ValidityProverClient,
+        balance_prover::BalanceProverClient,
+        block_builder::BlockBuilderClient,
+        contract::{liquidity_contract::LiquidityContract, rollup_contract::RollupContract},
+        store_vault_server::StoreVaultServerClient,
+        validity_prover::ValidityProverClient,
         withdrawal_server::WithdrawalServerClient,
     },
 };
@@ -23,6 +26,18 @@ pub fn get_client() -> anyhow::Result<Client<BB, S, V, B, W>> {
     let balance_prover = B::new(&env.balance_prover_base_url.to_string());
     let withdrawal_server = W::new(&env.withdrawal_server_base_url.to_string());
 
+    let liquidity_contract = LiquidityContract::new(
+        &env.l1_rpc_url.to_string(),
+        env.l1_chain_id,
+        env.liquidity_contract_address,
+    );
+    let rollup_contract = RollupContract::new(
+        &env.l2_rpc_url.to_string(),
+        env.l2_chain_id,
+        env.rollup_contract_address,
+        env.rollup_contract_deployed_block_number,
+    );
+
     let config = ClientConfig {
         deposit_timeout: env.deposit_timeout,
         tx_timeout: env.tx_timeout,
@@ -34,6 +49,8 @@ pub fn get_client() -> anyhow::Result<Client<BB, S, V, B, W>> {
         validity_prover,
         balance_prover,
         withdrawal_server,
+        liquidity_contract,
+        rollup_contract,
         config,
     };
 

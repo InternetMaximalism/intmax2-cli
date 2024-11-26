@@ -1,30 +1,47 @@
-use ethers::types::{Address, U256};
-use intmax2_client_sdk::external_api::contract::{
-    liquidity_contract::LiquidityContract, rollup_contract::RollupContract,
-};
+use ethers::types::{Address, H256, U256};
+use intmax2_interfaces::data::deposit_data::TokenType;
 use intmax2_zkp::common::signature::key_set::KeySet;
 
-use crate::Env;
+use super::{
+    client::get_client,
+    utils::{convert_address, convert_u256},
+};
 
-use super::client::get_client;
-
-pub async fn deposit(key: KeySet, amount: U256, token_address: Address) -> anyhow::Result<()> {
-    let env = envy::from_env::<Env>()?;
+pub async fn deposit_ft(
+    key: KeySet,
+    eth_private_key: H256,
+    amount: U256,
+    token_type: TokenType,
+    token_address: Address,
+    token_id: Option<U256>,
+) -> anyhow::Result<()> {
     let client = get_client()?;
+    let amount = convert_u256(amount);
+    let token_address = convert_address(token_address);
+    let token_id = token_id.map(convert_u256).unwrap_or_default();
+    let deposit_data = client
+        .prepare_deposit(key, amount, token_type, token_address, token_id)
+        .await?;
 
-    let liquidity_contract = LiquidityContract::new(
-        &env.l1_rpc_url.to_string(),
-        env.l1_chain_id,
-        env.liquidity_contract_address,
-    );
-    let rollup_contract = RollupContract::new(
-        &env.l2_rpc_url.to_string(),
-        env.l2_chain_id,
-        env.rollup_contract_address,
-        env.rollup_contract_deployed_block_number,
-    );
-
-    // let deposit_call = client.prepare_deposit(key, token_index, amount).await?;
+    let liquidity_contract = client.liquidity_contract.clone();
+    if token_type == TokenType::NATIVE {
+        liquidity_contract
+            .deposit_native(
+                eth_private_key,
+                deposit_data.pubkey_salt_hash,
+                deposit_data.amount,
+            )
+            .await?;
+    } else {
+        liquidity_contract
+            .deposit_erc20(
+                eth_private_key,
+                deposit_data.pubkey_salt_hash,
+                deposit_data.amount,
+                deposit_data.token_address,
+            )
+            .await?;
+    };
 
     Ok(())
 }

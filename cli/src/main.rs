@@ -2,12 +2,13 @@ use anyhow::{bail, ensure};
 use clap::{Parser, Subcommand};
 use ethers::types::{Address, H256};
 use intmax2_cli::cli::{
-    deposit::deposit,
+    deposit::{self, deposit_ft},
     get::balance,
     send::tx,
     sync::{sync, sync_withdrawals},
 };
 use intmax2_client_sdk::utils::init_logger::init_logger;
+use intmax2_interfaces::data::deposit_data::TokenType;
 use intmax2_zkp::{
     common::{generic_address::GenericAddress, signature::key_set::KeySet},
     ethereum_types::{address::Address as IAddress, u256::U256, u32limb_trait::U32LimbTrait as _},
@@ -39,6 +40,7 @@ enum Commands {
         private_key: H256,
         #[clap(long)]
         amount: u128,
+        token_type: TokenType,
         #[clap(long)]
         token_address: Address,
         #[clap(long)]
@@ -56,8 +58,7 @@ enum Commands {
         #[clap(long)]
         private_key: H256,
     },
-    PostEmptyAndSync,
-    PostAndSync,
+
     GenerateKey,
 }
 
@@ -66,39 +67,46 @@ async fn main() -> anyhow::Result<()> {
     init_logger();
     let args = Args::parse();
 
-    match &args.command {
+    match args.command {
         Commands::Tx {
             private_key,
             to,
             amount,
             token_index,
         } => {
-            let to = parse_generic_address(to)?;
-            let amount = u128_to_u256(*amount);
-            let key = h256_to_keyset(*private_key);
-            tx(key, to, amount, *token_index).await?;
+            let to = parse_generic_address(&to)?;
+            let key = h256_to_keyset(private_key);
+            tx(key, to, amount.into(), token_index).await?;
         }
         Commands::Deposit {
             private_key,
             amount,
+            token_type,
             token_address,
             token_id,
         } => {
-            let amount = u128_to_u256(*amount);
-            let token_id = token_id.map(|id| u128_to_u256(id));
-            let key = h256_to_keyset(*private_key);
-            deposit(key, amount, token_index).await?;
+            let token_id = token_id.map(|id| id.into());
+            let key = h256_to_keyset(private_key);
+            deposit_ft(
+                key,
+                private_key,
+                amount.into(),
+                token_type,
+                token_address,
+                token_id,
+            )
+            .await?;
         }
         Commands::Sync { private_key } => {
-            let key = h256_to_keyset(*private_key);
+            let key = h256_to_keyset(private_key);
             sync(key).await?;
         }
         Commands::SyncWithdrawals { private_key } => {
-            let key = h256_to_keyset(*private_key);
+            let key = h256_to_keyset(private_key);
             sync_withdrawals(key).await?;
         }
         Commands::Balance { private_key } => {
-            let key = h256_to_keyset(*private_key);
+            let key = h256_to_keyset(private_key);
             balance(key).await?;
         }
         Commands::GenerateKey => {

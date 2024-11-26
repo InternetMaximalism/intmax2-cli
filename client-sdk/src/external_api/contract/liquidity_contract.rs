@@ -6,10 +6,12 @@ use ethers::{
     middleware::SignerMiddleware,
     providers::{Http, Provider},
     signers::Wallet,
-    types::{Address, H256},
+    types::{Address as EthAddress, H256},
 };
 use intmax2_interfaces::data::deposit_data::TokenType;
-use intmax2_zkp::ethereum_types::{bytes32::Bytes32, u256::U256, u32limb_trait::U32LimbTrait as _};
+use intmax2_zkp::ethereum_types::{
+    address::Address, bytes32::Bytes32, u256::U256, u32limb_trait::U32LimbTrait as _,
+};
 
 use crate::external_api::utils::retry::with_retry;
 
@@ -25,11 +27,11 @@ abigen!(Liquidity, "abi/Liquidity.json",);
 pub struct LiquidityContract {
     pub rpc_url: String,
     pub chain_id: u64,
-    pub address: Address,
+    pub address: EthAddress,
 }
 
 impl LiquidityContract {
-    pub fn new(rpc_url: &str, chain_id: u64, address: Address) -> Self {
+    pub fn new(rpc_url: &str, chain_id: u64, address: EthAddress) -> Self {
         Self {
             rpc_url: rpc_url.to_string(),
             chain_id,
@@ -65,6 +67,7 @@ impl LiquidityContract {
     ) -> Result<Option<u32>, BlockchainError> {
         let contract = self.get_contract().await?;
         let token_id = ethers::types::U256::from_big_endian(&token_id.to_bytes_be());
+        let token_address = ethers::types::Address::from_slice(&token_address.to_bytes_be());
         let (is_found, token_index) = with_retry(|| async {
             contract
                 .get_token_index(token_type as u8, token_address, token_id)
@@ -110,10 +113,11 @@ impl LiquidityContract {
         pubkey_salt_hash: Bytes32,
         amount: U256,
         token_address: Address,
-    ) -> Result<u32, BlockchainError> {
+    ) -> Result<(), BlockchainError> {
         let contract = self.get_contract_with_signer(signer_private_key).await?;
         let recipient_salt_hash: [u8; 32] = pubkey_salt_hash.to_bytes_be().try_into().unwrap();
         let amount = ethers::types::U256::from_big_endian(&amount.to_bytes_be());
+        let token_address = ethers::types::Address::from_slice(&token_address.to_bytes_be());
         let mut tx = contract.deposit_erc20(token_address, recipient_salt_hash, amount);
         handle_contract_call(
             &mut tx,
@@ -122,11 +126,7 @@ impl LiquidityContract {
             "deposit_erc20_token",
         )
         .await?;
-        let token_index = self
-            .get_token_index(TokenType::ERC20, token_address, 0.into())
-            .await?
-            .ok_or(BlockchainError::TokenNotFound)?;
-        Ok(token_index)
+        Ok(())
     }
 
     pub async fn claim_withdrawals(

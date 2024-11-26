@@ -5,9 +5,7 @@ use intmax2_interfaces::{
     },
     data::{deposit_data::DepositData, meta_data::MetaData},
 };
-use intmax2_zkp::{
-    common::signature::key_set::KeySet, ethereum_types::u32limb_trait::U32LimbTrait,
-};
+use intmax2_zkp::common::signature::key_set::KeySet;
 
 use crate::{
     client::error::ClientError, external_api::contract::liquidity_contract::LiquidityContract,
@@ -41,9 +39,7 @@ pub async fn fetch_deposit_info<S: StoreVaultClientInterface, V: ValidityProverC
                 let token_index = liquidity_contract
                     .get_token_index(
                         deposit_data.token_type,
-                        ethers::types::Address::from_slice(
-                            &deposit_data.token_address.to_bytes_be(),
-                        ),
+                        deposit_data.token_address,
                         deposit_data.token_id,
                     )
                     .await?;
