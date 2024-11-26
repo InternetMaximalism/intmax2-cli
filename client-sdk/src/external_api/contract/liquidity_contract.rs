@@ -34,9 +34,9 @@ pub struct LiquidityContract {
 }
 
 impl LiquidityContract {
-    pub fn new(rpc_url: String, chain_id: u64, address: Address) -> Self {
+    pub fn new(rpc_url: &str, chain_id: u64, address: Address) -> Self {
         Self {
-            rpc_url,
+            rpc_url: rpc_url.to_string(),
             chain_id,
             address,
         }

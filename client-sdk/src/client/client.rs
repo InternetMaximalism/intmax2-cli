@@ -69,7 +69,7 @@ pub struct Client<
     pub store_vault_server: S,
     pub validity_prover: V,
     pub balance_prover: B,
-    pub withdrawal_aggregator: W,
+    pub withdrawal_server: W,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -605,7 +605,7 @@ where
             .await?;
 
         // send withdrawal request
-        self.withdrawal_aggregator
+        self.withdrawal_server
             .request_withdrawal(&single_withdrawal_proof)
             .await?;
 

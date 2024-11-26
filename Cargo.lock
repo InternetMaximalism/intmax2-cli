@@ -2787,6 +2787,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "clap",
+ "envy",
  "ethers",
  "hex",
  "intmax2-client-sdk",
@@ -2801,6 +2802,7 @@ dependencies = [
  "serde",
  "serde_json",
  "tokio",
+ "url",
 ]
 
 [[package]]
@@ -5469,6 +5471,7 @@ dependencies = [
  "form_urlencoded",
  "idna",
  "percent-encoding",
+ "serde",
 ]
 
 [[package]]

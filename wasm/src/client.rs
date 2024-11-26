@@ -1,13 +1,19 @@
-use intmax2_client_sdk::client::{client::Client, config::ClientConfig};
+use intmax2_client_sdk::{
+    client::{client::Client, config::ClientConfig},
+    external_api::{
+        balance_prover::BalanceProverClient, block_builder::BlockBuilderClient,
+        store_vault_server::StoreVaultServerClient, validity_prover::ValidityProverClient,
+        withdrawal_server::WithdrawalServerClient,
+    },
+};
 use serde::{Deserialize, Serialize};
 use wasm_bindgen::prelude::wasm_bindgen;
 
-type BC = TestContract;
-type BB = TestBlockBuilder;
-type S = TestStoreVaultServer;
-type V = TestBlockValidityProver;
-type B = TestBalanceProver;
-type W = TestWithdrawalAggregator;
+type BB = BlockBuilderClient;
+type S = StoreVaultServerClient;
+type V = ValidityProverClient;
+type B = BalanceProverClient;
+type W = WithdrawalServerClient;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -58,10 +64,10 @@ impl Config {
 
 pub fn get_client(config: &Config) -> Client<BB, S, V, B, W> {
     let block_builder = BB::new();
-    let store_vault_server = S::new(config.store_vault_server_url.clone());
-    let validity_prover = V::new(config.block_validity_prover_url.clone());
-    let balance_prover = B::new(config.balance_prover_url.clone());
-    let withdrawal_aggregator = W::new(config.withdrawal_aggregator_url.clone());
+    let store_vault_server = S::new(&config.store_vault_server_url);
+    let validity_prover = V::new(&config.block_validity_prover_url);
+    let balance_prover = B::new(&config.balance_prover_url);
+    let withdrawal_aggregator = W::new(&config.withdrawal_aggregator_url);
 
     let client_config = ClientConfig {
         deposit_timeout: config.deposit_timeout,
@@ -73,11 +79,7 @@ pub fn get_client(config: &Config) -> Client<BB, S, V, B, W> {
         store_vault_server,
         validity_prover,
         balance_prover,
-        withdrawal_aggregator,
+        withdrawal_server: withdrawal_aggregator,
         config: client_config,
     }
-}
-
-pub fn get_mock_contract(contract_server_url: &str) -> BC {
-    BC::new(contract_server_url.to_string())
 }

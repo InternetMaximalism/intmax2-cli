@@ -1,6 +1,5 @@
 use crate::js_types::common::JsTx;
-use client::{get_client, get_mock_contract, Config};
-use ethers::types::H256;
+use client::{get_client, Config};
 use intmax2_client_sdk::client::account::generate_intmax_account_from_eth_key as inner_generate_intmax_account_from_eth_key;
 use intmax2_interfaces::data::{
     deposit_data::DepositData, transfer_data::TransferData, tx_data::TxData,
@@ -17,7 +16,7 @@ use js_types::{
     wrapper::{JsBlockProposal, JsTxRequestMemo},
 };
 use num_bigint::BigUint;
-use utils::{h256_to_bytes32, parse_h256, str_privkey_to_keyset};
+use utils::{parse_h256, str_privkey_to_keyset};
 use wasm_bindgen::{prelude::wasm_bindgen, JsError};
 
 pub mod client;
@@ -107,13 +106,16 @@ pub async fn query_proposal(
     config: &Config,
     block_builder_url: &str,
     private_key: &str,
+    is_registration_block: bool,
     tx: &JsTx,
 ) -> Result<Option<JsBlockProposal>, JsError> {
     let key = str_privkey_to_keyset(private_key)?;
     let tx = tx.to_tx()?;
 
     let client = get_client(config);
-    let proposal = client.query_proposal(block_builder_url, key, tx).await?;
+    let proposal = client
+        .query_proposal(block_builder_url, key, is_registration_block, tx)
+        .await?;
     let proposal = proposal.map(|proposal| JsBlockProposal::from_block_proposal(&proposal));
     Ok(proposal)
 }
@@ -201,21 +203,21 @@ pub async fn decrypt_tx_data(private_key: &str, data: &[u8]) -> Result<JsTxData,
     Ok(JsTxData::from_tx_data(&tx_data))
 }
 
-/// Function to mimic the deposit call of the contract. For development purposes only.
-#[wasm_bindgen]
-pub async fn mimic_deposit(
-    contract_server_url: &str,
-    pubkey_salt_hash: &str,
-    token_index: u32,
-    amount: &str,
-) -> Result<(), JsError> {
-    let pubkey_salt_hash = parse_h256(pubkey_salt_hash)?;
-    let pubkey_salt_hash = h256_to_bytes32(pubkey_salt_hash);
-    let amount = parse_u256(amount)?;
+// Function to mimic the deposit call of the contract. For development purposes only.
+// #[wasm_bindgen]
+// pub async fn mimic_deposit(
+//     contract_server_url: &str,
+//     pubkey_salt_hash: &str,
+//     token_index: u32,
+//     amount: &str,
+// ) -> Result<(), JsError> {
+//     let pubkey_salt_hash = parse_h256(pubkey_salt_hash)?;
+//     let pubkey_salt_hash = h256_to_bytes32(pubkey_salt_hash);
+//     let amount = parse_u256(amount)?;
 
-    let contract = get_mock_contract(contract_server_url);
-    contract
-        .deposit(H256::default(), pubkey_salt_hash, token_index, amount)
-        .await?;
-    Ok(())
-}
+//     let contract = get_mock_contract(contract_server_url);
+//     contract
+//         .deposit(H256::default(), pubkey_salt_hash, token_index, amount)
+//         .await?;
+//     Ok(())
+// }
