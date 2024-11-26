@@ -17,6 +17,9 @@ pub enum BlockchainError {
     #[error("Decode call data error: {0}")]
     DecodeCallDataError(String),
 
+    #[error("Token not found")]
+    TokenNotFound,
+
     #[error("Internal error: {0}")]
     InternalError(String),
 }

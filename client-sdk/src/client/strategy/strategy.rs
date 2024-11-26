@@ -12,7 +12,9 @@ use plonky2::{field::goldilocks_field::GoldilocksField, plonk::config::PoseidonG
 
 use intmax2_zkp::common::signature::key_set::KeySet;
 
-use crate::client::error::ClientError;
+use crate::{
+    client::error::ClientError, external_api::contract::liquidity_contract::LiquidityContract,
+};
 
 use super::{deposit::fetch_deposit_info, transfer::fetch_transfer_info, tx::fetch_tx_info};
 
@@ -43,6 +45,7 @@ pub async fn determin_next_action<
 >(
     store_vault_server: &S,
     validity_prover: &V,
+    liquidity_contract: &LiquidityContract,
     key: KeySet,
     deposit_timeout: u64,
     tx_timeout: u64,
@@ -59,6 +62,7 @@ pub async fn determin_next_action<
     let deposit_info = fetch_deposit_info(
         store_vault_server,
         validity_prover,
+        liquidity_contract,
         key,
         user_data.deposit_lpt,
         deposit_timeout,

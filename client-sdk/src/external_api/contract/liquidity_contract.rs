@@ -8,6 +8,7 @@ use ethers::{
     signers::Wallet,
     types::{Address, H256},
 };
+use intmax2_interfaces::data::deposit_data::TokenType;
 use intmax2_zkp::ethereum_types::{bytes32::Bytes32, u256::U256, u32limb_trait::U32LimbTrait as _};
 
 use crate::external_api::utils::retry::with_retry;
@@ -19,12 +20,6 @@ use super::{
 };
 
 abigen!(Liquidity, "abi/Liquidity.json",);
-
-#[derive(Debug, Clone, Copy)]
-pub enum TokenType {
-    Native = 0,
-    ERC20 = 1,
-}
 
 #[derive(Debug, Clone)]
 pub struct LiquidityContract {
@@ -62,15 +57,15 @@ impl LiquidityContract {
         Ok(contract)
     }
 
-    async fn get_token_index(
+    pub async fn get_token_index(
         &self,
         token_type: TokenType,
         token_address: Address,
         token_id: U256,
-    ) -> Result<u32, BlockchainError> {
+    ) -> Result<Option<u32>, BlockchainError> {
         let contract = self.get_contract().await?;
         let token_id = ethers::types::U256::from_big_endian(&token_id.to_bytes_be());
-        let (_is_native, token_index) = with_retry(|| async {
+        let (is_found, token_index) = with_retry(|| async {
             contract
                 .get_token_index(token_type as u8, token_address, token_id)
                 .call()
@@ -80,7 +75,11 @@ impl LiquidityContract {
         .map_err(|e| {
             BlockchainError::NetworkError(format!("Error getting token index: {:?}", e))
         })?;
-        Ok(token_index)
+        if !is_found {
+            return Ok(None);
+        } else {
+            return Ok(Some(token_index));
+        }
     }
 
     pub async fn deposit_native(
@@ -125,7 +124,8 @@ impl LiquidityContract {
         .await?;
         let token_index = self
             .get_token_index(TokenType::ERC20, token_address, 0.into())
-            .await?;
+            .await?
+            .ok_or(BlockchainError::TokenNotFound)?;
         Ok(token_index)
     }
 

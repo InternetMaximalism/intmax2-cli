@@ -5,9 +5,13 @@ use intmax2_interfaces::{
     },
     data::{deposit_data::DepositData, meta_data::MetaData},
 };
-use intmax2_zkp::common::signature::key_set::KeySet;
+use intmax2_zkp::{
+    common::signature::key_set::KeySet, ethereum_types::u32limb_trait::U32LimbTrait,
+};
 
-use crate::client::error::ClientError;
+use crate::{
+    client::error::ClientError, external_api::contract::liquidity_contract::LiquidityContract,
+};
 
 #[derive(Debug, Clone)]
 pub struct DepositInfo {
@@ -19,6 +23,7 @@ pub struct DepositInfo {
 pub async fn fetch_deposit_info<S: StoreVaultClientInterface, V: ValidityProverClientInterface>(
     store_vault_server: &S,
     validity_prover: &V,
+    liquidity_contract: &LiquidityContract,
     key: KeySet,
     deposit_lpt: u64,
     deposit_timeout: u64,
@@ -33,10 +38,25 @@ pub async fn fetch_deposit_info<S: StoreVaultClientInterface, V: ValidityProverC
     for (meta, encrypted_data) in encrypted_data {
         match DepositData::decrypt(&encrypted_data, key) {
             Ok(deposit_data) => {
-                if let Some(deposit_info) = validity_prover
-                    .get_deposit_info(deposit_data.deposit_hash())
-                    .await?
-                {
+                let token_index = liquidity_contract
+                    .get_token_index(
+                        deposit_data.token_type,
+                        ethers::types::Address::from_slice(
+                            &deposit_data.token_address.to_bytes_be(),
+                        ),
+                        deposit_data.token_id,
+                    )
+                    .await?;
+                if token_index.is_none() {
+                    log::error!("Token not found: {:?}", deposit_data);
+                    rejected.push(meta); // reject here because deposit function is not called
+                    continue;
+                }
+                let mut deposit_data = deposit_data;
+                deposit_data.set_token_index(token_index.unwrap());
+                let deposit_hash = deposit_data.deposit_hash().unwrap();
+
+                if let Some(deposit_info) = validity_prover.get_deposit_info(deposit_hash).await? {
                     // set block number
                     let mut meta = meta;
                     meta.block_number = Some(deposit_info.block_number);

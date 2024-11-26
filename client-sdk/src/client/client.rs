@@ -7,15 +7,19 @@ use intmax2_interfaces::{
         withdrawal_server::interface::WithdrawalServerClientInterface,
     },
     data::{
-        common_tx_data::CommonTxData, deposit_data::DepositData, meta_data::MetaData,
-        transfer_data::TransferData, tx_data::TxData, user_data::UserData,
+        common_tx_data::CommonTxData,
+        deposit_data::{DepositData, TokenType},
+        meta_data::MetaData,
+        transfer_data::TransferData,
+        tx_data::TxData,
+        user_data::UserData,
     },
 };
 use intmax2_zkp::{
     circuits::balance::{balance_pis::BalancePublicInputs, send::spent_circuit::SpentPublicInputs},
     common::{
         block_builder::BlockProposal,
-        deposit::{get_pubkey_salt_hash, Deposit},
+        deposit::get_pubkey_salt_hash,
         signature::key_set::KeySet,
         transfer::Transfer,
         trees::transfer_tree::TransferTree,
@@ -26,7 +30,7 @@ use intmax2_zkp::{
         },
     },
     constants::{NUM_TRANSFERS_IN_TX, TRANSFER_TREE_HEIGHT},
-    ethereum_types::{bytes32::Bytes32, u256::U256},
+    ethereum_types::{address::Address, bytes32::Bytes32, u256::U256},
     utils::poseidon_hash_out::PoseidonHashOut,
 };
 
@@ -36,9 +40,14 @@ use plonky2::{
 };
 use serde::{Deserialize, Serialize};
 
-use crate::client::{
-    balance_logic::{process_common_tx, process_transfer},
-    utils::generate_salt,
+use crate::{
+    client::{
+        balance_logic::{process_common_tx, process_transfer},
+        utils::generate_salt,
+    },
+    external_api::contract::{
+        liquidity_contract::LiquidityContract, rollup_contract::RollupContract,
+    },
 };
 
 use super::{
@@ -70,6 +79,9 @@ pub struct Client<
     pub validity_prover: V,
     pub balance_prover: B,
     pub withdrawal_server: W,
+
+    pub liquidity_contract: LiquidityContract,
+    pub rollup_contract: RollupContract,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -91,14 +103,6 @@ pub struct TxRequestMemo {
     pub prev_private_commitment: PoseidonHashOut,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct DepositCall {
-    pub pubkey_salt_hash: Bytes32,
-    pub token_index: u32,
-    pub amount: U256,
-}
-
 impl<BB, S, V, B, W> Client<BB, S, V, B, W>
 where
     BB: BlockBuilderClientInterface,
@@ -111,28 +115,32 @@ where
     pub async fn prepare_deposit(
         &self,
         key: KeySet,
-        token_index: u32,
         amount: U256,
-    ) -> Result<DepositCall, ClientError> {
+        token_type: TokenType,
+        token_address: Address,
+        token_id: U256,
+    ) -> Result<DepositData, ClientError> {
         log::info!(
-            "prepare_deposit: pubkey {}, token_index {}, amount {}",
+            "prepare_deposit: pubkey {}, amount {}, token_type {:?}, token_address {}, token_id {}",
             key.pubkey,
-            token_index,
-            amount
+            amount,
+            token_type,
+            token_address,
+            token_id
         );
         // todo: improve the way to choose deposit salt
         let deposit_salt = generate_salt(key, 0);
 
         // backup before contract call
         let pubkey_salt_hash = get_pubkey_salt_hash(key.pubkey, deposit_salt);
-        let deposit = Deposit {
-            pubkey_salt_hash,
-            token_index,
-            amount,
-        };
         let deposit_data = DepositData {
             deposit_salt,
-            deposit,
+            pubkey_salt_hash,
+            amount,
+            token_type,
+            token_address,
+            token_id,
+            token_index: None,
         };
         self.store_vault_server
             .save_data(
@@ -142,11 +150,7 @@ where
             )
             .await?;
 
-        Ok(DepositCall {
-            pubkey_salt_hash,
-            token_index,
-            amount,
-        })
+        Ok(deposit_data)
     }
 
     /// Send a transaction request to the block builder
@@ -361,6 +365,7 @@ where
         let next_action = determin_next_action(
             &self.store_vault_server,
             &self.validity_prover,
+            &self.liquidity_contract,
             key,
             self.config.deposit_timeout,
             self.config.tx_timeout,

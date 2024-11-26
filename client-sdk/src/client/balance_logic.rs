@@ -57,7 +57,7 @@ pub async fn process_deposit<V: ValidityProverClientInterface, B: BalanceProverC
 
     // Generate witness
     let deposit_info = validity_prover
-        .get_deposit_info(deposit_data.deposit_hash())
+        .get_deposit_info(deposit_data.deposit_hash().unwrap())
         .await?
         .ok_or(ClientError::InternalError(
             "Deposit index and block number not found".to_string(),
@@ -73,10 +73,10 @@ pub async fn process_deposit<V: ValidityProverClientInterface, B: BalanceProverC
     let deposit_witness = DepositWitness {
         deposit_salt: deposit_data.deposit_salt,
         deposit_index: deposit_info.deposit_index as u32,
-        deposit: deposit_data.deposit.clone(),
+        deposit: deposit_data.deposit().unwrap(),
         deposit_merkle_proof,
     };
-    let deposit = deposit_data.deposit.clone();
+    let deposit = deposit_data.deposit().unwrap();
     let nullifier: Bytes32 = deposit.poseidon_hash().into();
     let private_transition_witness = PrivateTransitionWitness::new(
         full_private_state,
