@@ -24,7 +24,7 @@ pub async fn deposit(key: KeySet, amount: U256, token_address: Address) -> anyho
         env.rollup_contract_deployed_block_number,
     );
 
-    let deposit_call = client.prepare_deposit(key, token_index, amount).await?;
+    // let deposit_call = client.prepare_deposit(key, token_index, amount).await?;
 
     Ok(())
 }
