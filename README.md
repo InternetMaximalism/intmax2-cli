@@ -3,12 +3,15 @@
 0. Deploy contract to local chain
 ```bash
 anvil  
-cd 
 ```
+Open a new terminal
+```bash
+cargo test -r -p tests deploy_contracts -- --nocapture
+```
+
 
 1. Start Store-vault-server
 Example port: 9000
-
 ```bash
 cd store-vault-server
 cargo run -r
