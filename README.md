@@ -1,5 +1,11 @@
 # Start servers
 
+0. Deploy contract to local chain
+```bash
+anvil  
+cd 
+```
+
 1. Start Store-vault-server
 Example port: 9000
 

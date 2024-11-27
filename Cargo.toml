@@ -7,7 +7,7 @@ members = [
     "balance-prover",
     "store-vault-server", 
     "validity-prover", 
-    "block-builder", "withdrawal-server",
+    "block-builder", "withdrawal-server", "tests",
 ]
 resolver = "2"
 
@@ -21,3 +21,4 @@ reqwest = { version = "0.12.9", features = ["json"] }
 serde_json = "1.0.133"
 serde = { version = "1.0.215", features = ["derive"] }
 ethers = "2.0"
+anyhow = "1.0.88"

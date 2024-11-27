@@ -5023,6 +5023,33 @@ dependencies = [
 ]
 
 [[package]]
+name = "tests"
+version = "0.1.0"
+dependencies = [
+ "actix",
+ "actix-cors",
+ "actix-web",
+ "anyhow",
+ "bincode",
+ "dotenv",
+ "envy",
+ "ethers",
+ "hashbrown 0.14.5",
+ "intmax2-client-sdk",
+ "intmax2-interfaces",
+ "intmax2-zkp",
+ "log",
+ "plonky2",
+ "rand",
+ "reqwest 0.12.9",
+ "serde",
+ "serde_json",
+ "thiserror 1.0.69",
+ "tokio",
+ "validity-prover",
+]
+
+[[package]]
 name = "thiserror"
 version = "1.0.69"
 source = "registry+https://github.com/rust-lang/crates.io-index"
