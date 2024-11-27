@@ -40,6 +40,7 @@ enum Commands {
         private_key: H256,
         #[clap(long)]
         amount: u128,
+        #[clap(long)]
         token_type: TokenType,
         #[clap(long)]
         token_address: Address,
