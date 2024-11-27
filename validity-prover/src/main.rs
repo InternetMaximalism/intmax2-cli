@@ -28,8 +28,8 @@ async fn main() -> std::io::Result<()> {
         )
     })?;
     let validity_prover = ValidityProver::new(
-        &env.rpc_url,
-        env.chain_id,
+        &env.l2_rpc_url,
+        env.l2_chain_id,
         env.rollup_contract_address,
         env.rollup_contract_deployed_block_number,
     );

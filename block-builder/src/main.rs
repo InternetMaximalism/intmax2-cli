@@ -20,8 +20,8 @@ async fn main() -> std::io::Result<()> {
 
     let eth_allowance_for_block = ethers::utils::parse_ether(env.eth_allowance_for_block).unwrap();
     let block_builder = BlockBuilder::new(
-        &env.rpc_url,
-        env.chain_id,
+        &env.l2_rpc_url,
+        env.l2_chain_id,
         env.rollup_contract_address,
         env.rollup_contract_deployed_block_number,
         env.block_builder_private_key,
