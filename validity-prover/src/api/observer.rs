@@ -262,11 +262,16 @@ impl Observer {
             .deposit_leaf_events
             .extend(deposit_leaf_events);
         self.data.write().await.sync_eth_block_number = new_sync_eth_block_number;
-        log::info!(
-            "Observer synced to block number: {}, deposit index: {}",
-            last_block_number.unwrap_or(0),
-            last_deposit_index
-        );
+
+        if let Some(last_block_number) = last_block_number {
+            log::info!(
+                "Observer synced to block number: {}, deposit index: {}",
+                last_block_number,
+                last_deposit_index
+            );
+        } else {
+            log::info!("Observer synced to deposit index: {}", last_deposit_index);
+        }
         Ok(())
     }
 }

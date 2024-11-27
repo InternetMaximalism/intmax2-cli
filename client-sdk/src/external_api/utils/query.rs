@@ -17,16 +17,11 @@ pub async fn post_request<B: Serialize, R: DeserializeOwned>(
     body: &B,
 ) -> Result<R, ServerError> {
     let url = format!("{}{}", base_url, endpoint);
-    log::info!(
-        "Posting url={} with body={}",
-        url,
-        serde_json::to_string(body).unwrap()
-    );
     let response =
         with_retry(|| async { reqwest::Client::new().post(&url).json(body).send().await })
             .await
             .map_err(|e| ServerError::NetworkError(e.to_string()))?;
-    handle_response(response).await
+    handle_response(response, &url, &serde_json::to_string(body).unwrap()).await
 }
 
 pub async fn get_request<Q, R>(
@@ -35,18 +30,14 @@ pub async fn get_request<Q, R>(
     query: Option<Q>,
 ) -> Result<R, ServerError>
 where
-    Q: serde::Serialize,
+    Q: Serialize,
     R: DeserializeOwned,
 {
     let url = format!("{}{}", base_url, endpoint);
-    log::info!(
-        "Posting url={} with query={}",
-        url,
-        query
-            .as_ref()
-            .map(|q| serde_json::to_string(&q).unwrap())
-            .unwrap_or("".to_string())
-    );
+    let query_str = query
+        .as_ref()
+        .map(|q| serde_json::to_string(&q).unwrap())
+        .unwrap_or("".to_string());
 
     let response = if let Some(params) = query {
         with_retry(|| async { reqwest::Client::new().get(&url).query(&params).send().await }).await
@@ -55,10 +46,14 @@ where
     }
     .map_err(|e| ServerError::NetworkError(e.to_string()))?;
 
-    handle_response(response).await
+    handle_response(response, &url, &query_str).await
 }
 
-async fn handle_response<R: DeserializeOwned>(response: Response) -> Result<R, ServerError> {
+async fn handle_response<R: DeserializeOwned>(
+    response: Response,
+    url: &str,
+    request_str: &str,
+) -> Result<R, ServerError> {
     let status = response.status();
     if !status.is_success() {
         let error_text = response
@@ -69,7 +64,12 @@ async fn handle_response<R: DeserializeOwned>(response: Response) -> Result<R, S
             Ok(error_resp) => error_resp.message.unwrap_or_else(|| error_resp.error),
             Err(_) => error_text,
         };
-        return Err(ServerError::ServerError(status.into(), error_message));
+        return Err(ServerError::ServerError(
+            status.into(),
+            error_message,
+            url.to_string(),
+            request_str.to_string(),
+        ));
     }
     response
         .json::<R>()
