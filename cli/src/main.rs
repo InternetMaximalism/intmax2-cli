@@ -68,6 +68,8 @@ async fn main() -> anyhow::Result<()> {
     init_logger();
     let args = Args::parse();
 
+    dotenv::dotenv().ok();
+
     match args.command {
         Commands::Tx {
             private_key,
