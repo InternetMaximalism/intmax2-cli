@@ -9,7 +9,6 @@ Open a new terminal
 cargo test -r -p tests deploy_contracts -- --nocapture
 ```
 
-
 1. Start Store-vault-server
 Example port: 9000
 ```bash
