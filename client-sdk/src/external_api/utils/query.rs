@@ -11,7 +11,7 @@ pub async fn post_request<T: serde::Serialize, U: serde::de::DeserializeOwned>(
     log::info!(
         "Posting url={} with body={}",
         url,
-        serde_json::to_string_pretty(body).unwrap()
+        serde_json::to_string(body).unwrap()
     );
     let response =
         with_retry(|| async { reqwest::Client::new().post(&url).json(body).send().await })
@@ -42,7 +42,7 @@ where
         url,
         query
             .as_ref()
-            .map(|q| serde_json::to_string_pretty(&q).unwrap())
+            .map(|q| serde_json::to_string(&q).unwrap())
             .unwrap_or("".to_string())
     );
 
