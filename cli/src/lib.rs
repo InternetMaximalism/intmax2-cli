@@ -16,6 +16,11 @@ pub struct Env {
     pub deposit_timeout: u64,
     pub tx_timeout: u64,
 
+    // block builder settings
+    pub block_builder_wait_time: u64,
+    pub block_builder_query_interval: u64,
+    pub block_builder_query_limit: u64,
+
     // blockchain settings
     pub l1_rpc_url: String,
     pub l1_chain_id: u64,

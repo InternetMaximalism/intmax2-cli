@@ -54,7 +54,7 @@ pub async fn tx(
     log::info!("Waiting for block builder to build the block");
 
     // sleep for a while to wait for the block builder to build the block
-    tokio::time::sleep(std::time::Duration::from_secs(15)).await;
+    tokio::time::sleep(std::time::Duration::from_secs(env.block_builder_wait_time)).await;
 
     let mut tries = 0;
     let proposal = loop {
@@ -64,11 +64,14 @@ pub async fn tx(
         if proposal.is_some() {
             break proposal.unwrap();
         }
-        if tries > 5 {
+        if tries > env.block_builder_query_limit {
             return Err(CliError::FailedToGetProposal);
         }
         tries += 1;
-        tokio::time::sleep(std::time::Duration::from_secs(5)).await;
+        tokio::time::sleep(std::time::Duration::from_secs(
+            env.block_builder_query_interval,
+        ))
+        .await;
     };
 
     log::info!("Finalizing tx");
