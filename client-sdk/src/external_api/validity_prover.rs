@@ -54,7 +54,7 @@ impl ValidityProverClient {
 impl ValidityProverClientInterface for ValidityProverClient {
     async fn get_block_number(&self) -> Result<u32, ServerError> {
         let response: GetBlockNumberResponse =
-            get_request::<_, ()>(&self.base_url, "/validity-prover/block-number", None).await?;
+            get_request::<(), _>(&self.base_url, "/validity-prover/block-number", None).await?;
         Ok(response.block_number)
     }
 

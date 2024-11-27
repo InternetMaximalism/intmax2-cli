@@ -35,7 +35,7 @@ impl BlockBuilderClientInterface for BlockBuilderClient {
         let query = GetBlockBuilderStatusQuery {
             is_registration_block,
         };
-        let response = get_request::<GetBlockBuilderStatusResponse, GetBlockBuilderStatusQuery>(
+        let response = get_request::<GetBlockBuilderStatusQuery, GetBlockBuilderStatusResponse>(
             block_builder_url,
             "/block-builder/status",
             Some(query),

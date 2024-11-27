@@ -38,7 +38,7 @@ impl WithdrawalServerClient {
 impl WithdrawalServerClientInterface for WithdrawalServerClient {
     async fn fee(&self) -> Result<Vec<Fee>, ServerError> {
         let response: GetFeeResponse =
-            get_request::<_, ()>(&self.base_url, "/withdrawal-server/fee", None).await?;
+            get_request::<(), _>(&self.base_url, "/withdrawal-server/fee", None).await?;
         Ok(response.fees)
     }
 

@@ -3,8 +3,8 @@ pub enum ServerError {
     #[error("Network error: {0}")]
     NetworkError(String),
 
-    #[error("Server error: {0}")]
-    ServerError(String),
+    #[error("Server error: status: {0} message: {1}")]
+    ServerError(u16, String),
 
     #[error("Unknown error: {0}")]
     UnknownError(String),
