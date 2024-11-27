@@ -8,15 +8,15 @@ pub async fn post_request<T: serde::Serialize, U: serde::de::DeserializeOwned>(
     body: &T,
 ) -> Result<U, ServerError> {
     let url = format!("{}{}", base_url, endpoint);
-    let response = with_retry(|| async {
-        reqwest::Client::new()
-            .post(&url)
-            .json(body)
-            .send()
+    log::info!(
+        "Posting url={} with body={}",
+        url,
+        serde_json::to_string_pretty(body).unwrap()
+    );
+    let response =
+        with_retry(|| async { reqwest::Client::new().post(&url).json(body).send().await })
             .await
-    })
-    .await
-    .map_err(|e| ServerError::NetworkError(e.to_string()))?;
+            .map_err(|e| ServerError::NetworkError(e.to_string()))?;
     if !response.status().is_success() {
         return Err(ServerError::ServerError(response.status().to_string()));
     }
@@ -37,16 +37,17 @@ where
     Q: serde::Serialize,
 {
     let url = format!("{}{}", base_url, endpoint);
+    log::info!(
+        "Posting url={} with query={}",
+        url,
+        query
+            .as_ref()
+            .map(|q| serde_json::to_string_pretty(&q).unwrap())
+            .unwrap_or("".to_string())
+    );
 
     let response = if let Some(params) = query {
-        with_retry(|| async {
-            reqwest::Client::new()
-                .get(&url)
-                .query(&params)
-                .send()
-                .await
-        })
-        .await
+        with_retry(|| async { reqwest::Client::new().get(&url).query(&params).send().await }).await
     } else {
         with_retry(|| async { reqwest::Client::new().get(&url).send().await }).await
     }
