@@ -33,5 +33,6 @@ pub struct Env {
 #[serde(rename_all = "camelCase")]
 pub enum EnvType {
     Dev,
+    Staging,
     Prod,
 }
