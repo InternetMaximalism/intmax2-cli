@@ -14,7 +14,7 @@ use intmax2_zkp::{
 use js_types::{
     common::JsTransfer,
     data::{JsDepositData, JsTransferData, JsTxData, JsUserData},
-    utils::parse_u256,
+    utils::{parse_address, parse_u256},
     wrapper::{JsBlockProposal, JsTxRequestMemo},
 };
 use num_bigint::BigUint;
@@ -59,11 +59,12 @@ pub async fn prepare_deposit(
 ) -> Result<String, JsError> {
     let key = str_privkey_to_keyset(private_key)?;
     let amount = parse_u256(amount)?;
-    let token_type = token_type as TokenType;
-
+    let token_type = TokenType::try_from(token_type).map_err(|e| JsError::new(&e))?;
+    let token_address = parse_address(token_address)?;
+    let token_id = parse_u256(token_id)?;
     let client = get_client(config);
-    let deposit_call = client
-        .prepare_deposit(key, token_index, amount)
+    let deposit_data = client
+        .prepare_deposit(key, amount, token_type, token_address, token_id)
         .await
         .map_err(|e| {
             JsError::new(&format!(
@@ -71,7 +72,7 @@ pub async fn prepare_deposit(
                 e.to_string()
             ))
         })?;
-    Ok(deposit_call.pubkey_salt_hash.to_string())
+    Ok(deposit_data.pubkey_salt_hash.to_string())
 }
 
 /// Function to send a tx request to the block builder. The return value contains information to take a backup.

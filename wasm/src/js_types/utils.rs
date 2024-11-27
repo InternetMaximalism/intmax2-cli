@@ -2,7 +2,7 @@ use std::str::FromStr;
 
 use intmax2_zkp::{
     common::salt::Salt,
-    ethereum_types::{bytes32::Bytes32, u256::U256, u32limb_trait::U32LimbTrait},
+    ethereum_types::{address::Address, bytes32::Bytes32, u256::U256, u32limb_trait::U32LimbTrait},
     utils::poseidon_hash_out::PoseidonHashOut,
 };
 use num_bigint::BigUint;
@@ -13,6 +13,11 @@ pub fn parse_u256(input: &str) -> Result<U256, JsError> {
     let input = input
         .try_into()
         .map_err(|_| JsError::new("Failed to cast to u256"))?;
+    Ok(input)
+}
+
+pub fn parse_address(input: &str) -> Result<Address, JsError> {
+    let input = Address::from_hex(input).map_err(|_| JsError::new("Failed to parse as Address"))?;
     Ok(input)
 }
 
