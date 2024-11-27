@@ -14,7 +14,7 @@ use intmax2_interfaces::api::store_vault_server::{
     },
 };
 
-use crate::api::{state::State, store_vault_server::StoreVaultServer};
+use crate::api::state::State;
 
 #[post("/save-balance-proof")]
 pub async fn save_balance_proof(
@@ -115,11 +115,15 @@ pub async fn save_user_data(
 
 #[get("/get-user-data")]
 pub async fn get_user_data(
-    data: Data<StoreVaultServer>,
+    state: Data<State>,
     query: Query<GetUserDataQuery>,
 ) -> Result<Json<GetUserDataResponse>, Error> {
     let query = query.into_inner();
-    let data = data.get_user_data(query.pubkey);
+    let data = state
+        .store_vault_server
+        .read()
+        .await
+        .get_user_data(query.pubkey);
     Ok(Json(GetUserDataResponse { data }))
 }
 

@@ -6,8 +6,8 @@ use intmax2_interfaces::{
             interface::{DataType, StoreVaultClientInterface},
             types::{
                 GetBalanceProofQuery, GetBalanceProofResponse, GetDataAllAfterQuery,
-                GetDataAllAfterResponse, GetDataResponse, GetUserDataResponse,
-                SaveBalanceProofRequest, SaveDataRequest,
+                GetDataAllAfterResponse, GetDataQuery, GetDataResponse, GetUserDataQuery,
+                GetUserDataResponse, SaveBalanceProofRequest, SaveDataRequest,
             },
         },
     },
@@ -100,7 +100,9 @@ impl StoreVaultClientInterface for StoreVaultServerClient {
         data_type: DataType,
         uuid: &str,
     ) -> Result<Option<(MetaData, Vec<u8>)>, ServerError> {
-        let query = vec![("uuid", uuid.to_string())];
+        let query = GetDataQuery {
+            uuid: uuid.to_string(),
+        };
         let response: GetDataResponse = get_request(
             &self.base_url,
             &format!("/store-vault-server/{}/get", data_type.to_string()),
@@ -147,7 +149,7 @@ impl StoreVaultClientInterface for StoreVaultServerClient {
     }
 
     async fn get_user_data(&self, pubkey: U256) -> Result<Option<Vec<u8>>, ServerError> {
-        let query = vec![("pubkey", pubkey.to_string())];
+        let query = GetUserDataQuery { pubkey };
         let response: GetUserDataResponse = get_request(
             &self.base_url,
             "/store-vault-server/get-user-data",
