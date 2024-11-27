@@ -19,14 +19,13 @@ pub async fn tx(
     let env = envy::from_env::<Env>()?;
     let client = get_client()?;
 
-    // get block builder info
-    let indexer = IndexerClient::new(&env.indexer_base_url.to_string());
-    let block_builder_info = indexer.get_block_builder_info().await?;
-
     // override block builder base url if it is set in the env
     let block_builder_url = if let Some(block_builder_base_url) = env.block_builder_base_url {
         block_builder_base_url.to_string()
     } else {
+        // get block builder info 
+        let indexer = IndexerClient::new(&env.indexer_base_url.to_string());
+        let block_builder_info = indexer.get_block_builder_info().await?;
         if block_builder_info.is_empty() {
             anyhow::bail!("No block builder available");
         }
