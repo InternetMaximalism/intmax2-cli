@@ -45,8 +45,8 @@ intmax2-cli <COMMAND> [OPTIONS]
 ### Options
 
 - `--block_builder_url`: URL of the block builder
-- `--private-key`: Your private key (in H256 format)
-- `--to`: Recipient's address (in H256 format)
+- `--private-key`: Your private key of Intmax account (in H256 format)
+- `--to`: Recipient's address. Represents Ethereum address for 20bytes, Intmax address for 32bytes (in 0x prefixed hex string).
 - `--amount`: Amount to send or deposit (in U256 format)
 - `--token-index`: Index of the token (u32)
 - `--rpc-url`: URL of the Ethereum RPC node
