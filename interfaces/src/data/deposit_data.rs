@@ -53,6 +53,20 @@ impl FromStr for TokenType {
     }
 }
 
+impl TryFrom<u8> for TokenType {
+    type Error = String;
+
+    fn try_from(value: u8) -> Result<Self, Self::Error> {
+        match value {
+            0 => Ok(Self::NATIVE),
+            1 => Ok(Self::ERC20),
+            2 => Ok(Self::ERC721),
+            3 => Ok(Self::ERC1155),
+            _ => Err("invalid token type".to_string()),
+        }
+    }
+}
+
 impl DepositData {
     fn to_bytes(&self) -> Vec<u8> {
         bincode::serialize(self).unwrap()
