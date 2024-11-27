@@ -2,7 +2,9 @@ use crate::js_types::common::JsTx;
 use client::{get_client, Config};
 use intmax2_client_sdk::client::account::generate_intmax_account_from_eth_key as inner_generate_intmax_account_from_eth_key;
 use intmax2_interfaces::data::{
-    deposit_data::DepositData, transfer_data::TransferData, tx_data::TxData,
+    deposit_data::{DepositData, TokenType},
+    transfer_data::TransferData,
+    tx_data::TxData,
 };
 use intmax2_zkp::{
     common::transfer::Transfer,
@@ -51,10 +53,13 @@ pub async fn prepare_deposit(
     config: &Config,
     private_key: &str,
     amount: &str,
-    token_index: u32,
+    token_type: u8,
+    token_address: &str,
+    token_id: &str,
 ) -> Result<String, JsError> {
     let key = str_privkey_to_keyset(private_key)?;
     let amount = parse_u256(amount)?;
+    let token_type = token_type as TokenType;
 
     let client = get_client(config);
     let deposit_call = client

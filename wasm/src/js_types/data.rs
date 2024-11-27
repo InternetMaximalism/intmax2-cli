@@ -16,17 +16,21 @@ const D: usize = 2;
 pub struct JsDepositData {
     pub deposit_salt: String,     // hex string
     pub pubkey_salt_hash: String, // hex string
-    pub token_index: u32,
-    pub amount: String, // 10 base string
+    pub amount: String,           // 10 base string
+    pub token_type: u8,
+    pub token_address: String, // hex string
+    pub token_id: String,      // 10 base string
 }
 
 impl JsDepositData {
     pub fn from_deposit_data(deposit_data: &DepositData) -> Self {
         Self {
             deposit_salt: deposit_data.deposit_salt.to_string(),
-            pubkey_salt_hash: deposit_data.deposit.pubkey_salt_hash.to_hex(),
-            token_index: deposit_data.deposit.token_index,
-            amount: deposit_data.deposit.amount.to_string(),
+            pubkey_salt_hash: deposit_data.pubkey_salt_hash.to_hex(),
+            amount: deposit_data.amount.to_string(),
+            token_type: deposit_data.token_type as u8,
+            token_address: deposit_data.token_address.to_hex(),
+            token_id: deposit_data.token_id.to_string(),
         }
     }
 }

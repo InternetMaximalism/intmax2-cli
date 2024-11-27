@@ -6,6 +6,8 @@ pub mod cli;
 
 #[derive(Deserialize)]
 pub struct Env {
+    pub env: String,
+
     // client settings
     pub indexer_base_url: Url,
     pub store_vault_server_base_url: Url,

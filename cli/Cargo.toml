@@ -22,3 +22,4 @@ mockito = "1.6.1"
 hex = "0.4.3"
 envy = "0.4.2"
 url = { version = "2.5.4", features = ["serde"] }
+
