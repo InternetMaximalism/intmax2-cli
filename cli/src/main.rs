@@ -37,6 +37,8 @@ enum Commands {
     },
     Deposit {
         #[clap(long)]
+        eth_private_key: H256,
+        #[clap(long)]
         private_key: H256,
         #[clap(long)]
         amount: u128,
@@ -82,6 +84,7 @@ async fn main() -> anyhow::Result<()> {
             tx(key, to, amount.into(), token_index).await?;
         }
         Commands::Deposit {
+            eth_private_key,
             private_key,
             amount,
             token_type,
@@ -92,7 +95,7 @@ async fn main() -> anyhow::Result<()> {
             let key = h256_to_keyset(private_key);
             deposit_ft(
                 key,
-                private_key,
+                eth_private_key,
                 amount.into(),
                 token_type,
                 token_address,

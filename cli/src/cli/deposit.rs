@@ -43,5 +43,19 @@ pub async fn deposit_ft(
             .await?;
     };
 
+    // only when no relayer
+    {
+        let token_index = liquidity_contract
+            .get_token_index(token_type, token_address, token_id)
+            .await?
+            .ok_or(anyhow::anyhow!("No token index found"))?;
+        let mut deposit_data = deposit_data;
+        deposit_data.set_token_index(token_index);
+        client
+            .rollup_contract
+            .process_deposits(eth_private_key, 0, &[deposit_data.deposit_hash().unwrap()])
+            .await?;
+    }
+
     Ok(())
 }
