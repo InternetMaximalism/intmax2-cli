@@ -6,7 +6,7 @@ use ethers::{
     middleware::SignerMiddleware,
     providers::{Http, Provider},
     signers::Wallet,
-    types::{self, Address as EthAddress, H256},
+    types::{Address as EthAddress, H256},
 };
 use intmax2_interfaces::data::deposit_data::TokenType;
 use intmax2_zkp::ethereum_types::{
@@ -52,14 +52,19 @@ impl LiquidityContract {
         Ok(Self::new(rpc_url, chain_id, address))
     }
 
+    pub fn address(&self) -> EthAddress {
+        self.address
+    }
+
     pub async fn initialize(
         &self,
         signer_private_key: H256,
-        l_1_scroll_messenger: types::Address,
-        rollup: types::Address,
-        withdrawal: types::Address,
-        analyzer: types::Address,
-        constribution: types::Address,
+        l_1_scroll_messenger: EthAddress,
+        rollup: EthAddress,
+        withdrawal: EthAddress,
+        analyzer: EthAddress,
+        contribution: EthAddress,
+        initial_erc20_tokens: Vec<EthAddress>,
     ) -> Result<H256, BlockchainError> {
         let contract = self.get_contract_with_signer(signer_private_key).await?;
         let mut tx = contract.initialize(
@@ -67,8 +72,8 @@ impl LiquidityContract {
             rollup,
             withdrawal,
             analyzer,
-            constribution,
-            vec![],
+            contribution,
+            initial_erc20_tokens,
         );
         let tx_hash = handle_contract_call(
             &mut tx,
@@ -108,7 +113,7 @@ impl LiquidityContract {
     ) -> Result<Option<u32>, BlockchainError> {
         let contract = self.get_contract().await?;
         let token_id = ethers::types::U256::from_big_endian(&token_id.to_bytes_be());
-        let token_address = ethers::types::Address::from_slice(&token_address.to_bytes_be());
+        let token_address = EthAddress::from_slice(&token_address.to_bytes_be());
         let (is_found, token_index) = with_retry(|| async {
             contract
                 .get_token_index(token_type as u8, token_address, token_id)
@@ -158,7 +163,7 @@ impl LiquidityContract {
         let contract = self.get_contract_with_signer(signer_private_key).await?;
         let recipient_salt_hash: [u8; 32] = pubkey_salt_hash.to_bytes_be().try_into().unwrap();
         let amount = ethers::types::U256::from_big_endian(&amount.to_bytes_be());
-        let token_address = ethers::types::Address::from_slice(&token_address.to_bytes_be());
+        let token_address = EthAddress::from_slice(&token_address.to_bytes_be());
         let mut tx = contract.deposit_erc20(token_address, recipient_salt_hash, amount);
         handle_contract_call(
             &mut tx,
@@ -178,7 +183,7 @@ impl LiquidityContract {
         let withdrawals = withdrawals
             .iter()
             .map(|w| {
-                let recipient = ethers::types::Address::from_slice(&w.recipient.to_bytes_be());
+                let recipient = EthAddress::from_slice(&w.recipient.to_bytes_be());
                 let token_index = w.token_index;
                 let amount = ethers::types::U256::from_big_endian(&w.amount.to_bytes_be());
                 let id = ethers::types::U256::from(w.id);

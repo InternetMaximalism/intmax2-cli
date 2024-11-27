@@ -1,5 +1,7 @@
 use ethers::types::H256;
-use intmax2_client_sdk::external_api::contract::rollup_contract::RollupContract;
+use intmax2_client_sdk::external_api::contract::{
+    liquidity_contract::LiquidityContract, rollup_contract::RollupContract,
+};
 use serde::Deserialize;
 
 #[derive(Deserialize)]
@@ -10,7 +12,7 @@ struct Config {
 }
 
 #[tokio::test]
-async fn deploy_rollup_contract() -> anyhow::Result<()> {
+async fn deploy_contracts() -> anyhow::Result<()> {
     dotenv::dotenv().ok();
     let config = envy::from_env::<Config>().unwrap();
 
@@ -34,6 +36,29 @@ async fn deploy_rollup_contract() -> anyhow::Result<()> {
     println!(
         "Rollup contract deployed block number: {}",
         rollup_contract.deployed_block_number
+    );
+
+    let liquidity_contract = LiquidityContract::deploy(
+        &config.rpc_url,
+        config.chain_id,
+        config.deployer_private_key,
+    )
+    .await?;
+    liquidity_contract
+        .initialize(
+            config.deployer_private_key,
+            zero_address,
+            zero_address,
+            zero_address,
+            zero_address,
+            zero_address,
+            vec![],
+        )
+        .await?;
+
+    println!(
+        "Liquidity contract address: {:?}",
+        liquidity_contract.address()
     );
 
     Ok(())
