@@ -6,7 +6,7 @@ use ethers::{
     middleware::SignerMiddleware,
     providers::{Http, Provider},
     signers::Wallet,
-    types::{Address as EthAddress, H256},
+    types::{self, Address as EthAddress, H256},
 };
 use intmax2_interfaces::data::deposit_data::TokenType;
 use intmax2_zkp::ethereum_types::{
@@ -18,6 +18,7 @@ use crate::external_api::utils::retry::with_retry;
 use super::{
     handlers::handle_contract_call,
     interface::{BlockchainError, ContractWithdrawal},
+    proxy_contract::ProxyContract,
     utils::{get_address, get_client, get_client_with_signer},
 };
 
@@ -37,6 +38,46 @@ impl LiquidityContract {
             chain_id,
             address,
         }
+    }
+
+    pub async fn deploy(rpc_url: &str, chain_id: u64, private_key: H256) -> anyhow::Result<Self> {
+        let client = get_client_with_signer(rpc_url, chain_id, private_key).await?;
+        let impl_contract = Liquidity::deploy::<()>(Arc::new(client), ())?
+            .send()
+            .await?;
+        let impl_address = impl_contract.address();
+        let proxy =
+            ProxyContract::deploy(rpc_url, chain_id, private_key, impl_address, &[]).await?;
+        let address = proxy.address();
+        Ok(Self::new(rpc_url, chain_id, address))
+    }
+
+    pub async fn initialize(
+        &self,
+        signer_private_key: H256,
+        l_1_scroll_messenger: types::Address,
+        rollup: types::Address,
+        withdrawal: types::Address,
+        analyzer: types::Address,
+        constribution: types::Address,
+    ) -> Result<H256, BlockchainError> {
+        let contract = self.get_contract_with_signer(signer_private_key).await?;
+        let mut tx = contract.initialize(
+            l_1_scroll_messenger,
+            rollup,
+            withdrawal,
+            analyzer,
+            constribution,
+            vec![],
+        );
+        let tx_hash = handle_contract_call(
+            &mut tx,
+            get_address(self.chain_id, signer_private_key),
+            "initialize",
+            "initialize",
+        )
+        .await?;
+        Ok(tx_hash)
     }
 
     pub async fn get_contract(
