@@ -31,10 +31,10 @@ cd validity-prover
 cargo run -r
 ```
 
-4. Start withdrawal-prover
+4. Start withdrawal-server
 Example port: 9003
 ```bash
-cd withdrawal-prover
+cd withdrawal-server
 cargo run -r
 ```
 
@@ -44,3 +44,9 @@ Example port: 9004
 cd block-builder
 cargo run -r
 ```
+
+
+# Test CLI
+
+```bash
+cd cli

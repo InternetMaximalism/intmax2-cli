@@ -5,7 +5,7 @@ use intmax2_zkp::common::signature::key_set::KeySet;
 use super::{
     client::get_client,
     error::CliError,
-    utils::{convert_address, convert_u256},
+    utils::{convert_address, convert_u256, is_dev},
 };
 
 pub async fn deposit_ft(
@@ -44,8 +44,8 @@ pub async fn deposit_ft(
             .await?;
     };
 
-    // only when no relayer
-    {
+    // relay deposits by self if env is dev
+    if is_dev()? {
         let token_index = liquidity_contract
             .get_token_index(token_type, token_address, token_id)
             .await?
