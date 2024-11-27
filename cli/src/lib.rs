@@ -17,7 +17,9 @@ pub struct Env {
     pub tx_timeout: u64,
 
     // block builder settings
-    pub block_builder_wait_time: u64,
+    pub block_builder_request_interval: u64,
+    pub block_builder_request_limit: u64,
+    pub block_builder_query_wait_time: u64,
     pub block_builder_query_interval: u64,
     pub block_builder_query_limit: u64,
 

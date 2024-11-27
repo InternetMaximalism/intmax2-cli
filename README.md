@@ -45,8 +45,3 @@ cd block-builder
 cargo run -r
 ```
 
-
-# Test CLI
-
-```bash
-cd cli

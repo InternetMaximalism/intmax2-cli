@@ -46,15 +46,35 @@ pub async fn tx(
         token_index,
         salt,
     };
-    let memo = client
-        .send_tx_request(&block_builder_url, key, vec![transfer])
-        .await?;
+    let mut tries = 0;
+    let memo = loop {
+        let res = client
+            .send_tx_request(&block_builder_url, key, vec![transfer])
+            .await;
+        if let Ok(memo) = res {
+            break memo;
+        }
+        if tries > env.block_builder_query_limit {
+            return Err(CliError::FailedToRequestTx);
+        }
+        tries += 1;
+        log::info!(
+            "Failed to request tx, retrying in {} seconds",
+            env.block_builder_request_interval
+        );
+        tokio::time::sleep(std::time::Duration::from_secs(
+            env.block_builder_request_interval,
+        ))
+        .await;
+    };
     let is_registration_block = memo.is_registration_block;
     let tx = memo.tx.clone();
-    log::info!("Waiting for block builder to build the block");
 
-    // sleep for a while to wait for the block builder to build the block
-    tokio::time::sleep(std::time::Duration::from_secs(env.block_builder_wait_time)).await;
+    log::info!("Waiting for block builder to build the block");
+    tokio::time::sleep(std::time::Duration::from_secs(
+        env.block_builder_query_wait_time,
+    ))
+    .await;
 
     let mut tries = 0;
     let proposal = loop {
@@ -68,6 +88,10 @@ pub async fn tx(
             return Err(CliError::FailedToGetProposal);
         }
         tries += 1;
+        log::info!(
+            "Failed to get proposal, retrying in {} seconds",
+            env.block_builder_query_interval
+        );
         tokio::time::sleep(std::time::Duration::from_secs(
             env.block_builder_query_interval,
         ))

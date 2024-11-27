@@ -18,6 +18,9 @@ pub enum CliError {
     #[error("Server error: {0}")]
     ServerError(#[from] ServerError),
 
+    #[error("Failed to request tx")]
+    FailedToRequestTx,
+
     #[error("Failed to get proposal")]
     FailedToGetProposal,
 
