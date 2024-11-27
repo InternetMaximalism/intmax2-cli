@@ -1,10 +1,12 @@
 use ethers::types::Address;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 pub mod cli;
 
 #[derive(Deserialize)]
 pub struct Env {
+    pub env: EnvType,
+
     // client settings
     pub indexer_base_url: String,
     pub store_vault_server_base_url: String,
@@ -25,4 +27,11 @@ pub struct Env {
 
     // optional block builder base url
     pub block_builder_base_url: Option<String>,
+}
+
+#[derive(Clone, Debug, Copy, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum EnvType {
+    Dev,
+    Prod,
 }

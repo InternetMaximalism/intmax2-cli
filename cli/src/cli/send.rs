@@ -10,12 +10,14 @@ use crate::{
     Env,
 };
 
+use super::error::CliError;
+
 pub async fn tx(
     key: KeySet,
     recipient: GenericAddress,
     amount: U256,
     token_index: u32,
-) -> anyhow::Result<()> {
+) -> Result<(), CliError> {
     let env = envy::from_env::<Env>()?;
     let client = get_client()?;
 
@@ -23,11 +25,13 @@ pub async fn tx(
     let block_builder_url = if let Some(block_builder_base_url) = env.block_builder_base_url {
         block_builder_base_url.to_string()
     } else {
-        // get block builder info 
+        // get block builder info
         let indexer = IndexerClient::new(&env.indexer_base_url.to_string());
         let block_builder_info = indexer.get_block_builder_info().await?;
         if block_builder_info.is_empty() {
-            anyhow::bail!("No block builder available");
+            return Err(CliError::UnexpectedError(
+                "Block builder info is empty".to_string(),
+            ));
         }
         block_builder_info.first().unwrap().url.clone()
     };
@@ -61,7 +65,7 @@ pub async fn tx(
             break proposal.unwrap();
         }
         if tries > 5 {
-            anyhow::bail!("Failed to get proposal");
+            return Err(CliError::FailedToGetProposal);
         }
         tries += 1;
         tokio::time::sleep(std::time::Duration::from_secs(5)).await;

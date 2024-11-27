@@ -4,6 +4,7 @@ use intmax2_zkp::common::signature::key_set::KeySet;
 
 use super::{
     client::get_client,
+    error::CliError,
     utils::{convert_address, convert_u256},
 };
 
@@ -14,7 +15,7 @@ pub async fn deposit_ft(
     token_type: TokenType,
     token_address: Address,
     token_id: Option<U256>,
-) -> anyhow::Result<()> {
+) -> Result<(), CliError> {
     let client = get_client()?;
     let amount = convert_u256(amount);
     let token_address = convert_address(token_address);
@@ -48,7 +49,9 @@ pub async fn deposit_ft(
         let token_index = liquidity_contract
             .get_token_index(token_type, token_address, token_id)
             .await?
-            .ok_or(anyhow::anyhow!("No token index found"))?;
+            .ok_or(CliError::UnexpectedError(
+                "Cloud not find token index".to_string(),
+            ))?;
         let mut deposit_data = deposit_data;
         deposit_data.set_token_index(token_index);
         client

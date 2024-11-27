@@ -2,7 +2,9 @@ use intmax2_zkp::common::signature::key_set::KeySet;
 
 use crate::cli::client::get_client;
 
-pub async fn balance(key: KeySet) -> anyhow::Result<()> {
+use super::error::CliError;
+
+pub async fn balance(key: KeySet) -> Result<(), CliError> {
     let client = get_client()?;
     client.sync(key).await?;
 

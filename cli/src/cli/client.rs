@@ -12,13 +12,15 @@ use intmax2_client_sdk::{
 
 use crate::Env;
 
+use super::error::CliError;
+
 type BB = BlockBuilderClient;
 type S = StoreVaultServerClient;
 type V = ValidityProverClient;
 type B = BalanceProverClient;
 type W = WithdrawalServerClient;
 
-pub fn get_client() -> anyhow::Result<Client<BB, S, V, B, W>> {
+pub fn get_client() -> Result<Client<BB, S, V, B, W>, CliError> {
     let env = envy::from_env::<Env>()?;
     let block_builder = BB::new();
     let store_vault_server = S::new(&env.store_vault_server_base_url);
