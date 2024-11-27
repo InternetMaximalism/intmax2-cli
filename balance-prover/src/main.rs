@@ -12,6 +12,8 @@ use intmax2_client_sdk::utils::init_logger::init_logger;
 async fn main() -> std::io::Result<()> {
     init_logger();
 
+    dotenv::dotenv().ok();
+
     let port = std::env::var("PORT").unwrap_or_else(|_| "8080".to_string());
     let state = BalanceProver::new().map_err(|e| io::Error::new(io::ErrorKind::Other, e))?;
     let state = Data::new(state);

@@ -653,6 +653,7 @@ dependencies = [
  "actix-web",
  "anyhow",
  "bincode",
+ "dotenv",
  "ethers",
  "intmax2-client-sdk",
  "intmax2-interfaces",

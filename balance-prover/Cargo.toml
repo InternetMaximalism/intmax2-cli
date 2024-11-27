@@ -18,3 +18,4 @@ serde = { workspace = true}
 thiserror = "1.0.64"
 actix-web = "4.9.0"
 actix-cors = "0.7.0"
+dotenv = "0.15.0"
