@@ -11,7 +11,10 @@ use withdrawal_server::{
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
     init_logger();
+
+    dotenv::dotenv().ok();
     let port = env::var("PORT").unwrap_or_else(|_| "8080".to_string());
+
     let state = State {};
     let state = Data::new(state);
     HttpServer::new(move || {

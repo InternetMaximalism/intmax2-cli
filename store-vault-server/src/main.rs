@@ -10,6 +10,8 @@ use store_vault_server::{
 async fn main() -> std::io::Result<()> {
     init_logger();
 
+    dotenv::dotenv().ok();
+
     let port = std::env::var("PORT").unwrap_or_else(|_| "8080".to_string());
     let state = Data::new(State::new());
     HttpServer::new(move || {
