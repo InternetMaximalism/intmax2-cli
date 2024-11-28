@@ -114,7 +114,7 @@ where
     /// Back up deposit information before calling the contract's deposit function
     pub async fn prepare_deposit(
         &self,
-        key: KeySet,
+        pubkey: U256,
         amount: U256,
         token_type: TokenType,
         token_address: Address,
@@ -122,17 +122,16 @@ where
     ) -> Result<DepositData, ClientError> {
         log::info!(
             "prepare_deposit: pubkey {}, amount {}, token_type {:?}, token_address {}, token_id {}",
-            key.pubkey,
+            pubkey,
             amount,
             token_type,
             token_address,
             token_id
         );
-        // todo: improve the way to choose deposit salt
-        let deposit_salt = generate_salt(key, 0);
+        let deposit_salt = generate_salt();
 
         // backup before contract call
-        let pubkey_salt_hash = get_pubkey_salt_hash(key.pubkey, deposit_salt);
+        let pubkey_salt_hash = get_pubkey_salt_hash(pubkey, deposit_salt);
         let deposit_data = DepositData {
             deposit_salt,
             pubkey_salt_hash,
@@ -143,11 +142,7 @@ where
             token_index: None,
         };
         self.store_vault_server
-            .save_data(
-                DataType::Deposit,
-                key.pubkey,
-                &deposit_data.encrypt(key.pubkey),
-            )
+            .save_data(DataType::Deposit, pubkey, &deposit_data.encrypt(pubkey))
             .await?;
 
         Ok(deposit_data)
@@ -211,7 +206,7 @@ where
             nonce: user_data.full_private_state.nonce,
             transfer_tree_root: transfer_tree.get_root(),
         };
-        let new_salt = generate_salt(key, user_data.full_private_state.nonce);
+        let new_salt = generate_salt();
         let spent_witness = SpentWitness::new(
             &user_data.full_private_state.asset_tree,
             &user_data.full_private_state.to_private_state(),
@@ -436,7 +431,7 @@ where
             )
             .await?;
 
-        let new_salt = generate_salt(key, user_data.full_private_state.nonce);
+        let new_salt = generate_salt();
         let new_balance_proof = process_deposit(
             &self.validity_prover,
             &self.balance_prover,
@@ -494,7 +489,7 @@ where
             )
             .await?;
 
-        let new_salt = generate_salt(key, user_data.full_private_state.nonce);
+        let new_salt = generate_salt();
         let new_balance_proof = process_transfer(
             &self.validity_prover,
             &self.balance_prover,

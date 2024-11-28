@@ -2,6 +2,7 @@ import { cleanEnv, url } from 'envalid';
 import { Config, finalize_tx, generate_intmax_account_from_eth_key, get_user_data, JsGenericAddress, JsTransfer, mimic_deposit, prepare_deposit, query_proposal, send_tx_request, sync, sync_withdrawals, } from '../pkg';
 import { constructBlock, postBlock, postEmptyBlock, syncValidityProof } from './state-manager';
 import { generateRandomHex } from './utils';
+import { printHistory } from './history';
 
 const env = cleanEnv(process.env, {
   BASE_URL: url(),
@@ -21,7 +22,7 @@ async function main() {
   // deposit to the account
   const tokenIndex = 0; // 0 for ETH
   const amount = "123";
-  const pubkeySaltHash = await prepare_deposit(config, privateKey, amount, tokenIndex);
+  const pubkeySaltHash = await prepare_deposit(config, publicKey, amount, tokenIndex);
   console.log("pubkeySaltHash: ", pubkeySaltHash);
   await mimic_deposit(baseUrl, pubkeySaltHash, tokenIndex, amount);
 
@@ -106,6 +107,13 @@ async function main() {
   // sync withdrawals 
   await sync_withdrawals(config, privateKey);
   console.log("Withdrawal synced");
+
+
+  // print the history 
+  await sync(config, privateKey);
+  console.log("balance proof synced");
+  userData = await get_user_data(config, privateKey);
+  await printHistory(baseUrl, privateKey, userData);
 }
 
 main().then(() => {

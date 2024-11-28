@@ -18,7 +18,7 @@ use js_types::{
     wrapper::{JsBlockProposal, JsTxRequestMemo},
 };
 use num_bigint::BigUint;
-use utils::{parse_h256, str_privkey_to_keyset};
+use utils::{parse_h256, parse_h256_as_u256, str_privkey_to_keyset};
 use wasm_bindgen::{prelude::wasm_bindgen, JsError};
 
 pub mod client;
@@ -51,20 +51,20 @@ pub async fn generate_intmax_account_from_eth_key(
 #[wasm_bindgen]
 pub async fn prepare_deposit(
     config: &Config,
-    private_key: &str,
+    recipient: &str,
     amount: &str,
     token_type: u8,
     token_address: &str,
     token_id: &str,
 ) -> Result<String, JsError> {
-    let key = str_privkey_to_keyset(private_key)?;
+    let recipient = parse_h256_as_u256(recipient)?;
     let amount = parse_u256(amount)?;
     let token_type = TokenType::try_from(token_type).map_err(|e| JsError::new(&e))?;
     let token_address = parse_address(token_address)?;
     let token_id = parse_u256(token_id)?;
     let client = get_client(config);
     let deposit_data = client
-        .prepare_deposit(key, amount, token_type, token_address, token_id)
+        .prepare_deposit(recipient, amount, token_type, token_address, token_id)
         .await
         .map_err(|e| {
             JsError::new(&format!(

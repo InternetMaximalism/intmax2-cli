@@ -1,7 +1,7 @@
 use ethers::types::H256;
 use intmax2_zkp::{
     common::signature::key_set::KeySet,
-    ethereum_types::{bytes32::Bytes32, u32limb_trait::U32LimbTrait},
+    ethereum_types::{bytes32::Bytes32, u256::U256, u32limb_trait::U32LimbTrait},
 };
 use num_bigint::BigUint;
 use wasm_bindgen::JsError;
@@ -24,4 +24,9 @@ pub fn parse_h256(s: &str) -> Result<H256, JsError> {
         .parse()
         .map_err(|e| JsError::new(&format!("failed to parse h256 {}", e)))?;
     Ok(x)
+}
+
+pub fn parse_h256_as_u256(s: &str) -> Result<U256, JsError> {
+    let x = parse_h256(s)?;
+    Ok(h256_to_bytes32(x).into())
 }

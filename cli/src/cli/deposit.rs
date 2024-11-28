@@ -21,7 +21,7 @@ pub async fn deposit_ft(
     let token_address = convert_address(token_address);
     let token_id = token_id.map(convert_u256).unwrap_or_default();
     let deposit_data = client
-        .prepare_deposit(key, amount, token_type, token_address, token_id)
+        .prepare_deposit(key.pubkey, amount, token_type, token_address, token_id)
         .await?;
 
     let liquidity_contract = client.liquidity_contract.clone();
