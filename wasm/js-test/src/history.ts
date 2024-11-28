@@ -1,8 +1,8 @@
 import { decrypt_deposit_data, decrypt_transfer_data, decrypt_tx_data, JsDepositData, JsTransferData, JsTxData, JsUserData } from "../pkg/intmax2_wasm_lib";
 import { StoreVaultClient } from "./store-vault-client";
 
-export async function printHistory(base_url: string, privateKey: string, userData: JsUserData) {
-    const storeVaultClient = new StoreVaultClient(base_url);
+export async function printHistory(store_vault_server_base_url: string, privateKey: string, userData: JsUserData) {
+    const storeVaultClient = new StoreVaultClient(store_vault_server_base_url);
 
     console.log("Deposit History:");
     const depositHistory = await fetchDepositHistory(storeVaultClient, privateKey, userData);
@@ -26,7 +26,9 @@ export async function printHistory(base_url: string, privateKey: string, userDat
 
 interface Deposit {
     amount: string;
-    token_index: number;
+    token_type: number;
+    token_address: string;
+    token_id: string,
     is_rejected: boolean;
     timestamp: number | null; // null if not yet confirmed
 }
@@ -51,14 +53,18 @@ export async function fetchDepositHistory(storeVaultClient: StoreVaultClient, pr
             if (!processedUuids.includes(metaData.uuid)) {
                 deposit = {
                     amount: decrypted.amount,
-                    token_index: decrypted.token_index,
+                    token_type: decrypted.token_type,
+                    token_address: decrypted.token_address,
+                    token_id: decrypted.token_id,
                     is_rejected: true,
                     timestamp: null,
                 };
             } else {
                 deposit = {
                     amount: decrypted.amount,
-                    token_index: decrypted.token_index,
+                    token_type: decrypted.token_type,
+                    token_address: decrypted.token_address,
+                    token_id: decrypted.token_id,
                     is_rejected: false,
                     timestamp: metaData.timestamp,
                 };
@@ -66,7 +72,9 @@ export async function fetchDepositHistory(storeVaultClient: StoreVaultClient, pr
         } else {
             deposit = {
                 amount: decrypted.amount,
-                token_index: decrypted.token_index,
+                token_type: decrypted.token_type,
+                token_address: decrypted.token_address,
+                token_id: decrypted.token_id,
                 is_rejected: false,
                 timestamp: null,
             };
