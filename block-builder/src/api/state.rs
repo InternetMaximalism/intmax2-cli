@@ -9,6 +9,7 @@ use super::{block_builder::BlockBuilder, error::BlockBuilderError};
 #[derive(Debug, Clone)]
 pub struct State {
     pub is_shutting_down: Arc<RwLock<bool>>,
+    pub force_post: Arc<RwLock<bool>>,
     pub block_builder: Arc<RwLock<BlockBuilder>>,
 }
 
@@ -16,6 +17,7 @@ impl State {
     pub fn new(block_builder: BlockBuilder) -> Self {
         State {
             is_shutting_down: Arc::new(RwLock::new(false)),
+            force_post: Arc::new(RwLock::new(false)),
             block_builder: Arc::new(RwLock::new(block_builder)),
         }
     }
@@ -27,9 +29,12 @@ impl State {
                     log::info!("Shutting down block builder");
                     break;
                 }
-                match self.cycle(is_registration_block, false).await {
+                match self.cycle(is_registration_block).await {
                     Ok(_) => {
-                        log::info!("Cycle successful");
+                        log::info!(
+                            "Cycle successful for registration block: {}",
+                            is_registration_block
+                        );
                     }
                     Err(e) => {
                         log::error!("Error in block builder: {}", e);
@@ -39,16 +44,12 @@ impl State {
         });
     }
 
-    pub async fn post_empty_block(&self) -> Result<(), BlockBuilderError> {
-        self.cycle(false, true).await?;
+    pub async fn evoke_force_post(&self) -> Result<(), BlockBuilderError> {
+        *self.force_post.write().await = true;
         Ok(())
     }
 
-    async fn cycle(
-        &self,
-        is_registration_block: bool,
-        force_post: bool,
-    ) -> Result<(), BlockBuilderError> {
+    async fn cycle(&self, is_registration_block: bool) -> Result<(), BlockBuilderError> {
         let env = envy::from_env::<Env>().unwrap();
 
         self.block_builder
@@ -64,7 +65,8 @@ impl State {
             .await
             .num_tx_requests(is_registration_block)
             .await?;
-        if num_tx_requests == 0 && !force_post {
+        let force_post = *self.force_post.read().await;
+        if num_tx_requests == 0 && (is_registration_block || !force_post) {
             log::info!("No tx requests, not constructing block");
             self.block_builder
                 .write()
@@ -85,6 +87,11 @@ impl State {
             .await
             .post_block(is_registration_block)
             .await?;
+
+        let force_post = *self.force_post.read().await;
+        if force_post {
+            *self.force_post.write().await = false;
+        }
 
         Ok(())
     }

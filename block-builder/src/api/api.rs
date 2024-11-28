@@ -12,10 +12,10 @@ use intmax2_zkp::common::block_builder::UserSignature;
 use crate::api::state::State;
 
 // todo: remove in production
-#[post("/post_empty_block")]
+#[post("/post-empty-block")]
 pub async fn post_empty_block(state: Data<State>) -> Result<Json<()>, Error> {
     state
-        .post_empty_block()
+        .evoke_force_post()
         .await
         .map_err(|e| actix_web::error::ErrorInternalServerError(e))?;
     Ok(Json(()))
