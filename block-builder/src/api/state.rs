@@ -27,7 +27,7 @@ impl State {
                     log::info!("Shutting down block builder");
                     break;
                 }
-                match self.cycle(is_registration_block).await {
+                match self.cycle(is_registration_block, false).await {
                     Ok(_) => {
                         log::info!("Cycle successful");
                     }
@@ -39,7 +39,16 @@ impl State {
         });
     }
 
-    async fn cycle(&self, is_registration_block: bool) -> Result<(), BlockBuilderError> {
+    pub async fn post_empty_block(&self) -> Result<(), BlockBuilderError> {
+        self.cycle(false, true).await?;
+        Ok(())
+    }
+
+    async fn cycle(
+        &self,
+        is_registration_block: bool,
+        force_post: bool,
+    ) -> Result<(), BlockBuilderError> {
         let env = envy::from_env::<Env>().unwrap();
 
         self.block_builder
@@ -48,6 +57,21 @@ impl State {
             .start_accepting_txs(is_registration_block)?;
 
         tokio::time::sleep(Duration::from_secs(env.accepting_tx_interval)).await;
+
+        let num_tx_requests = self
+            .block_builder
+            .read()
+            .await
+            .num_tx_requests(is_registration_block)
+            .await?;
+        if num_tx_requests == 0 && !force_post {
+            log::info!("No tx requests, not constructing block");
+            self.block_builder
+                .write()
+                .await
+                .reset(is_registration_block);
+            return Ok(());
+        }
 
         self.block_builder
             .write()

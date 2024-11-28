@@ -221,6 +221,18 @@ impl BlockBuilder {
         Ok(())
     }
 
+    pub async fn num_tx_requests(
+        &self,
+        is_registration_block: bool,
+    ) -> Result<usize, BlockBuilderError> {
+        let status = if is_registration_block {
+            self.registration_state.clone()
+        } else {
+            self.non_registration_state.clone()
+        };
+        Ok(status.count_tx_requests())
+    }
+
     // Post the block with the given signatures.
     pub async fn post_block(
         &mut self,
@@ -253,7 +265,7 @@ impl BlockBuilder {
                     .await?;
                 if account_info.account_id.is_some() {
                     // This is unrecoverable so abandon the block
-                    self.reset();
+                    self.reset(is_registration_block);
                     return Err(BlockBuilderError::AccountAlreadyRegistered(
                         *pubkey,
                         account_info.account_id.unwrap(),
@@ -273,7 +285,7 @@ impl BlockBuilder {
                     .await?;
                 if account_info.account_id.is_none() {
                     // This is unrecoverable so abandon the block
-                    self.reset();
+                    self.reset(is_registration_block);
                     return Err(BlockBuilderError::AccountNotFound(*pubkey));
                 }
                 account_ids.push(account_info.account_id.unwrap());
@@ -386,15 +398,12 @@ impl BlockBuilder {
     }
 
     /// Reset the block builder.
-    pub fn reset(&mut self) {
+    pub fn reset(&mut self, is_registration_block: bool) {
         log::info!("reset");
-        *self = Self {
-            validity_prover_client: self.validity_prover_client.clone(),
-            rollup_contract: self.rollup_contract.clone(),
-            block_builder_private_key: self.block_builder_private_key,
-            eth_allowance_for_block: self.eth_allowance_for_block,
-            registration_state: BuilderState::new(),
-            non_registration_state: BuilderState::new(),
+        if is_registration_block {
+            self.registration_state = BuilderState::new();
+        } else {
+            self.non_registration_state = BuilderState::new();
         }
     }
 }

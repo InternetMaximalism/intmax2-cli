@@ -12,9 +12,12 @@ use intmax2_zkp::common::block_builder::UserSignature;
 use crate::api::state::State;
 
 // todo: remove in production
-#[get("/reset")]
-pub async fn reset(state: Data<State>) -> Result<Json<()>, Error> {
-    state.block_builder.write().await.reset();
+#[post("/post_empty_block")]
+pub async fn post_empty_block(state: Data<State>) -> Result<Json<()>, Error> {
+    state
+        .post_empty_block()
+        .await
+        .map_err(|e| actix_web::error::ErrorInternalServerError(e))?;
     Ok(Json(()))
 }
 
@@ -83,7 +86,7 @@ pub async fn post_signature(
 
 pub fn block_builder_scope() -> actix_web::Scope {
     actix_web::web::scope("/block-builder")
-        .service(reset)
+        .service(post_empty_block)
         .service(get_status)
         .service(tx_request)
         .service(query_proposal)

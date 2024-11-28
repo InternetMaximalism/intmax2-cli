@@ -8,7 +8,6 @@ use block_builder::{
     Env,
 };
 use intmax2_client_sdk::utils::init_logger::init_logger;
-use tokio::time::sleep;
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
@@ -33,10 +32,6 @@ async fn main() -> std::io::Result<()> {
     // Start the block builder job
     let state_for_registration_cycle = state.clone();
     state_for_registration_cycle.job(true).await;
-    sleep(tokio::time::Duration::from_secs(
-        env.proposing_block_interval / 2,
-    ))
-    .await;
     let state_for_non_registration_cycle = state.clone();
     state_for_non_registration_cycle.job(false).await;
 
