@@ -16,6 +16,7 @@
   "dependencies": {
     "@wasm-tool/wasm-pack-plugin": "^1.7.0",
     "axios": "^1.7.7",
-    "envalid": "^8.0.0"
+    "envalid": "^8.0.0",
+    "ts-node": "^10.9.2"
   }
 }
