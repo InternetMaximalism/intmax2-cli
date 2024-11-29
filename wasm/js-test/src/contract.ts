@@ -4,7 +4,6 @@ import { ethers } from 'ethers';
 import * as RollupArtifact from '../abi/Rollup.json';
 import * as LiquidityArtifact from '../abi/Liquidity.json';
 
-
 export async function deposit(privateKey: string, l1RpcUrl: string, liquidityContractAddress: string, l2RpcUrl: string, rollupContractAddress: string, amount: bigint, tokenType: number, tokenAddress: string, tokenId: string, pubkeySaltHash: string,) {
     const { liquidityContract, rollupContract } = await getContract(privateKey, l1RpcUrl, liquidityContractAddress, l2RpcUrl, rollupContractAddress);
 
@@ -53,4 +52,17 @@ async function getContract(privateKey: string, l1RpcUrl: string, liquidityContra
         l2Provider
     );
     return { liquidityContract, rollupContract };
+}
+
+
+export async function getEthBalance(privateKey: string, rpcUrl: string): Promise<bigint> {
+    const provider = new ethers.JsonRpcProvider(rpcUrl, undefined, {
+        staticNetwork: true
+    });
+    const wallet = new ethers.Wallet(privateKey, provider);
+    if (!wallet.provider) {
+        throw new Error("Provider is not set");
+    }
+    const balance = await wallet.provider.getBalance(wallet.address);
+    return balance;
 }
