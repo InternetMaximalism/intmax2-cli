@@ -15,8 +15,9 @@ use intmax2_zkp::{
         witness::update_witness::UpdateWitness,
     },
     constants::BLOCK_HASH_TREE_HEIGHT,
-    ethereum_types::{bytes32::Bytes32, u256::U256},
+    ethereum_types::{bytes32::Bytes32, u256::U256, u32limb_trait::U32LimbTrait as _},
 };
+
 use plonky2::{
     field::goldilocks_field::GoldilocksField,
     plonk::{config::PoseidonGoldilocksConfig, proof::ProofWithPublicInputs},
@@ -102,7 +103,7 @@ impl ValidityProver {
 
             sqlx::query!(
                 "INSERT INTO sender_leaves (block_number, leaves) VALUES (0, $1)",
-                serde_json::to_value::<Vec<SenderLeaf>>(&vec![])?
+                serde_json::to_value::<Vec<SenderLeaf>>(vec![])?
             )
             .execute(&mut *tx)
             .await?;
@@ -118,7 +119,8 @@ impl ValidityProver {
     }
 
     pub async fn sync_observer(&self) -> Result<(), ValidityProverError> {
-        self.observer.sync().await
+        self.observer.sync().await?;
+        Ok(())
     }
 
     pub async fn get_validity_proof(
@@ -151,7 +153,7 @@ impl ValidityProver {
                 .last_block_number as u32;
 
         // Load current state
-        let account_tree: AccountTree = {
+        let mut account_tree: AccountTree = {
             let record = sqlx::query!(
                 "SELECT tree_data FROM account_trees WHERE block_number = $1",
                 last_block_number as i32
@@ -162,7 +164,7 @@ impl ValidityProver {
             serde_json::from_value(record.tree_data)?
         };
 
-        let block_tree: BlockHashTree = {
+        let mut block_tree: BlockHashTree = {
             let record = sqlx::query!(
                 "SELECT tree_data FROM block_hash_trees WHERE block_number = $1",
                 last_block_number as i32
@@ -173,7 +175,7 @@ impl ValidityProver {
             serde_json::from_value(record.tree_data)?
         };
 
-        let deposit_hash_tree: DepositHashTree = {
+        let mut deposit_hash_tree: DepositHashTree = {
             let record = sqlx::query!(
                 "SELECT tree_data FROM deposit_hash_trees WHERE block_number = $1",
                 last_block_number as i32
@@ -290,7 +292,7 @@ impl ValidityProver {
                 sqlx::query!(
                     "INSERT INTO tx_tree_roots (tx_tree_root, block_number) VALUES ($1, $2)
                      ON CONFLICT (tx_tree_root) DO UPDATE SET block_number = $2",
-                    tx_tree_root.as_bytes(),
+                    tx_tree_root.to_bytes_be(),
                     block_number as i32
                 )
                 .execute(&mut *tx)
@@ -382,7 +384,8 @@ impl ValidityProver {
         &self,
         deposit_hash: Bytes32,
     ) -> Result<Option<DepositInfo>, ValidityProverError> {
-        self.observer.get_deposit_info(deposit_hash).await
+        let deposit_info = self.observer.get_deposit_info(deposit_hash).await?;
+        Ok(deposit_info)
     }
 
     pub async fn get_block_number_by_tx_tree_root(
@@ -391,7 +394,7 @@ impl ValidityProver {
     ) -> Result<Option<u32>, ValidityProverError> {
         let record = sqlx::query!(
             "SELECT block_number FROM tx_tree_roots WHERE tx_tree_root = $1",
-            tx_tree_root.as_bytes()
+            tx_tree_root.to_bytes_be()
         )
         .fetch_optional(&self.pool)
         .await?;
@@ -489,7 +492,7 @@ impl ValidityProver {
 
         let deposit_hash_tree: DepositHashTree = serde_json::from_value(record.tree_data)?;
 
-        Ok(deposit_hash_tree.prove(deposit_index as usize))
+        Ok(deposit_hash_tree.prove(deposit_index))
     }
 
     pub async fn get_account_tree(

@@ -13,8 +13,9 @@ use intmax2_zkp::{
         },
     },
 };
+use serde::{Deserialize, Serialize};
 
-#[derive(Default, Clone, Debug, PartialEq)]
+#[derive(Default, Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct DepositHash(pub Bytes32);
 
 impl Leafable for DepositHash {
@@ -29,7 +30,7 @@ impl Leafable for DepositHash {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DepositHashTree {
     pub tree: IncrementalMerkleTree<DepositHash>,
     pub hashes: HashMap<Bytes32, u32>,
