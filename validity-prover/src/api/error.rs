@@ -6,6 +6,9 @@ pub enum ObserverError {
     #[error("Blockchain error: {0}")]
     BlockchainError(#[from] BlockchainError),
 
+    #[error("DB error: {0}")]
+    DBError(#[from] sqlx::Error),
+
     #[error("Full block sync error: {0}")]
     FullBlockSyncError(String),
 
