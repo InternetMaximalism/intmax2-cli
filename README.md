@@ -57,8 +57,5 @@ cargo run -r
 # Reset DB
 
 ```bash
-cd store-vault-server
-sqlx database reset -y
-cd ../validity-prover
-sqlx database reset -y
+cd store-vault-server && sqlx database reset -y && cd ../validity-prover && sqlx database reset -y
 ```

@@ -1,6 +1,6 @@
 use anyhow::{bail, ensure};
 use clap::{Parser, Subcommand};
-use ethers::types::{Address, H256};
+use ethers::types::{Address as EthAddress, H256, U256 as EthU256};
 use intmax2_cli::cli::{
     deposit::deposit_ft,
     get::balance,
@@ -9,10 +9,8 @@ use intmax2_cli::cli::{
 };
 use intmax2_client_sdk::utils::init_logger::init_logger;
 use intmax2_interfaces::data::deposit_data::TokenType;
-use intmax2_zkp::{
-    common::{generic_address::GenericAddress, signature::key_set::KeySet},
-    ethereum_types::{address::Address as IAddress, u256::U256, u32limb_trait::U32LimbTrait as _},
-};
+use intmax2_zkp::{common::{generic_address::GenericAddress, signature::key_set::KeySet}, ethereum_types::u32limb_trait::U32LimbTrait};
+use intmax2_zkp::ethereum_types::{address::Address as IAddress, u256::U256 as IU256};
 use num_bigint::BigUint;
 
 #[derive(Parser)]
@@ -45,7 +43,7 @@ enum Commands {
         #[clap(long)]
         token_type: TokenType,
         #[clap(long)]
-        token_address: Address,
+        token_address: Option<EthAddress>,
         #[clap(long)]
         token_id: Option<u128>,
     },
@@ -91,8 +89,9 @@ async fn main() -> anyhow::Result<()> {
             token_address,
             token_id,
         } => {
-            let token_id = token_id.map(|id| id.into());
             let key = h256_to_keyset(private_key);
+            let token_id = token_id.map(|x| x.into());
+            let (token_address, token_id) = format_token_info(token_type, token_address, token_id)?;
             deposit_ft(
                 key,
                 eth_private_key,
@@ -120,12 +119,33 @@ async fn main() -> anyhow::Result<()> {
             let mut rng = rand::thread_rng();
             let key = KeySet::rand(&mut rng);
             let private_key = BigUint::from(key.privkey);
-            let private_key: U256 = private_key.try_into().unwrap();
+            let private_key: IU256 = private_key.try_into().unwrap();
             println!("Private key: {}", private_key.to_hex());
             println!("Public key: {}", key.pubkey.to_hex());
         }
     }
     Ok(())
+}
+
+fn format_token_info(
+    token_type: TokenType,
+    token_address: Option<EthAddress>,
+    token_id: Option<EthU256>,
+) -> anyhow::Result<(EthAddress, EthU256)> {
+    match token_type {
+        TokenType::NATIVE => Ok((EthAddress::zero(), EthU256::zero())),
+        TokenType::ERC20 => {
+            let token_address =
+                token_address.ok_or_else(|| anyhow::anyhow!("Missing token address"))?;
+            Ok((token_address, EthU256::zero()))
+        }
+        TokenType::ERC721 | TokenType::ERC1155 => {
+            let token_address =
+                token_address.ok_or_else(|| anyhow::anyhow!("Missing token address"))?;
+            let token_id = token_id.ok_or_else(|| anyhow::anyhow!("Missing token id"))?;
+            Ok((token_address, token_id))
+        }
+    }
 }
 
 fn parse_generic_address(address: &str) -> anyhow::Result<GenericAddress> {
@@ -135,7 +155,7 @@ fn parse_generic_address(address: &str) -> anyhow::Result<GenericAddress> {
         let address = IAddress::from_bytes_be(&bytes);
         return Ok(GenericAddress::from_address(address));
     } else if bytes.len() == 32 {
-        let pubkey = U256::from_bytes_be(&bytes);
+        let pubkey = IU256::from_bytes_be(&bytes);
         return Ok(GenericAddress::from_pubkey(pubkey));
     } else {
         bail!("Invalid length");

@@ -14,12 +14,12 @@ pub async fn deposit_ft(
     amount: U256,
     token_type: TokenType,
     token_address: Address,
-    token_id: Option<U256>,
+    token_id: U256,
 ) -> Result<(), CliError> {
     let client = get_client()?;
     let amount = convert_u256(amount);
     let token_address = convert_address(token_address);
-    let token_id = token_id.map(convert_u256).unwrap_or_default();
+    let token_id = convert_u256(token_id);
     let deposit_data = client
         .prepare_deposit(key.pubkey, amount, token_type, token_address, token_id)
         .await?;
