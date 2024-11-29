@@ -21,6 +21,7 @@ docker run --name postgres -e POSTGRES_PASSWORD=password -p 5432:5432 -d postgre
 Example port: 9000
 ```bash
 cd store-vault-server
+sqlx database setup
 cargo run -r
 ```
 
@@ -35,6 +36,7 @@ cargo run -r
 Example port: 9002
 ```bash
 cd validity-prover
+sqlx database setup
 cargo run -r
 ```
 
