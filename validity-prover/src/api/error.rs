@@ -9,6 +9,9 @@ pub enum ObserverError {
     #[error("DB error: {0}")]
     DBError(#[from] sqlx::Error),
 
+    #[error("Derialization error: {0}")]
+    DeserializationError(#[from] serde_json::Error),
+
     #[error("Full block sync error: {0}")]
     FullBlockSyncError(String),
 

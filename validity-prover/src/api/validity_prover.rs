@@ -84,26 +84,27 @@ impl Data {
 }
 
 impl ValidityProver {
-    pub fn new(
+    pub async fn new(
         rpc_url: &str,
         chain_id: u64,
         rollup_contract_address: ethers::types::Address,
         rollup_contract_deployed_block_number: u64,
-    ) -> Self {
+        data_base_url: &str,
+    ) -> Result<Self, ValidityProverError> {
         let rollup_contract = RollupContract::new(
             rpc_url,
             chain_id,
             rollup_contract_address,
             rollup_contract_deployed_block_number,
         );
-        let observer = Observer::new(rollup_contract);
+        let observer = Observer::new(rollup_contract, data_base_url).await?;
         let validity_processor = OnceLock::new();
         let data = Arc::new(RwLock::new(Data::new()));
-        Self {
+        Ok(Self {
             validity_processor,
             observer,
             data,
-        }
+        })
     }
 
     pub async fn sync_observer(&self) -> Result<(), ValidityProverError> {
@@ -138,7 +139,7 @@ impl ValidityProver {
             .clone();
         drop(data);
 
-        let next_block_number = self.observer.get_next_block_number().await;
+        let next_block_number = self.observer.get_next_block_number().await?;
         for block_number in (last_block_number + 1)..next_block_number {
             log::info!(
                 "Sync validity prover: syncing block number {}",
@@ -167,7 +168,7 @@ impl ValidityProver {
             let deposit_events = self
                 .observer
                 .get_deposits_between_blocks(block_number)
-                .await;
+                .await?;
             for event in deposit_events {
                 deposit_hash_tree.push(event.deposit_hash);
             }
@@ -258,8 +259,12 @@ impl ValidityProver {
         })
     }
 
-    pub async fn get_deposit_info(&self, deposit_hash: Bytes32) -> Option<DepositInfo> {
-        self.observer.get_deposit_info(deposit_hash).await
+    pub async fn get_deposit_info(
+        &self,
+        deposit_hash: Bytes32,
+    ) -> Result<Option<DepositInfo>, ValidityProverError> {
+        let deposit_info = self.observer.get_deposit_info(deposit_hash).await?;
+        Ok(deposit_info)
     }
 
     pub async fn get_block_number_by_tx_tree_root(&self, tx_tree_root: Bytes32) -> Option<u32> {

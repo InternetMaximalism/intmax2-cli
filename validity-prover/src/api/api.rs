@@ -61,7 +61,8 @@ pub async fn get_deposit_info(
     let deposit_info = state
         .validity_prover
         .get_deposit_info(query.deposit_hash)
-        .await;
+        .await
+        .map_err(|e| actix_web::error::ErrorInternalServerError(e))?;
     Ok(Json(GetDepositInfoResponse { deposit_info }))
 }
 

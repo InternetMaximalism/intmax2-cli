@@ -13,4 +13,5 @@ pub struct Env {
     pub l2_chain_id: u64,
     pub rollup_contract_address: Address,
     pub rollup_contract_deployed_block_number: u64,
+    pub database_url: String,
 }

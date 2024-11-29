@@ -32,7 +32,15 @@ async fn main() -> std::io::Result<()> {
         env.l2_chain_id,
         env.rollup_contract_address,
         env.rollup_contract_deployed_block_number,
-    );
+        &env.database_url,
+    )
+    .await
+    .map_err(|e| {
+        io::Error::new(
+            io::ErrorKind::Other,
+            format!("Failed to create validity prover: {}", e),
+        )
+    })?;
     let inner_state = State::new(validity_prover);
     let state = Data::new(inner_state.clone());
 
