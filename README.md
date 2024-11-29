@@ -1,3 +1,25 @@
+# Install dependency 
+- Install Rust
+```bash
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+```
+
+- Install forge (if you launch local network)
+```bash
+curl -L https://foundry.paradigm.xyz | bash
+foundryup
+```
+
+- Install sqlx-cli 
+```bash
+cargo install sqlx-cli
+```
+
+- Install wasm-pack
+```
+cargo install wasm-pack
+```
+
 # Preparation 
 
 Launch local network 
