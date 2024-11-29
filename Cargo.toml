@@ -5,21 +5,34 @@ members = [
     "interfaces",
     "wasm",
     "balance-prover",
-    "store-vault-server", 
-    "validity-prover", 
-    "block-builder", "withdrawal-server", "tests", "postgress-test",
+    "store-vault-server",
+    "validity-prover",
+    "block-builder",
+    "withdrawal-server",
+    "tests",
 ]
 resolver = "2"
 
 [workspace.dependencies]
-plonky2 = { git="https://github.com/InternetMaximalism/polygon-plonky2.git", branch="intmax2-dev"}
-intmax2-zkp = {git ="https://github.com/InternetMaximalism/intmax2-zkp", branch = "cli"}
-plonky2_bn254={ git="https://github.com/InternetMaximalism/plonky2_bn254"}
+plonky2 = { git = "https://github.com/InternetMaximalism/polygon-plonky2.git", branch = "intmax2-dev" }
+intmax2-zkp = { git = "https://github.com/InternetMaximalism/intmax2-zkp", branch = "cli" }
+plonky2_bn254 = { git = "https://github.com/InternetMaximalism/plonky2_bn254" }
 # Only features sync,macros,io-util,rt,time are supported on wasm.
-tokio = { version = "1", features = ["sync", "macros", "io-util", "rt", "time"] }
+tokio = { version = "1", features = [
+    "sync",
+    "macros",
+    "io-util",
+    "rt",
+    "time",
+] }
 reqwest = { version = "0.12.9", features = ["json"] }
 serde_json = "1.0.133"
 serde = { version = "1.0.215", features = ["derive"] }
 ethers = "2.0"
 anyhow = "1.0.88"
-sqlx = { version = "0.8.2", features = ["runtime-tokio-native-tls", "postgres", "chrono", "uuid"] }
+sqlx = { version = "0.8.2", features = [
+    "runtime-tokio-native-tls",
+    "postgres",
+    "chrono",
+    "uuid",
+] }
