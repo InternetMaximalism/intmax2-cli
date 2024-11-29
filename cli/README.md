@@ -4,9 +4,11 @@
 
 The general syntax for using the CLI tool is:
 
+
 ```
 intmax2-cli <COMMAND> [OPTIONS]
 ```
+
 
 ### Available Commands
 

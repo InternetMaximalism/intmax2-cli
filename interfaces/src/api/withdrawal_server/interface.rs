@@ -55,9 +55,10 @@ pub struct ContractWithdrawal {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub enum WithdrawalStatus {
-    Pending,
-    Success,
-    Failed,
+    Requested = 0,
+    Success = 1,
+    NeedClaim = 2,
+    Failed = 3, // Should be never used but just in case
 }
 
 #[async_trait(?Send)]

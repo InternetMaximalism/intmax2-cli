@@ -38,10 +38,8 @@ function getDepositHash(recipientSaltHash: string, tokenIndex: number, amount: b
 }
 
 async function getContract(privateKey: string, l1RpcUrl: string, liquidityContractAddress: string, l2RpcUrl: string, rollupContractAddress: string,): Promise<{ liquidityContract: ethers.Contract, rollupContract: ethers.Contract }> {
-    const l1Povider = new ethers.JsonRpcProvider(l1RpcUrl, undefined, {
-        staticNetwork: true
-    });
-    const l1Wallet = new ethers.Wallet(privateKey, l1Povider);
+    const l1Povider = new ethers.JsonRpcProvider(l1RpcUrl, undefined,);
+    const l1Wallet = new ethers.Wallet(privateKey, l1Povider)
     const liquidityContract = new ethers.Contract(
         liquidityContractAddress,
         LiquidityArtifact.abi,
@@ -57,7 +55,6 @@ async function getContract(privateKey: string, l1RpcUrl: string, liquidityContra
     );
     return { liquidityContract, rollupContract };
 }
-
 
 export async function getEthBalance(privateKey: string, rpcUrl: string): Promise<bigint> {
     const provider = new ethers.JsonRpcProvider(rpcUrl, undefined, {
