@@ -1,17 +1,18 @@
 # Preparation 
 
-- Deploy contract to local chain
+Launch local network 
 ```bash
 anvil  
 ```
-Open a new terminal
+
+Contract deployment
 ```bash
 cargo test -r -p tests deploy_contracts -- --nocapture
 ```
 
-Start DB
+Launch database
 ```bash
-docker run --name postgres-dev -e POSTGRES_PASSWORD=password -p 5432:5432 -d postgres
+docker run --name postgres -e POSTGRES_PASSWORD=password -p 5432:5432 -d postgres
 ```
 
 # Start server
