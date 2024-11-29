@@ -13,7 +13,8 @@ async fn main() -> std::io::Result<()> {
     dotenv::dotenv().ok();
 
     let port = std::env::var("PORT").unwrap_or_else(|_| "8080".to_string());
-    let state = Data::new(State::new());
+    let database_url = std::env::var("DATABASE_URL").expect("DATABASE_URL must be set");
+    let state = Data::new(State::new(&database_url).await.unwrap());
     HttpServer::new(move || {
         let cors = Cors::permissive();
         App::new()

@@ -1,3 +1,4 @@
+use anyhow::Result;
 use tokio::sync::RwLock;
 
 use super::store_vault_server::StoreVaultServer;
@@ -7,9 +8,9 @@ pub struct State {
 }
 
 impl State {
-    pub fn new() -> Self {
-        Self {
-            store_vault_server: RwLock::new(StoreVaultServer::new()),
-        }
+    pub async fn new(database_url: &str) -> Result<Self> {
+        Ok(Self {
+            store_vault_server: RwLock::new(StoreVaultServer::new(database_url).await?),
+        })
     }
 }

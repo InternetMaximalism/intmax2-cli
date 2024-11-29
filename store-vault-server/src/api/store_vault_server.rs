@@ -1,166 +1,223 @@
-use anyhow::Ok;
-use hashbrown::HashMap;
+use anyhow::{Ok, Result};
 use intmax2_interfaces::{api::store_vault_server::interface::DataType, data::meta_data::MetaData};
 use intmax2_zkp::{
-    circuits::balance::balance_pis::BalancePublicInputs, ethereum_types::u256::U256,
+    circuits::balance::balance_pis::BalancePublicInputs,
+    ethereum_types::{u256::U256, u32limb_trait::U32LimbTrait},
     utils::poseidon_hash_out::PoseidonHashOut,
 };
 use plonky2::{
     field::goldilocks_field::GoldilocksField,
-    plonk::{
-        config::PoseidonGoldilocksConfig,
-        proof::ProofWithPublicInputs,
-    },
+    plonk::{config::PoseidonGoldilocksConfig, proof::ProofWithPublicInputs},
 };
+use sqlx::{postgres::PgPoolOptions, PgPool};
 use uuid::Uuid;
 
 type F = GoldilocksField;
 type C = PoseidonGoldilocksConfig;
 const D: usize = 2;
 
-// The proof of transfer is encrypted with the public key of the person who uses it. The
-// balance proof is stored without encryption because the private state is hidden.
 pub struct StoreVaultServer {
-    encrypted_user_data: HashMap<U256, Vec<u8>>, /* pubkey -> encrypted_user_data */
-    balance_proofs: HashMap<U256, HashMap<u32, Vec<ProofWithPublicInputs<F, C, D>>>>, /* pubkey -> block_number -> proof */
-
-    encrypted_data: HashMap<DataType, EncryptedDataMap>,
+    pool: PgPool,
 }
 
 impl StoreVaultServer {
-    pub fn new() -> Self {
-        Self {
-            encrypted_user_data: HashMap::new(),
-            balance_proofs: HashMap::new(),
-            encrypted_data: HashMap::new(),
-        }
+    pub async fn new(database_url: &str) -> Result<Self> {
+        let pool = PgPoolOptions::new()
+            .max_connections(5)
+            .connect(database_url)
+            .await?;
+
+        Ok(Self { pool })
     }
 
-    pub fn reset(&mut self) {
-        *self = Self::new();
+    pub async fn reset(&mut self) -> Result<()> {
+        sqlx::query!("TRUNCATE encrypted_user_data, balance_proofs, encrypted_data")
+            .execute(&self.pool)
+            .await?;
+        Ok(())
     }
 
-    pub fn save_balance_proof(&mut self, pubkey: U256, proof: ProofWithPublicInputs<F, C, D>) {
+    pub async fn save_balance_proof(
+        &mut self,
+        pubkey: U256,
+        proof: ProofWithPublicInputs<F, C, D>,
+    ) -> Result<()> {
         let balance_pis = BalancePublicInputs::from_pis(&proof.public_inputs);
-        log::info!(
-            "saving balance proof for pubkey: {}, block_number: {}, private commitment: {}",
-            pubkey,
-            balance_pis.public_state.block_number,
-            balance_pis.private_commitment
-        );
-        // todo: add proof verification & duplicate check
-        self.balance_proofs
-            .entry(pubkey)
-            .or_insert_with(HashMap::new)
-            .entry(balance_pis.public_state.block_number)
-            .or_insert_with(Vec::new)
-            .push(proof);
+        let pubkey_hex = pubkey.to_hex();
+        let private_commitment_hex = format!("{}", balance_pis.private_commitment);
+
+        let proof_data = bincode::serialize(&proof)?;
+
+        sqlx::query!(
+            r#"
+            INSERT INTO balance_proofs (pubkey, block_number, private_commitment, proof_data)
+            VALUES ($1, $2, $3, $4)
+            "#,
+            pubkey_hex,
+            balance_pis.public_state.block_number as i32,
+            private_commitment_hex,
+            proof_data
+        )
+        .execute(&self.pool)
+        .await?;
+
+        Ok(())
     }
 
-    pub fn get_balance_proof(
+    pub async fn get_balance_proof(
         &self,
         pubkey: U256,
         block_number: u32,
         private_commitment: PoseidonHashOut,
-    ) -> anyhow::Result<Option<ProofWithPublicInputs<F, C, D>>> {
-        log::info!(
-            "getting balance proof for pubkey: {}, block_number: {}, private commitment: {}",
-            pubkey,
-            block_number,
-            private_commitment
-        );
-        let empty = HashMap::new();
-        let proofs = self.balance_proofs.get(&pubkey).unwrap_or(&empty);
+    ) -> Result<Option<ProofWithPublicInputs<F, C, D>>> {
+        let pubkey_hex = pubkey.to_hex();
+        let private_commitment_hex = format!("{}", private_commitment);
 
-        let empty = Vec::new();
-        let proofs = proofs.get(&block_number).unwrap_or(&empty);
+        let record = sqlx::query!(
+            r#"
+            SELECT proof_data
+            FROM balance_proofs
+            WHERE pubkey = $1 AND block_number = $2 AND private_commitment = $3
+            "#,
+            pubkey_hex,
+            block_number as i32,
+            private_commitment_hex
+        )
+        .fetch_optional(&self.pool)
+        .await?;
 
-        for proof in proofs.iter() {
-            let balance_pis = BalancePublicInputs::from_pis(&proof.public_inputs);
-            if balance_pis.private_commitment == private_commitment {
-                return Ok(Some(proof.clone()));
+        match record {
+            Some(record) => {
+                let proof: ProofWithPublicInputs<F, C, D> =
+                    bincode::deserialize(&record.proof_data)?;
+                Ok(Some(proof))
             }
+            None => Ok(None),
         }
-        Ok(None)
     }
 
-    pub fn save_user_data(&mut self, pubkey: U256, encrypted_data: Vec<u8>) {
-        self.encrypted_user_data.insert(pubkey, encrypted_data);
+    pub async fn save_user_data(&mut self, pubkey: U256, encrypted_data: Vec<u8>) -> Result<()> {
+        let pubkey_hex = pubkey.to_hex();
+
+        sqlx::query!(
+            r#"
+            INSERT INTO encrypted_user_data (pubkey, encrypted_data)
+            VALUES ($1, $2)
+            ON CONFLICT (pubkey) DO UPDATE SET encrypted_data = EXCLUDED.encrypted_data
+            "#,
+            pubkey_hex,
+            encrypted_data
+        )
+        .execute(&self.pool)
+        .await?;
+
+        Ok(())
     }
 
-    pub fn get_user_data(&self, pubkey: U256) -> Option<Vec<u8>> {
-        self.encrypted_user_data.get(&pubkey).cloned()
+    pub async fn get_user_data(&self, pubkey: U256) -> Result<Option<Vec<u8>>> {
+        let pubkey_hex = pubkey.to_hex();
+
+        let record = sqlx::query!(
+            r#"
+            SELECT encrypted_data FROM encrypted_user_data WHERE pubkey = $1
+            "#,
+            pubkey_hex
+        )
+        .fetch_optional(&self.pool)
+        .await?;
+
+        Ok(record.map(|r| r.encrypted_data))
     }
 
-    pub fn save_data(&mut self, data_type: DataType, pubkey: U256, encypted_data: Vec<u8>) {
-        self.encrypted_data
-            .entry(data_type)
-            .or_insert_with(EncryptedDataMap::new)
-            .insert(pubkey, encypted_data);
+    pub async fn save_data(
+        &mut self,
+        data_type: DataType,
+        pubkey: U256,
+        encrypted_data: Vec<u8>,
+    ) -> Result<()> {
+        let pubkey_hex = pubkey.to_hex();
+        let uuid = Uuid::new_v4().to_string();
+        let timestamp = chrono::Utc::now().timestamp() as i64;
+
+        sqlx::query!(
+            r#"
+            INSERT INTO encrypted_data 
+            (data_type, pubkey, uuid, timestamp, encrypted_data)
+            VALUES ($1, $2, $3, $4, $5)
+            "#,
+            data_type as i32,
+            pubkey_hex,
+            uuid,
+            timestamp,
+            encrypted_data
+        )
+        .execute(&self.pool)
+        .await?;
+
+        Ok(())
     }
 
-    pub fn get_data_all_after(
+    pub async fn get_data_all_after(
         &self,
         data_type: DataType,
         pubkey: U256,
         timestamp: u64,
-    ) -> Vec<(MetaData, Vec<u8>)> {
-        self.encrypted_data
-            .get(&data_type)
-            .unwrap_or(&EncryptedDataMap::new())
-            .get_all_after(pubkey, timestamp)
+    ) -> Result<Vec<(MetaData, Vec<u8>)>> {
+        let pubkey_hex = pubkey.to_hex();
+
+        let records = sqlx::query!(
+            r#"
+            SELECT uuid, timestamp, block_number, encrypted_data
+            FROM encrypted_data
+            WHERE data_type = $1 AND pubkey = $2 AND timestamp > $3
+            ORDER BY timestamp ASC
+            "#,
+            data_type as i32,
+            pubkey_hex,
+            timestamp as i64
+        )
+        .fetch_all(&self.pool)
+        .await?;
+
+        let result = records
+            .into_iter()
+            .map(|r| {
+                let meta_data = MetaData {
+                    uuid: r.uuid,
+                    timestamp: r.timestamp as u64,
+                    block_number: r.block_number.map(|n| n as u32),
+                };
+                (meta_data, r.encrypted_data)
+            })
+            .collect();
+
+        Ok(result)
     }
 
-    pub fn get_data(&self, data_type: DataType, uuid: &str) -> Option<(MetaData, Vec<u8>)> {
-        self.encrypted_data
-            .get(&data_type)
-            .unwrap_or(&EncryptedDataMap::new())
-            .get(uuid)
-    }
-}
+    pub async fn get_data(
+        &self,
+        data_type: DataType,
+        uuid: &str,
+    ) -> Result<Option<(MetaData, Vec<u8>)>> {
+        let record = sqlx::query!(
+            r#"
+            SELECT timestamp, block_number, encrypted_data
+            FROM encrypted_data
+            WHERE data_type = $1 AND uuid = $2
+            "#,
+            data_type as i32,
+            uuid
+        )
+        .fetch_optional(&self.pool)
+        .await?;
 
-struct EncryptedDataMap(HashMap<U256, Vec<(MetaData, Vec<u8>)>>);
-
-impl EncryptedDataMap {
-    pub fn new() -> Self {
-        Self(HashMap::new())
-    }
-
-    pub fn insert(&mut self, pubkey: U256, encrypted_data: Vec<u8>) {
-        let meta_data = MetaData {
-            uuid: Uuid::new_v4().to_string(),
-            timestamp: chrono::Utc::now().timestamp() as u64,
-            block_number: None,
-        };
-        self.0
-            .entry(pubkey)
-            .or_insert_with(Vec::new)
-            .push((meta_data, encrypted_data));
-    }
-
-    pub fn get_all_after(&self, pubkey: U256, timestamp: u64) -> Vec<(MetaData, Vec<u8>)> {
-        let empty = Vec::new();
-        let list = self.0.get(&pubkey).unwrap_or(&empty);
-        let mut result = Vec::new();
-        for (meta_data, data) in list.iter() {
-            if meta_data.timestamp > timestamp {
-                result.push((meta_data.clone(), data.clone()));
-            }
-        }
-        // sort by timestamp
-        result.sort_by(|a, b| a.0.timestamp.cmp(&b.0.timestamp));
-
-        result
-    }
-
-    pub fn get(&self, uuid: &str) -> Option<(MetaData, Vec<u8>)> {
-        for (_, list) in self.0.iter() {
-            for (meta_data, data) in list.iter() {
-                if meta_data.uuid == uuid {
-                    return Some((meta_data.clone(), data.clone()));
-                }
-            }
-        }
-        None
+        Ok(record.map(|r| {
+            let meta_data = MetaData {
+                uuid: uuid.to_string(),
+                timestamp: r.timestamp as u64,
+                block_number: r.block_number.map(|n| n as u32),
+            };
+            (meta_data, r.encrypted_data)
+        }))
     }
 }
