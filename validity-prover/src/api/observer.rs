@@ -1,12 +1,13 @@
 use std::sync::Arc;
 
-use intmax2_client_sdk::external_api::contract::{
-    interface::BlockchainError,
-    rollup_contract::{DepositLeafInserted, FullBlockWithMeta, RollupContract},
+use intmax2_client_sdk::external_api::contract::rollup_contract::{
+    DepositLeafInserted, FullBlockWithMeta, RollupContract,
 };
 use intmax2_interfaces::api::validity_prover::interface::DepositInfo;
 use intmax2_zkp::{common::witness::full_block::FullBlock, ethereum_types::bytes32::Bytes32};
 use tokio::sync::RwLock;
+
+use super::error::ObserverError;
 
 pub struct Observer {
     rollup_contract: RollupContract,
@@ -36,24 +37,6 @@ impl Data {
             deposit_leaf_events: Vec::new(),
         }
     }
-}
-
-#[derive(Debug, thiserror::Error)]
-pub enum ObserverError {
-    #[error("Blockchain error: {0}")]
-    BlockchainError(#[from] BlockchainError),
-
-    #[error("Full block sync error: {0}")]
-    FullBlockSyncError(String),
-
-    #[error("Deposit sync error: {0}")]
-    DepositSyncError(String),
-
-    #[error("Block not found: {0}")]
-    BlockNotFound(u32),
-
-    #[error("Block number mismatch: {0} != {1}")]
-    BlockNumberMismatch(u32, u32),
 }
 
 impl Observer {

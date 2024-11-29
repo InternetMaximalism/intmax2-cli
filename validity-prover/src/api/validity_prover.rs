@@ -28,41 +28,11 @@ use tokio::sync::RwLock;
 
 use crate::utils::deposit_hash_tree::DepositHashTree;
 
-use super::observer::{Observer, ObserverError};
+use super::{error::ValidityProverError, observer::Observer};
 
 type F = GoldilocksField;
 type C = PoseidonGoldilocksConfig;
 const D: usize = 2;
-
-#[derive(Debug, thiserror::Error)]
-pub enum ValidityProverError {
-    #[error("Observer error: {0}")]
-    ObserverError(#[from] ObserverError),
-
-    #[error("Block witness generation error: {0}")]
-    BlockWitnessGenerationError(String),
-
-    #[error("Failed to update trees: {0}")]
-    FailedToUpdateTrees(String),
-
-    #[error("Validity prove error: {0}")]
-    ValidityProveError(String),
-
-    #[error("Deposit tree root mismatch: expected {0}, got {1}")]
-    DepositTreeRootMismatch(Bytes32, Bytes32),
-
-    #[error("Validity proof not found for block number {0}")]
-    ValidityProofNotFound(u32),
-
-    #[error("Block tree not found for block number {0}")]
-    BlockTreeNotFound(u32),
-
-    #[error("Account tree not found for block number {0}")]
-    AccountTreeNotFound(u32),
-
-    #[error("Input error {0}")]
-    InputError(String),
-}
 
 pub struct ValidityProver {
     validity_processor: OnceLock<ValidityProcessor<F, C, D>>, // delayed initialization
