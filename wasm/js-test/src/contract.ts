@@ -11,16 +11,20 @@ export async function deposit(privateKey: string, l1RpcUrl: string, liquidityCon
         await liquidityContract.depositNativeToken(pubkeySaltHash, { value: amount });
     } else if (tokenType === 1) {
         await liquidityContract.depositERC20(tokenAddress, pubkeySaltHash, amount);
+    } else if (tokenType === 2) {
+        await liquidityContract.depositERC721(tokenAddress, tokenId, pubkeySaltHash);
+    } else if (tokenType === 3) {
+        await liquidityContract.depositERC1155(tokenAddress, tokenId, pubkeySaltHash, amount);
     } else {
-        throw new Error("Not supported for NFT and other token types");
+        throw new Error("Invalid token type");
     }
     const [isRegistered, tokenIndex] = await liquidityContract.getTokenIndex(tokenType, tokenAddress, tokenId);
     if (!isRegistered) {
         throw new Error("Token is not registered");
     }
+    console.log("Token index: ", tokenIndex);
 
-    // following code is not used in production. Rekay the deposits to the rollup contract
-    // const tokenIndex = await liquidityContract.getTokenIndex(tokenType, tokenAddress, tokenId);
+    // following code is not used in production. Relay the deposits to the rollup contract
     const depositHash = getDepositHash(pubkeySaltHash, tokenIndex, amount);
     const tx = await rollupContract.processDeposits(0, [depositHash]);
     await tx.wait();

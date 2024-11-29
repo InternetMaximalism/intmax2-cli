@@ -67,17 +67,16 @@ async function main() {
   const ethKey = "0x7c852118294e51e653712a81e05800f419141751be58f605c371e15141b007a6"
 
   // deposit to the account
-  const tokenType = 0;
+  const tokenType = 0; // 0: native token, 1: ERC20, 2: ERC721, 3: ERC1155
   const tokenAddress = "0x0000000000000000000000000000000000000000";
-  const tokenId = "0";
+  const tokenId = "0"; // Use "0" for fungible tokens
   const amount = "123"; // in wei
 
   const balance = await getEthBalance(ethKey, env.L1_RPC_URL);
   console.log("balance: ", balance);
 
-  // const pubkeySaltHash = await prepare_deposit(config, publicKey, amount, tokenType, tokenAddress, tokenId);
-  // console.log("pubkeySaltHash: ", pubkeySaltHash);
-  const pubkeySaltHash = ethKey;
+  const pubkeySaltHash = await prepare_deposit(config, publicKey, amount, tokenType, tokenAddress, tokenId);
+  console.log("pubkeySaltHash: ", pubkeySaltHash);
 
   await deposit(ethKey, env.L1_RPC_URL, env.LIQUIDITY_CONTRACT_ADDRESS, env.L2_RPC_URL, env.ROLLUP_CONTRACT_ADDRESS, BigInt(amount), tokenType, tokenAddress, tokenId, pubkeySaltHash);
 
