@@ -6,7 +6,7 @@ pub enum ObserverError {
     #[error("Blockchain error: {0}")]
     BlockchainError(#[from] BlockchainError),
 
-    #[error("DB error: {0}")]
+    #[error("Database error: {0}")]
     DBError(#[from] sqlx::Error),
 
     #[error("Derialization error: {0}")]
@@ -32,6 +32,9 @@ pub enum ValidityProverError {
 
     #[error("Block witness generation error: {0}")]
     BlockWitnessGenerationError(String),
+
+    #[error("Database error: {0}")]
+    DBError(#[from] sqlx::Error),
 
     #[error("Failed to update trees: {0}")]
     FailedToUpdateTrees(String),

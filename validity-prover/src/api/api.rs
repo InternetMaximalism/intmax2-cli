@@ -15,7 +15,8 @@ use intmax2_interfaces::api::validity_prover::types::{
 
 #[get("/block-number")]
 pub async fn get_block_number(state: Data<State>) -> Result<Json<GetBlockNumberResponse>, Error> {
-    let block_number = state.validity_prover.get_block_number().await;
+    let block_number = state.validity_prover.get_block_number().await
+    .map_err(|e| actix_web::error::ErrorInternalServerError(e))?;
     Ok(Json(GetBlockNumberResponse { block_number }))
 }
 
@@ -75,7 +76,8 @@ pub async fn get_block_number_by_tx_tree_root(
     let block_number = state
         .validity_prover
         .get_block_number_by_tx_tree_root(query.tx_tree_root)
-        .await;
+        .await
+        .map_err(|e| actix_web::error::ErrorInternalServerError(e))?;
     Ok(Json(GetBlockNumberByTxTreeRootResponse { block_number }))
 }
 
@@ -88,7 +90,8 @@ pub async fn get_validity_pis(
     let validity_pis = state
         .validity_prover
         .get_validity_pis(query.block_number)
-        .await;
+        .await
+        .map_err(|e| actix_web::error::ErrorInternalServerError(e))?;
     Ok(Json(GetValidityPisResponse { validity_pis }))
 }
 
@@ -101,7 +104,8 @@ pub async fn get_sender_leaves(
     let sender_leaves = state
         .validity_prover
         .get_sender_leaves(query.block_number)
-        .await;
+        .await
+        .map_err(|e| actix_web::error::ErrorInternalServerError(e))?;
     Ok(Json(GetSenderLeavesResponse { sender_leaves }))
 }
 
