@@ -56,9 +56,10 @@ pub struct ContractWithdrawal {
 #[serde(rename_all = "camelCase")]
 pub enum WithdrawalStatus {
     Requested = 0,
-    Success = 1,
-    NeedClaim = 2,
-    Failed = 3, // Should be never used but just in case
+    Relayed = 1,
+    Success = 2,
+    NeedClaim = 3,
+    Failed = 4, // Should be never used but just in case
 }
 
 #[async_trait(?Send)]
@@ -67,6 +68,7 @@ pub trait WithdrawalServerClientInterface {
 
     async fn request_withdrawal(
         &self,
+        pubkey: U256,
         single_withdrawal_proof: &ProofWithPublicInputs<F, C, D>,
     ) -> Result<(), ServerError>;
 

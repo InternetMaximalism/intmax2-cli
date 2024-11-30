@@ -12,7 +12,11 @@ pub async fn request_withdrawal(
     state: Data<State>,
     request: Json<RequestWithdrawalRequest>,
 ) -> Result<Json<()>, Error> {
-    
+    state
+        .withdrawl_server
+        .request_withdrawal(request.pubkey, &request.single_withdrawal_proof)
+        .await
+        .map_err(|e| actix_web::error::ErrorInternalServerError(e))?;
     Ok(Json(()))
 }
 

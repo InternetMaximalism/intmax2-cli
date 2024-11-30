@@ -14,6 +14,7 @@ const D: usize = 2;
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct RequestWithdrawalRequest {
+    pub pubkey: U256,
     pub single_withdrawal_proof: ProofWithPublicInputs<F, C, D>,
 }
 

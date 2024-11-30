@@ -9,7 +9,10 @@ use intmax2_interfaces::api::{
         },
     },
 };
-use intmax2_zkp::common::signature::{flatten::FlatG2, key_set::KeySet};
+use intmax2_zkp::{
+    common::signature::{flatten::FlatG2, key_set::KeySet},
+    ethereum_types::u256::U256,
+};
 use plonky2::{
     field::goldilocks_field::GoldilocksField,
     plonk::{config::PoseidonGoldilocksConfig, proof::ProofWithPublicInputs},
@@ -44,9 +47,11 @@ impl WithdrawalServerClientInterface for WithdrawalServerClient {
 
     async fn request_withdrawal(
         &self,
+        pubkey: U256,
         single_withdrawal_proof: &ProofWithPublicInputs<F, C, D>,
     ) -> Result<(), ServerError> {
         let request = RequestWithdrawalRequest {
+            pubkey,
             single_withdrawal_proof: single_withdrawal_proof.clone(),
         };
         post_request::<_, ()>(

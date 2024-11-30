@@ -6408,6 +6408,7 @@ dependencies = [
  "bincode",
  "chrono",
  "dotenv",
+ "envy",
  "ethers",
  "hashbrown 0.14.5",
  "intmax2-client-sdk",

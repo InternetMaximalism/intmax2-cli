@@ -1,7 +1,8 @@
-use crate::api::encode::encode_plonky2_proof;
+use crate::api::{encode::encode_plonky2_proof, status::SqlWithdrawalStatus};
 
 use super::error::WithdrawalServerError;
 use intmax2_client_sdk::utils::circuit_verifiers::CircuitVerifiers;
+
 use intmax2_zkp::{
     common::withdrawal::Withdrawal,
     ethereum_types::{u256::U256, u32limb_trait::U32LimbTrait},
@@ -16,17 +17,6 @@ use sqlx::PgPool;
 type F = GoldilocksField;
 type C = PoseidonGoldilocksConfig;
 const D: usize = 2;
-
-#[derive(Debug, sqlx::Type)]
-#[sqlx(type_name = "withdrawal_status")]
-#[sqlx(rename_all = "lowercase")]
-pub enum WithdrawalStatus {
-    Requested,
-    Relayed,
-    Success,
-    NeedClaim,
-    Failed,
-}
 
 pub struct WithdrawalServer {
     pub pool: PgPool,
@@ -60,7 +50,6 @@ impl WithdrawalServer {
         let chained_withdrawal = serde_json::to_value(withdrawal)
             .map_err(|e| WithdrawalServerError::SerializationError(e.to_string()))?;
 
-    
         sqlx::query!(
             r#"
             INSERT INTO withdrawal (
@@ -76,11 +65,15 @@ impl WithdrawalServer {
             recipient,
             proof_bytes,
             chained_withdrawal,
-            WithdrawalStatus::Requested as WithdrawalStatus
+            SqlWithdrawalStatus::Requested as SqlWithdrawalStatus
         )
         .execute(&self.pool)
         .await?;
 
         Ok(())
+    }
+
+    pub async fn get_withdrawal_info() -> Result<(), WithdrawalServerError> {
+        todo!()
     }
 }
