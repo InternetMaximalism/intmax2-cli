@@ -68,7 +68,7 @@ async fn handle_response<R: DeserializeOwned>(
             status.into(),
             error_message,
             url.to_string(),
-            request_str.to_string(),
+            request_str.chars().take(500).collect(),
         ));
     }
     response

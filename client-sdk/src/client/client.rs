@@ -394,6 +394,11 @@ where
     }
 
     pub async fn sync_withdrawals(&self, key: KeySet) -> Result<(), ClientError> {
+        log::info!("sync_withdrawals: {:?}", key);
+
+        // sync balance proof
+        self.sync(key).await?;
+
         let user_data = self.get_user_data(key).await?;
 
         let withdrawal_info = fetch_withdrawal_info(
