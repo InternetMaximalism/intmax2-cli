@@ -4,7 +4,7 @@ use intmax2_interfaces::{
         block_builder::interface::BlockBuilderClientInterface,
         store_vault_server::interface::{DataType, StoreVaultClientInterface},
         validity_prover::interface::ValidityProverClientInterface,
-        withdrawal_server::interface::WithdrawalServerClientInterface,
+        withdrawal_server::interface::{WithdrawalInfo, WithdrawalServerClientInterface},
     },
     data::{
         common_tx_data::CommonTxData,
@@ -691,5 +691,13 @@ where
             })?
             .unwrap_or(UserData::new(key.pubkey));
         Ok(user_data)
+    }
+
+    pub async fn get_withdrawal_info(
+        &self,
+        key: KeySet,
+    ) -> Result<Vec<WithdrawalInfo>, ClientError> {
+        let withdrawal_info = self.withdrawal_server.get_withdrawal_info(key).await?;
+        Ok(withdrawal_info)
     }
 }

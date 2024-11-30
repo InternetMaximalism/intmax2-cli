@@ -17,3 +17,20 @@ pub async fn balance(key: KeySet) -> Result<(), CliError> {
     }
     Ok(())
 }
+
+pub async fn withdrawal_status(key: KeySet) -> Result<(), CliError> {
+    let client = get_client()?;
+    let withdrawal_info = client.get_withdrawal_info(key).await?;
+    for (i, withdrawal_info) in withdrawal_info.iter().enumerate() {
+        let withdrawal = withdrawal_info.withdrawal.clone();
+        println!(
+            "#{}: recipient: {}, token_index{}, amount: {}, status: {}",
+            i,
+            withdrawal.recipient,
+            withdrawal.token_index,
+            withdrawal.amount,
+            withdrawal_info.status
+        );
+    }
+    Ok(())
+}

@@ -1,3 +1,5 @@
+use std::fmt::{self, Display, Formatter};
+
 use async_trait::async_trait;
 use intmax2_zkp::{
     common::{signature::key_set::KeySet, withdrawal::Withdrawal},
@@ -60,6 +62,18 @@ pub enum WithdrawalStatus {
     Success = 2,
     NeedClaim = 3,
     Failed = 4, // Should be never used but just in case
+}
+
+impl Display for WithdrawalStatus {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        match self {
+            WithdrawalStatus::Requested => write!(f, "requested"),
+            WithdrawalStatus::Relayed => write!(f, "relayed"),
+            WithdrawalStatus::Success => write!(f, "success"),
+            WithdrawalStatus::NeedClaim => write!(f, "need_claim"),
+            WithdrawalStatus::Failed => write!(f, "failed"),
+        }
+    }
 }
 
 #[async_trait(?Send)]

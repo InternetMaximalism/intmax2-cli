@@ -3,14 +3,18 @@ use clap::{Parser, Subcommand};
 use ethers::types::{Address as EthAddress, H256, U256 as EthU256};
 use intmax2_cli::cli::{
     deposit::deposit_ft,
-    get::balance,
+    get::{balance, withdrawal_status},
     send::tx,
     sync::{sync, sync_withdrawals},
 };
 use intmax2_client_sdk::utils::init_logger::init_logger;
 use intmax2_interfaces::data::deposit_data::TokenType;
-use intmax2_zkp::{common::{generic_address::GenericAddress, signature::key_set::KeySet}, ethereum_types::u32limb_trait::U32LimbTrait};
-use intmax2_zkp::ethereum_types::{address::Address as IAddress, u256::U256 as IU256};
+use intmax2_zkp::{
+    common::{generic_address::GenericAddress, signature::key_set::KeySet},
+    ethereum_types::{
+        address::Address as IAddress, u256::U256 as IU256, u32limb_trait::U32LimbTrait,
+    },
+};
 use num_bigint::BigUint;
 
 #[derive(Parser)]
@@ -59,7 +63,10 @@ enum Commands {
         #[clap(long)]
         private_key: H256,
     },
-
+    WithdrawalStatus {
+        #[clap(long)]
+        private_key: H256,
+    },
     GenerateKey,
 }
 
@@ -113,6 +120,10 @@ async fn main() -> anyhow::Result<()> {
         Commands::Balance { private_key } => {
             let key = h256_to_keyset(private_key);
             balance(key).await?;
+        }
+        Commands::WithdrawalStatus { private_key } => {
+            let key = h256_to_keyset(private_key);
+            withdrawal_status(key).await?;
         }
         Commands::GenerateKey => {
             println!("Generating key");
