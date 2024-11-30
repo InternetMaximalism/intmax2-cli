@@ -2,6 +2,7 @@ use std::path::{Path, PathBuf};
 
 use intmax2_zkp::circuits::{
     balance::balance_processor::BalanceProcessor, validity::validity_processor::ValidityProcessor,
+    withdrawal::single_withdrawal_circuit::SingleWithdrawalCircuit,
 };
 use plonky2::{
     field::goldilocks_field::GoldilocksField,
@@ -13,6 +14,8 @@ const VALIDITY_VD_BYTES: &[u8] =
     include_bytes!("../../circuit_data/validity_verifier_circuit_data.bin");
 const BALANCE_VD_BYTES: &[u8] =
     include_bytes!("../../circuit_data/balance_verifier_circuit_data.bin");
+const SINGLE_WITHDRAWAL_VD_BYTES: &[u8] =
+    include_bytes!("../../circuit_data/single_withdrawal_verifier_circuit_data.bin");
 
 fn circuit_data_path() -> PathBuf {
     PathBuf::from("circuit_data")
@@ -26,6 +29,10 @@ fn validity_circuit_data_path() -> PathBuf {
     circuit_data_path().join("validity_verifier_circuit_data.bin")
 }
 
+fn single_withdrawal_circuit_data_path() -> PathBuf {
+    circuit_data_path().join("single_withdrawal_verifier_circuit_data.bin")
+}
+
 type F = GoldilocksField;
 type C = PoseidonGoldilocksConfig;
 const D: usize = 2;
@@ -33,6 +40,7 @@ const D: usize = 2;
 pub struct CircuitVerifiers {
     balance_vd: VerifierCircuitData<F, C, D>,
     validity_vd: VerifierCircuitData<F, C, D>,
+    single_withdrawal_vd: VerifierCircuitData<F, C, D>,
 }
 
 impl CircuitVerifiers {
@@ -40,24 +48,36 @@ impl CircuitVerifiers {
     pub fn construct() -> Self {
         let validity_processor = ValidityProcessor::new();
         let balance_processor = BalanceProcessor::new(&validity_processor.get_verifier_data());
+        let balance_vd = balance_processor.get_verifier_data();
+        let balance_common_data = balance_vd.common.clone();
+        let single_withdrawal_circuit = SingleWithdrawalCircuit::new(&balance_common_data);
         Self {
             balance_vd: balance_processor.get_verifier_data(),
             validity_vd: validity_processor.validity_circuit.data.verifier_data(),
+            single_withdrawal_vd: single_withdrawal_circuit.data.verifier_data(),
         }
     }
 
     pub fn save(&self) -> anyhow::Result<()> {
         save_verifier_circuit_data(&balance_circuit_data_path(), &self.balance_vd)?;
         save_verifier_circuit_data(&validity_circuit_data_path(), &self.validity_vd)?;
+        save_verifier_circuit_data(
+            &single_withdrawal_circuit_data_path(),
+            &self.single_withdrawal_vd,
+        )?;
         Ok(())
     }
 
     pub fn load() -> Self {
         let balance_vd = deserialize_verifier_circuit_data(BALANCE_VD_BYTES.to_vec()).unwrap();
         let validity_vd = deserialize_verifier_circuit_data(VALIDITY_VD_BYTES.to_vec()).unwrap();
+        let single_withdrawal_vd =
+            deserialize_verifier_circuit_data(SINGLE_WITHDRAWAL_VD_BYTES.to_vec()).unwrap();
+
         Self {
             balance_vd,
             validity_vd,
+            single_withdrawal_vd,
         }
     }
 
@@ -67,6 +87,10 @@ impl CircuitVerifiers {
 
     pub fn get_validity_vd(&self) -> VerifierCircuitData<F, C, D> {
         self.validity_vd.clone()
+    }
+
+    pub fn get_single_withdrawal_vd(&self) -> VerifierCircuitData<F, C, D> {
+        self.single_withdrawal_vd.clone()
     }
 }
 
