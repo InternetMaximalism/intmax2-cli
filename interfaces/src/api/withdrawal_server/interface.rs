@@ -73,4 +73,9 @@ pub trait WithdrawalServerClientInterface {
     ) -> Result<(), ServerError>;
 
     async fn get_withdrawal_info(&self, key: KeySet) -> Result<Vec<WithdrawalInfo>, ServerError>;
+
+    async fn get_withdrawal_info_by_recipient(
+        &self,
+        recipient: Address,
+    ) -> Result<Vec<WithdrawalInfo>, ServerError>;
 }

@@ -1,4 +1,7 @@
-use intmax2_zkp::{common::signature::flatten::FlatG2, ethereum_types::u256::U256};
+use intmax2_zkp::{
+    common::signature::flatten::FlatG2,
+    ethereum_types::{address::Address, u256::U256},
+};
 use plonky2::{
     field::goldilocks_field::GoldilocksField,
     plonk::{config::PoseidonGoldilocksConfig, proof::ProofWithPublicInputs},
@@ -29,6 +32,12 @@ pub struct GetFeeResponse {
 pub struct GetWithdrawalInfoRequest {
     pub pubkey: U256,
     pub signature: FlatG2,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GetWithdrawalInfoByRecipientRequest {
+    pub recipient: Address,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

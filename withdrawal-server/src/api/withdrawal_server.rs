@@ -3,9 +3,10 @@ use crate::api::{encode::encode_plonky2_proof, status::SqlWithdrawalStatus};
 use super::error::WithdrawalServerError;
 use intmax2_client_sdk::utils::circuit_verifiers::CircuitVerifiers;
 
+use intmax2_interfaces::api::withdrawal_server::interface::WithdrawalInfo;
 use intmax2_zkp::{
-    common::withdrawal::Withdrawal,
-    ethereum_types::{u256::U256, u32limb_trait::U32LimbTrait},
+    common::{signature::flatten::FlatG2, withdrawal::Withdrawal},
+    ethereum_types::{address::Address, u256::U256, u32limb_trait::U32LimbTrait},
     utils::conversion::ToU64,
 };
 use plonky2::{
@@ -73,7 +74,69 @@ impl WithdrawalServer {
         Ok(())
     }
 
-    pub async fn get_withdrawal_info() -> Result<(), WithdrawalServerError> {
-        todo!()
+    pub async fn get_withdrawal_info(
+        &self,
+        pubkey: U256,
+        _signature: FlatG2,
+    ) -> Result<Vec<WithdrawalInfo>, WithdrawalServerError> {
+        // todo!: verify the signature
+        let pubkey_str = pubkey.to_hex();
+        let records = sqlx::query!(
+            r#"
+            SELECT 
+                status as "status: SqlWithdrawalStatus",
+                chained_withdrawal,
+                withdrawal_id
+            FROM withdrawal 
+            WHERE pubkey = $1
+            "#,
+            pubkey_str
+        )
+        .fetch_all(&self.pool)
+        .await?;
+
+        let mut withdrawal_infos = Vec::new();
+        for record in records {
+            let withdrawal: Withdrawal = serde_json::from_value(record.chained_withdrawal)
+                .map_err(|e| WithdrawalServerError::SerializationError(e.to_string()))?;
+            withdrawal_infos.push(WithdrawalInfo {
+                status: record.status.into(),
+                withdrawal,
+                withdrawal_id: record.withdrawal_id.map(|id| id as u32),
+            });
+        }
+        Ok(withdrawal_infos)
+    }
+
+    pub async fn get_withdrawal_info_by_recipient(
+        &self,
+        recipient: Address,
+    ) -> Result<Vec<WithdrawalInfo>, WithdrawalServerError> {
+        let recipient_str = recipient.to_hex();
+        let records = sqlx::query!(
+            r#"
+            SELECT 
+                status as "status: SqlWithdrawalStatus",
+                chained_withdrawal,
+                withdrawal_id
+            FROM withdrawal 
+            WHERE recipient = $1
+            "#,
+            recipient_str
+        )
+        .fetch_all(&self.pool)
+        .await?;
+
+        let mut withdrawal_infos = Vec::new();
+        for record in records {
+            let withdrawal: Withdrawal = serde_json::from_value(record.chained_withdrawal)
+                .map_err(|e| WithdrawalServerError::SerializationError(e.to_string()))?;
+            withdrawal_infos.push(WithdrawalInfo {
+                status: record.status.into(),
+                withdrawal,
+                withdrawal_id: record.withdrawal_id.map(|id| id as u32),
+            });
+        }
+        Ok(withdrawal_infos)
     }
 }

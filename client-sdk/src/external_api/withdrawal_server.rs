@@ -4,14 +4,14 @@ use intmax2_interfaces::api::{
     withdrawal_server::{
         interface::{Fee, WithdrawalInfo, WithdrawalServerClientInterface},
         types::{
-            GetFeeResponse, GetWithdrawalInfoReqponse, GetWithdrawalInfoRequest,
-            RequestWithdrawalRequest,
+            GetFeeResponse, GetWithdrawalInfoByRecipientRequest, GetWithdrawalInfoReqponse,
+            GetWithdrawalInfoRequest, RequestWithdrawalRequest,
         },
     },
 };
 use intmax2_zkp::{
     common::signature::{flatten::FlatG2, key_set::KeySet},
-    ethereum_types::u256::U256,
+    ethereum_types::{address::Address, u256::U256},
 };
 use plonky2::{
     field::goldilocks_field::GoldilocksField,
@@ -69,6 +69,20 @@ impl WithdrawalServerClientInterface for WithdrawalServerClient {
         let response: GetWithdrawalInfoReqponse = get_request(
             &self.base_url,
             "/withdrawal-server/get-withdrawal-info",
+            Some(query),
+        )
+        .await?;
+        Ok(response.withdrawal_info)
+    }
+
+    async fn get_withdrawal_info_by_recipient(
+        &self,
+        recipient: Address,
+    ) -> Result<Vec<WithdrawalInfo>, ServerError> {
+        let query = GetWithdrawalInfoByRecipientRequest { recipient };
+        let response: GetWithdrawalInfoReqponse = get_request(
+            &self.base_url,
+            "/withdrawal-server/get-withdrawal-info-by-recipient",
             Some(query),
         )
         .await?;
