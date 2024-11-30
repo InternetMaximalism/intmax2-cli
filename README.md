@@ -50,8 +50,7 @@ cargo run -r
 2. Start balance-prover.
 Example port: 9001
 ```bash
-cd balance-prover
-cargo run -r
+cd balance-prover && cargo run -r
 ```
 
 3. Start validity-prover. 
@@ -66,18 +65,18 @@ cargo run -r
 Example port: 9003
 ```bash
 cd withdrawal-server
+sqlx database setup
 cargo run -r
 ```
 
 5. Start block-builder. 
 Example port: 9004
 ```bash
-cd block-builder
-cargo run -r
+cd block-builder && cargo run -r
 ```
 
 # Reset DB
 
 ```bash
-cd store-vault-server && sqlx database reset -y && cd ../validity-prover && sqlx database reset -y
+cd store-vault-server && sqlx database reset -y && cd ../validity-prover && sqlx database reset -y && cd ../withdrawal-server && sqlx database reset && cd ..
 ```
