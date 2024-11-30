@@ -9,10 +9,10 @@ use crate::api::state::State;
 
 #[post("/request-withdrawal")]
 pub async fn request_withdrawal(
-    _state: Data<State>,
-    _request: Json<RequestWithdrawalRequest>,
+    state: Data<State>,
+    request: Json<RequestWithdrawalRequest>,
 ) -> Result<Json<()>, Error> {
-    // todo: implement request withdrawal
+    
     Ok(Json(()))
 }
 
