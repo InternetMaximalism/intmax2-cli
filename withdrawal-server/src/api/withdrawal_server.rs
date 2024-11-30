@@ -13,7 +13,7 @@ use plonky2::{
     field::goldilocks_field::GoldilocksField,
     plonk::{config::PoseidonGoldilocksConfig, proof::ProofWithPublicInputs},
 };
-use sqlx::PgPool;
+use sqlx::{postgres::PgPoolOptions, PgPool};
 
 type F = GoldilocksField;
 type C = PoseidonGoldilocksConfig;
@@ -25,7 +25,10 @@ pub struct WithdrawalServer {
 
 impl WithdrawalServer {
     pub async fn new(database_url: &str) -> anyhow::Result<Self> {
-        let pool = PgPool::connect(database_url).await?;
+        let pool = PgPoolOptions::new()
+            .max_connections(5)
+            .connect(database_url)
+            .await?;
         Ok(Self { pool })
     }
 

@@ -2,6 +2,8 @@ use ethers::types::{Address, H256, U256};
 use intmax2_interfaces::data::deposit_data::TokenType;
 use intmax2_zkp::common::signature::key_set::KeySet;
 
+use crate::Env;
+
 use super::{
     client::get_client,
     error::CliError,
@@ -58,7 +60,25 @@ pub async fn deposit_ft(
             .rollup_contract
             .process_deposits(eth_private_key, 0, &[deposit_data.deposit_hash().unwrap()])
             .await?;
+        // post empty block
+        post_empty_block().await?;
     }
 
+    Ok(())
+}
+
+async fn post_empty_block() -> Result<(), CliError> {
+    let env = envy::from_env::<Env>()?;
+    let block_builder_base_url = env.block_builder_base_url.ok_or(CliError::UnexpectedError(
+        "BLOCK_BUILDER_BASE_URL".to_string(),
+    ))?;
+    reqwest::Client::new()
+        .post(&format!(
+            "{}/block-builder/post-empty-block",
+            block_builder_base_url
+        ))
+        .send()
+        .await
+        .map_err(|e| CliError::UnexpectedError(e.to_string()))?;
     Ok(())
 }
