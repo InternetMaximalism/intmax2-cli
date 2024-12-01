@@ -25,11 +25,11 @@ pub struct Config {
     /// URL of the store vault server
     pub store_vault_server_url: String,
 
-    /// URL of the block validity prover
-    pub block_validity_prover_url: String,
-
     /// URL of the balance prover
     pub balance_prover_url: String,
+
+    /// URL of the block validity prover
+    pub validity_prover_url: String,
 
     /// URL of the withdrawal aggregator
     pub withdrawal_server_url: String,
@@ -69,8 +69,8 @@ impl Config {
     #[wasm_bindgen(constructor)]
     pub fn new(
         store_vault_server_url: String,
-        block_validity_prover_url: String,
         balance_prover_url: String,
+        validity_prover_url: String,
         withdrawal_server_url: String,
         deposit_timeout: u64,
         tx_timeout: u64,
@@ -85,8 +85,8 @@ impl Config {
     ) -> Config {
         Config {
             store_vault_server_url,
-            block_validity_prover_url,
             balance_prover_url,
+            validity_prover_url,
             withdrawal_server_url,
             deposit_timeout,
             tx_timeout,
@@ -104,8 +104,8 @@ impl Config {
 pub fn get_client(config: &Config) -> Client<BB, S, V, B, W> {
     let block_builder = BB::new();
     let store_vault_server = S::new(&config.store_vault_server_url);
-    let validity_prover = V::new(&config.block_validity_prover_url);
     let balance_prover: BalanceProverClient = B::new(&config.balance_prover_url);
+    let validity_prover = V::new(&config.validity_prover_url);
     let withdrawal_server = W::new(&config.withdrawal_server_url);
 
     let client_config = ClientConfig {

@@ -2,7 +2,7 @@ import axios from "axios";
 
 async function callServer(url: string): Promise<any> {
     try {
-        const response = await axios.get<any>(url);
+        const response = await axios.post<any>(url);
         return response.data;
     } catch (error) {
         if (axios.isAxiosError(error)) {

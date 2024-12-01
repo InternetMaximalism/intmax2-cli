@@ -83,11 +83,10 @@ async function main() {
   await postEmptyBlock(env.BLOCK_BUILDER_BASE_URL); // block builder post empty block (this is not used in production)
 
   // wait for the validity prover syncs
-  await sleep(80);
+  await sleep(30);
 
   // sync the account's balance proof 
-  await sync(config, privateKey);
-  console.log("balance proof synced");
+  await syncBalanceProof(config, privateKey);
 
   // get the account's balance
   let userData = await get_user_data(config, privateKey);
@@ -102,14 +101,14 @@ async function main() {
   const genericAddress = new JsGenericAddress(true, someonesKey.pubkey);
   const salt = generateRandomHex(32);
   const transfer = new JsTransfer(genericAddress, 0, "1", salt);
+
   await sendTx(config, env.BLOCK_BUILDER_BASE_URL, privateKey, [transfer]);
 
   // wait for the validity prover syncs
-  await sleep(80);
+  await sleep(30);
 
   // get the receiver's balance
-  await sync(config, someonesKey.privkey);
-  console.log("balance proof synced");
+  await syncBalanceProof(config, privateKey);
   userData = await get_user_data(config, someonesKey.privkey);
   balances = userData.balances;
   for (let i = 0; i < balances.length; i++) {
@@ -126,20 +125,35 @@ async function main() {
   await sendTx(config, env.BLOCK_BUILDER_BASE_URL, privateKey, [withdrawalTransfer]);
 
   // wait for the validity prover syncs
-  await sleep(80);
+  await sleep(30);
 
   // sync withdrawals 
   await sync_withdrawals(config, privateKey);
   console.log("Withdrawal synced");
 
   // print the history 
-  await sync(config, privateKey);
+  await syncBalanceProof(config, privateKey);
   console.log("balance proof synced");
   userData = await get_user_data(config, privateKey);
   await printHistory(env.STORE_VAULT_SERVER_BASE_URL, privateKey, userData);
 }
 
+async function syncBalanceProof(config: Config, privateKey: string) {
+  console.log("syncing balance proof...");
+  while (true) {
+    try {
+      await sync(config, privateKey);
+      break;
+    } catch (error) {
+      console.log("Error syncing balance proof: ", error, "retrying...");
+    }
+    await sleep(10);
+  }
+  console.log("balance proof synced");
+}
+
 async function sendTx(config: Config, block_builder_base_url: string, privateKey: string, transfers: JsTransfer[]) {
+  console.log("Sending tx...");
   let memo: JsTxRequestMemo | undefined = undefined;
   for (let i = 0; i < env.BLOCK_BUILDER_REQUEST_LIMIT; i++) {
     try {
@@ -161,19 +175,21 @@ async function sendTx(config: Config, block_builder_base_url: string, privateKey
   await sleep(env.BLOCK_BUILDER_QUERY_WAIT_TIME);
 
   // query the block proposal
+  console.log("Querying proposal...");
   let proposal: JsBlockProposal | undefined = undefined;
   for (let i = 0; i < env.BLOCK_BUILDER_QUERY_LIMIT; i++) {
-    const proposal = await query_proposal(config, block_builder_base_url, privateKey, isRegistrationBlock, tx);
-    if (proposal) {
+    proposal = await query_proposal(config, block_builder_base_url, privateKey, isRegistrationBlock, tx);
+    if (proposal !== undefined) {
       break;
     }
     console.log("No proposal found, retrying...");
     await sleep(env.BLOCK_BUILDER_QUERY_INTERVAL);
   }
-  if (!proposal) {
+  if (proposal === undefined) {
     throw new Error("No proposal found");
   }
   // finalize the tx
+  console.log("Finalizing tx...");
   await finalize_tx(config, env.BLOCK_BUILDER_BASE_URL, privateKey, memo, proposal);
 }
 
