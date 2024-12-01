@@ -319,7 +319,7 @@ where
             } else {
                 self.store_vault_server
                     .save_data(
-                        DataType::Deposit,
+                        DataType::Withdrawal,
                         key.pubkey,
                         &transfer_data.encrypt(key.pubkey),
                     )
