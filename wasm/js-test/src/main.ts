@@ -5,6 +5,7 @@ import { generateRandomHex } from './utils';
 import { printHistory } from './history';
 import { deposit, getEthBalance } from './contract';
 import * as dotenv from 'dotenv';
+import { WithdrawalServerClient } from './withdrawal-status';
 dotenv.config();
 
 const env = cleanEnv(process.env, {
@@ -136,6 +137,11 @@ async function main() {
   console.log("balance proof synced");
   userData = await get_user_data(config, privateKey);
   await printHistory(env.STORE_VAULT_SERVER_BASE_URL, privateKey, userData);
+
+  // print withdrawal status 
+  const withdrawalClient = new WithdrawalServerClient(env.WITHDRAWAL_SERVER_BASE_URL);
+  const withdrawalStatus = await withdrawalClient.getWithdrawalInfo(publicKey);
+  console.log("Withdrawal status: ", withdrawalStatus);
 }
 
 async function syncBalanceProof(config: Config, privateKey: string) {
@@ -191,6 +197,7 @@ async function sendTx(config: Config, block_builder_base_url: string, privateKey
   // finalize the tx
   console.log("Finalizing tx...");
   await finalize_tx(config, env.BLOCK_BUILDER_BASE_URL, privateKey, memo, proposal);
+  console.log("Tx finalized");
 }
 
 async function sleep(sec: number) {
