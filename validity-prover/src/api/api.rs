@@ -1,7 +1,7 @@
 use crate::api::state::State;
 use actix_web::{
     get,
-    web::{Data, Json, Query},
+    web::{Data, Json},
     Error,
 };
 use intmax2_interfaces::api::validity_prover::types::{
@@ -12,18 +12,22 @@ use intmax2_interfaces::api::validity_prover::types::{
     GetSenderLeavesQuery, GetSenderLeavesResponse, GetUpdateWitnessQuery, GetUpdateWitnessResponse,
     GetValidityPisQuery, GetValidityPisResponse,
 };
+use serde_qs::actix::QsQuery;
 
 #[get("/block-number")]
 pub async fn get_block_number(state: Data<State>) -> Result<Json<GetBlockNumberResponse>, Error> {
-    let block_number = state.validity_prover.get_block_number().await
-    .map_err(|e| actix_web::error::ErrorInternalServerError(e))?;
+    let block_number = state
+        .validity_prover
+        .get_block_number()
+        .await
+        .map_err(|e| actix_web::error::ErrorInternalServerError(e))?;
     Ok(Json(GetBlockNumberResponse { block_number }))
 }
 
 #[get("/get-account-info")]
 pub async fn get_account_info(
     state: Data<State>,
-    query: Query<GetAccountInfoQuery>,
+    query: QsQuery<GetAccountInfoQuery>,
 ) -> Result<Json<GetAccountInfoResponse>, Error> {
     let query = query.into_inner();
     let account_info = state
@@ -37,7 +41,7 @@ pub async fn get_account_info(
 #[get("/get-update-witness")]
 pub async fn get_update_witness(
     state: Data<State>,
-    query: Query<GetUpdateWitnessQuery>,
+    query: QsQuery<GetUpdateWitnessQuery>,
 ) -> Result<Json<GetUpdateWitnessResponse>, Error> {
     let query = query.into_inner();
     let update_witness = state
@@ -56,7 +60,7 @@ pub async fn get_update_witness(
 #[get("/get-deposit-info")]
 pub async fn get_deposit_info(
     state: Data<State>,
-    query: Query<GetDepositInfoQuery>,
+    query: QsQuery<GetDepositInfoQuery>,
 ) -> Result<Json<GetDepositInfoResponse>, Error> {
     let query = query.into_inner();
     let deposit_info = state
@@ -70,7 +74,7 @@ pub async fn get_deposit_info(
 #[get("/get-block-number-by-tx-tree-root")]
 pub async fn get_block_number_by_tx_tree_root(
     state: Data<State>,
-    query: Query<GetBlockNumberByTxTreeRootQuery>,
+    query: QsQuery<GetBlockNumberByTxTreeRootQuery>,
 ) -> Result<Json<GetBlockNumberByTxTreeRootResponse>, Error> {
     let query = query.into_inner();
     let block_number = state
@@ -84,7 +88,7 @@ pub async fn get_block_number_by_tx_tree_root(
 #[get("/get-validity-pis")]
 pub async fn get_validity_pis(
     state: Data<State>,
-    query: Query<GetValidityPisQuery>,
+    query: QsQuery<GetValidityPisQuery>,
 ) -> Result<Json<GetValidityPisResponse>, Error> {
     let query = query.into_inner();
     let validity_pis = state
@@ -98,7 +102,7 @@ pub async fn get_validity_pis(
 #[get("/get-sender-leaves")]
 pub async fn get_sender_leaves(
     state: Data<State>,
-    query: Query<GetSenderLeavesQuery>,
+    query: QsQuery<GetSenderLeavesQuery>,
 ) -> Result<Json<GetSenderLeavesResponse>, Error> {
     let query = query.into_inner();
     let sender_leaves = state
@@ -112,7 +116,7 @@ pub async fn get_sender_leaves(
 #[get("/get-block-merkle-proof")]
 pub async fn get_block_merkle_proof(
     state: Data<State>,
-    query: Query<GetBlockMerkleProofQuery>,
+    query: QsQuery<GetBlockMerkleProofQuery>,
 ) -> Result<Json<GetBlockMerkleProofResponse>, Error> {
     let query = query.into_inner();
     let block_merkle_proof = state
@@ -126,7 +130,7 @@ pub async fn get_block_merkle_proof(
 #[get("/get-deposit-merkle-proof")]
 pub async fn get_deposit_merkle_proof(
     state: Data<State>,
-    query: Query<GetDepositMerkleProofQuery>,
+    query: QsQuery<GetDepositMerkleProofQuery>,
 ) -> Result<Json<GetDepositMerkleProofResponse>, Error> {
     let query = query.into_inner();
     let deposit_merkle_proof = state

@@ -2,7 +2,7 @@ use std::str::FromStr;
 
 use actix_web::{
     get, post,
-    web::{Data, Json, Path, Query},
+    web::{Data, Json, Path},
     Error,
 };
 use intmax2_interfaces::api::store_vault_server::{
@@ -13,6 +13,7 @@ use intmax2_interfaces::api::store_vault_server::{
         GetUserDataResponse, SaveBalanceProofRequest, SaveDataRequest,
     },
 };
+use serde_qs::actix::QsQuery;
 
 use crate::api::state::State;
 
@@ -26,7 +27,8 @@ pub async fn save_balance_proof(
         .store_vault_server
         .write()
         .await
-        .save_balance_proof(request.pubkey, request.balance_proof).await
+        .save_balance_proof(request.pubkey, request.balance_proof)
+        .await
         .map_err(|e| actix_web::error::ErrorInternalServerError(e))?;
     Ok(Json(()))
 }
@@ -34,7 +36,7 @@ pub async fn save_balance_proof(
 #[get("/get-balance-proof")]
 pub async fn get_balance_proof(
     state: Data<State>,
-    query: Query<GetBalanceProofQuery>,
+    query: QsQuery<GetBalanceProofQuery>,
 ) -> Result<Json<GetBalanceProofResponse>, Error> {
     let query = query.into_inner();
     let balance_proof = state
@@ -71,7 +73,7 @@ pub async fn save_data(
 pub async fn get_data(
     state: Data<State>,
     path: Path<String>,
-    query: Query<GetDataQuery>,
+    query: QsQuery<GetDataQuery>,
 ) -> Result<Json<GetDataResponse>, Error> {
     let data_type = path.into_inner();
     let data_type = DataType::from_str(data_type.as_str())
@@ -81,7 +83,8 @@ pub async fn get_data(
         .store_vault_server
         .read()
         .await
-        .get_data(data_type, &query.uuid).await
+        .get_data(data_type, &query.uuid)
+        .await
         .map_err(|e| actix_web::error::ErrorInternalServerError(e))?;
     Ok(Json(GetDataResponse { data }))
 }
@@ -90,17 +93,19 @@ pub async fn get_data(
 pub async fn get_data_all_after(
     state: Data<State>,
     path: Path<String>,
-    query: Query<GetDataAllAfterQuery>,
+    query: QsQuery<GetDataAllAfterQuery>,
 ) -> Result<Json<GetDataAllAfterResponse>, Error> {
     let data_type = path.into_inner();
     let data_type = DataType::from_str(data_type.as_str())
         .map_err(|e| actix_web::error::ErrorInternalServerError(format!("Invalid type: {}", e)))?;
     let query = query.into_inner();
-    let data = state.store_vault_server.read().await.get_data_all_after(
-        data_type,
-        query.pubkey,
-        query.timestamp,
-    ).await.map_err(|e| actix_web::error::ErrorInternalServerError(e))?;
+    let data = state
+        .store_vault_server
+        .read()
+        .await
+        .get_data_all_after(data_type, query.pubkey, query.timestamp)
+        .await
+        .map_err(|e| actix_web::error::ErrorInternalServerError(e))?;
     Ok(Json(GetDataAllAfterResponse { data }))
 }
 
@@ -123,7 +128,7 @@ pub async fn save_user_data(
 #[get("/get-user-data")]
 pub async fn get_user_data(
     state: Data<State>,
-    query: Query<GetUserDataQuery>,
+    query: QsQuery<GetUserDataQuery>,
 ) -> Result<Json<GetUserDataResponse>, Error> {
     let query = query.into_inner();
     let data = state

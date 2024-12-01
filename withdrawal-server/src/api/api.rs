@@ -1,16 +1,17 @@
 use crate::api::state::State;
 use actix_web::{
     get, post,
-    web::{Data, Json, Query},
+    web::{Data, Json},
     Error, Scope,
 };
 use intmax2_interfaces::api::withdrawal_server::{
     interface::Fee,
     types::{
-        GetFeeResponse, GetWithdrawalInfoByRecipientRequest, GetWithdrawalInfoResponse,
-        GetWithdrawalInfoRequest, RequestWithdrawalRequest,
+        GetFeeResponse, GetWithdrawalInfoByRecipientRequest, GetWithdrawalInfoRequest,
+        GetWithdrawalInfoResponse, RequestWithdrawalRequest,
     },
 };
+use serde_qs::actix::QsQuery;
 
 #[get("/fee")]
 pub async fn get_fee() -> Result<Json<GetFeeResponse>, Error> {
@@ -38,7 +39,7 @@ pub async fn request_withdrawal(
 #[get("/get-withdrawal-info")]
 pub async fn get_withdrawal_info(
     state: Data<State>,
-    query: Query<GetWithdrawalInfoRequest>,
+    query: QsQuery<GetWithdrawalInfoRequest>,
 ) -> Result<Json<GetWithdrawalInfoResponse>, Error> {
     let withdrawal_info = state
         .withdrawl_server
@@ -52,7 +53,7 @@ pub async fn get_withdrawal_info(
 #[get("/get-withdrawal-info-by-recipient")]
 pub async fn get_withdrawal_info_by_recipient(
     state: Data<State>,
-    query: Query<GetWithdrawalInfoByRecipientRequest>,
+    query: QsQuery<GetWithdrawalInfoByRecipientRequest>,
 ) -> Result<Json<GetWithdrawalInfoResponse>, Error> {
     let withdrawal_info = state
         .withdrawl_server

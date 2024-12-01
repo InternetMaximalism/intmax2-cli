@@ -661,18 +661,23 @@ dependencies = [
  "actix-cors",
  "actix-web",
  "anyhow",
- "bincode",
+ "chrono",
  "dotenv",
+ "envy",
  "ethers",
+ "hashbrown 0.14.5",
  "intmax2-client-sdk",
  "intmax2-interfaces",
  "intmax2-zkp",
+ "log",
  "plonky2",
  "reqwest 0.12.9",
  "serde",
  "serde_json",
+ "serde_qs",
  "thiserror 1.0.69",
  "tokio",
+ "uuid 1.11.0",
 ]
 
 [[package]]
@@ -775,13 +780,13 @@ dependencies = [
 name = "block-builder"
 version = "0.1.0"
 dependencies = [
- "actix",
  "actix-cors",
  "actix-web",
  "anyhow",
  "ark-bn254",
  "ark-ec",
  "bincode",
+ "chrono",
  "dotenv",
  "envy",
  "ethers",
@@ -794,12 +799,13 @@ dependencies = [
  "num-bigint 0.4.6",
  "plonky2",
  "plonky2_bn254",
- "rand",
  "reqwest 0.12.9",
  "serde",
  "serde_json",
+ "serde_qs",
  "thiserror 1.0.69",
  "tokio",
+ "uuid 1.11.0",
 ]
 
 [[package]]
@@ -2907,6 +2913,7 @@ dependencies = [
  "reqwest 0.12.9",
  "serde",
  "serde_json",
+ "serde_qs",
  "thiserror 1.0.69",
  "tokio",
  "url",
@@ -2948,6 +2955,8 @@ dependencies = [
  "reqwest 0.12.9",
  "serde",
  "serde_json",
+ "serde_qs",
+ "serde_urlencoded",
  "sha2",
  "sha3",
  "simplelog",
@@ -4788,6 +4797,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "serde_qs"
+version = "0.13.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "cd34f36fe4c5ba9654417139a9b3a20d2e1de6012ee678ad14d240c22c78d8d6"
+dependencies = [
+ "actix-web",
+ "futures",
+ "percent-encoding",
+ "serde",
+ "thiserror 1.0.69",
+]
+
+[[package]]
 name = "serde_spanned"
 version = "0.6.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5224,6 +5246,7 @@ dependencies = [
  "bincode",
  "chrono",
  "dotenv",
+ "envy",
  "ethers",
  "hashbrown 0.14.5",
  "intmax2-client-sdk",
@@ -5234,6 +5257,7 @@ dependencies = [
  "reqwest 0.12.9",
  "serde",
  "serde_json",
+ "serde_qs",
  "sqlx",
  "thiserror 1.0.69",
  "tokio",
@@ -5964,11 +5988,11 @@ dependencies = [
 name = "validity-prover"
 version = "0.1.0"
 dependencies = [
- "actix",
  "actix-cors",
  "actix-web",
  "anyhow",
  "bincode",
+ "chrono",
  "dotenv",
  "envy",
  "ethers",
@@ -5982,9 +6006,11 @@ dependencies = [
  "reqwest 0.12.9",
  "serde",
  "serde_json",
+ "serde_qs",
  "sqlx",
  "thiserror 1.0.69",
  "tokio",
+ "uuid 1.11.0",
 ]
 
 [[package]]
@@ -6419,6 +6445,7 @@ dependencies = [
  "reqwest 0.12.9",
  "serde",
  "serde_json",
+ "serde_qs",
  "sqlx",
  "thiserror 1.0.69",
  "tokio",

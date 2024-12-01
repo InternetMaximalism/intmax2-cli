@@ -1,6 +1,6 @@
 use actix_web::{
     get, post,
-    web::{Data, Json, Query},
+    web::{Data, Json},
     Error,
 };
 use intmax2_interfaces::api::block_builder::types::{
@@ -8,6 +8,7 @@ use intmax2_interfaces::api::block_builder::types::{
     QueryProposalRequest, QueryProposalResponse, TxRequestRequest,
 };
 use intmax2_zkp::common::block_builder::UserSignature;
+use serde_qs::actix::QsQuery;
 
 use crate::api::state::State;
 
@@ -24,7 +25,7 @@ pub async fn post_empty_block(state: Data<State>) -> Result<Json<()>, Error> {
 #[get("/status")]
 pub async fn get_status(
     state: Data<State>,
-    query: Query<GetBlockBuilderStatusQuery>,
+    query: QsQuery<GetBlockBuilderStatusQuery>,
 ) -> Result<Json<GetBlockBuilderStatusResponse>, Error> {
     let status = state
         .block_builder

@@ -24,3 +24,4 @@ envy = "0.4.2"
 url = { version = "2.5.4", features = ["serde"] }
 dotenv = "0.15.0"
 thiserror = "1.0.64"
+serde_qs = "0.13.0"
