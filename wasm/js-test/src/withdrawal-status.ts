@@ -1,5 +1,6 @@
 import axios from 'axios';
 import { hexToBigInt } from './utils';
+import { sign } from 'crypto';
 
 
 export type Address = string; // Ethereum address
@@ -53,6 +54,7 @@ export class WithdrawalServerClient {
                 {
                     params: {
                         pubkey: hexToBigInt(pubkey).toString(),
+                        signature: ["0x0000000000000000000000000000000000000000000000000000000000000000", "0x0000000000000000000000000000000000000000000000000000000000000000", "0x0000000000000000000000000000000000000000000000000000000000000000", "0x0000000000000000000000000000000000000000000000000000000000000000"]
                     }
                 }
             );
@@ -89,3 +91,13 @@ export class WithdrawalServerClient {
         }
     }
 }
+
+
+async function main() {
+    const pubkey = "0x2c68039b638cccf19d3696fd7e0837eaa25b32cc684821becfb76e52de2618ed";
+    const client = new WithdrawalServerClient("http://localhost:9003");
+    const withdrawalInfo = await client.getWithdrawalInfo(pubkey);
+    console.log("Withdrawal info: ", withdrawalInfo);
+}
+
+main().catch(console.error);
