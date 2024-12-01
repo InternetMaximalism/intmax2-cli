@@ -40,6 +40,7 @@ where
         .unwrap_or("".to_string());
 
     let response = if let Some(params) = query {
+        log::info!("GET {}?{}", url, query_str);
         with_retry(|| async { reqwest::Client::new().get(&url).query(&params).send().await }).await
     } else {
         with_retry(|| async { reqwest::Client::new().get(&url).send().await }).await

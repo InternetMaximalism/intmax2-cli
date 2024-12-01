@@ -69,6 +69,9 @@ Example port: 9004
 cd block-builder && cargo run -r
 ```
 
+## CLI 
+Please refer to [the examples of cli ](cli/README.md#examples)
+
 # Reset DB
 
 ```bash

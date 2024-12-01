@@ -7,7 +7,7 @@ use actix_web::{
 use intmax2_interfaces::api::withdrawal_server::{
     interface::Fee,
     types::{
-        GetFeeResponse, GetWithdrawalInfoByRecipientRequest, GetWithdrawalInfoReqponse,
+        GetFeeResponse, GetWithdrawalInfoByRecipientRequest, GetWithdrawalInfoResponse,
         GetWithdrawalInfoRequest, RequestWithdrawalRequest,
     },
 };
@@ -39,27 +39,27 @@ pub async fn request_withdrawal(
 pub async fn get_withdrawal_info(
     state: Data<State>,
     query: Query<GetWithdrawalInfoRequest>,
-) -> Result<Json<GetWithdrawalInfoReqponse>, Error> {
+) -> Result<Json<GetWithdrawalInfoResponse>, Error> {
     let withdrawal_info = state
         .withdrawl_server
         .get_withdrawal_info(query.pubkey, query.signature.clone())
         .await
         .map_err(|e| actix_web::error::ErrorInternalServerError(e))?;
 
-    Ok(Json(GetWithdrawalInfoReqponse { withdrawal_info }))
+    Ok(Json(GetWithdrawalInfoResponse { withdrawal_info }))
 }
 
 #[get("/get-withdrawal-info-by-recipient")]
 pub async fn get_withdrawal_info_by_recipient(
     state: Data<State>,
     query: Query<GetWithdrawalInfoByRecipientRequest>,
-) -> Result<Json<GetWithdrawalInfoReqponse>, Error> {
+) -> Result<Json<GetWithdrawalInfoResponse>, Error> {
     let withdrawal_info = state
         .withdrawl_server
         .get_withdrawal_info_by_recipient(query.recipient)
         .await
         .map_err(|e| actix_web::error::ErrorInternalServerError(e))?;
-    Ok(Json(GetWithdrawalInfoReqponse { withdrawal_info }))
+    Ok(Json(GetWithdrawalInfoResponse { withdrawal_info }))
 }
 
 pub fn withdrawal_server_scope() -> Scope {

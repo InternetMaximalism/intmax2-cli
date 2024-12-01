@@ -42,6 +42,6 @@ pub struct GetWithdrawalInfoByRecipientRequest {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct GetWithdrawalInfoReqponse {
+pub struct GetWithdrawalInfoResponse {
     pub withdrawal_info: Vec<WithdrawalInfo>,
 }

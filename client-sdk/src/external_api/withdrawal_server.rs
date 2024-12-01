@@ -4,8 +4,8 @@ use intmax2_interfaces::api::{
     withdrawal_server::{
         interface::{Fee, WithdrawalInfo, WithdrawalServerClientInterface},
         types::{
-            GetFeeResponse, GetWithdrawalInfoByRecipientRequest, GetWithdrawalInfoReqponse,
-            GetWithdrawalInfoRequest, RequestWithdrawalRequest,
+            GetFeeResponse, GetWithdrawalInfoByRecipientRequest, GetWithdrawalInfoRequest,
+            GetWithdrawalInfoResponse, RequestWithdrawalRequest,
         },
     },
 };
@@ -66,7 +66,7 @@ impl WithdrawalServerClientInterface for WithdrawalServerClient {
         let pubkey = key.pubkey;
         let signature = FlatG2::default(); // todo: get signature from key
         let query = GetWithdrawalInfoRequest { pubkey, signature };
-        let response: GetWithdrawalInfoReqponse = get_request(
+        let response: GetWithdrawalInfoResponse = get_request(
             &self.base_url,
             "/withdrawal-server/get-withdrawal-info",
             Some(query),
@@ -80,7 +80,7 @@ impl WithdrawalServerClientInterface for WithdrawalServerClient {
         recipient: Address,
     ) -> Result<Vec<WithdrawalInfo>, ServerError> {
         let query = GetWithdrawalInfoByRecipientRequest { recipient };
-        let response: GetWithdrawalInfoReqponse = get_request(
+        let response: GetWithdrawalInfoResponse = get_request(
             &self.base_url,
             "/withdrawal-server/get-withdrawal-info-by-recipient",
             Some(query),
