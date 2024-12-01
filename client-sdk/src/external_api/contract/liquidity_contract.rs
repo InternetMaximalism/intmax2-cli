@@ -175,6 +175,52 @@ impl LiquidityContract {
         Ok(())
     }
 
+    pub async fn deposit_erc721(
+        &self,
+        signer_private_key: H256,
+        pubkey_salt_hash: Bytes32,
+        token_address: Address,
+        token_id: U256,
+    ) -> Result<(), BlockchainError> {
+        let contract = self.get_contract_with_signer(signer_private_key).await?;
+        let recipient_salt_hash: [u8; 32] = pubkey_salt_hash.to_bytes_be().try_into().unwrap();
+        let token_id = ethers::types::U256::from_big_endian(&token_id.to_bytes_be());
+        let token_address = EthAddress::from_slice(&token_address.to_bytes_be());
+        let mut tx = contract.deposit_erc721(token_address, recipient_salt_hash, token_id);
+        handle_contract_call(
+            &mut tx,
+            get_address(self.chain_id, signer_private_key),
+            "depositer",
+            "deposit_erc721_token",
+        )
+        .await?;
+        Ok(())
+    }
+
+    pub async fn deposit_erc1155(
+        &self,
+        signer_private_key: H256,
+        pubkey_salt_hash: Bytes32,
+        token_address: Address,
+        token_id: U256,
+        amount: U256,
+    ) -> Result<(), BlockchainError> {
+        let contract = self.get_contract_with_signer(signer_private_key).await?;
+        let recipient_salt_hash: [u8; 32] = pubkey_salt_hash.to_bytes_be().try_into().unwrap();
+        let amount = ethers::types::U256::from_big_endian(&amount.to_bytes_be());
+        let token_id = ethers::types::U256::from_big_endian(&token_id.to_bytes_be());
+        let token_address = EthAddress::from_slice(&token_address.to_bytes_be());
+        let mut tx = contract.deposit_erc1155(token_address, recipient_salt_hash, token_id, amount);
+        handle_contract_call(
+            &mut tx,
+            get_address(self.chain_id, signer_private_key),
+            "depositer",
+            "deposit_erc1155_token",
+        )
+        .await?;
+        Ok(())
+    }
+
     pub async fn claim_withdrawals(
         &self,
         signer_private_key: H256,
