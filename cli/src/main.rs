@@ -2,7 +2,7 @@ use anyhow::{bail, ensure};
 use clap::{Parser, Subcommand};
 use ethers::types::{Address as EthAddress, H256, U256 as EthU256};
 use intmax2_cli::cli::{
-    deposit::deposit_ft,
+    deposit::deposit,
     get::{balance, withdrawal_status},
     send::tx,
     sync::{sync, sync_withdrawals},
@@ -99,7 +99,7 @@ async fn main() -> anyhow::Result<()> {
             let key = h256_to_keyset(private_key);
             let token_id = token_id.map(|x| x.into());
             let (token_address, token_id) = format_token_info(token_type, token_address, token_id)?;
-            deposit_ft(
+            deposit(
                 key,
                 eth_private_key,
                 amount.into(),
