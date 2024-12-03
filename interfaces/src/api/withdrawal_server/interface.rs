@@ -2,7 +2,7 @@ use std::fmt::{self, Display, Formatter};
 
 use async_trait::async_trait;
 use intmax2_zkp::{
-    common::{signature::key_set::KeySet, withdrawal::Withdrawal},
+    common::signature::key_set::KeySet,
     ethereum_types::{address::Address, bytes32::Bytes32, u256::U256, u32limb_trait::U32LimbTrait},
 };
 use plonky2::{
@@ -31,18 +31,7 @@ pub struct Fee {
 #[serde(rename_all = "camelCase")]
 pub struct WithdrawalInfo {
     pub status: WithdrawalStatus,
-    pub withdrawal: Withdrawal,
-}
-
-impl WithdrawalInfo {
-    pub fn to_contract_withdrawal(&self) -> ContractWithdrawal {
-        ContractWithdrawal {
-            recipient: self.withdrawal.recipient,
-            token_index: self.withdrawal.token_index,
-            amount: self.withdrawal.amount,
-            nullifier: self.withdrawal.nullifier,
-        }
-    }
+    pub contract_withdrawal: ContractWithdrawal,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

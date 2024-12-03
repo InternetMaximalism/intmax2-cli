@@ -111,11 +111,12 @@ impl WithdrawalServer {
 
         let mut withdrawal_infos = Vec::new();
         for record in records {
-            let withdrawal: Withdrawal = serde_json::from_value(record.contract_withdrawal)
-                .map_err(|e| WithdrawalServerError::SerializationError(e.to_string()))?;
+            let contract_withdrawal: ContractWithdrawal =
+                serde_json::from_value(record.contract_withdrawal)
+                    .map_err(|e| WithdrawalServerError::SerializationError(e.to_string()))?;
             withdrawal_infos.push(WithdrawalInfo {
                 status: record.status.into(),
-                withdrawal,
+                contract_withdrawal,
             });
         }
         Ok(withdrawal_infos)
@@ -141,11 +142,12 @@ impl WithdrawalServer {
 
         let mut withdrawal_infos = Vec::new();
         for record in records {
-            let withdrawal: Withdrawal = serde_json::from_value(record.contract_withdrawal)
-                .map_err(|e| WithdrawalServerError::SerializationError(e.to_string()))?;
+            let contract_withdrawal: ContractWithdrawal =
+                serde_json::from_value(record.contract_withdrawal)
+                    .map_err(|e| WithdrawalServerError::SerializationError(e.to_string()))?;
             withdrawal_infos.push(WithdrawalInfo {
                 status: record.status.into(),
-                withdrawal,
+                contract_withdrawal,
             });
         }
         Ok(withdrawal_infos)

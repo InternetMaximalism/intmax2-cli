@@ -22,9 +22,9 @@ pub async fn withdrawal_status(key: KeySet) -> Result<(), CliError> {
     let client = get_client()?;
     let withdrawal_info = client.get_withdrawal_info(key).await?;
     for (i, withdrawal_info) in withdrawal_info.iter().enumerate() {
-        let withdrawal = withdrawal_info.withdrawal.clone();
+        let withdrawal = withdrawal_info.contract_withdrawal.clone();
         println!(
-            "#{}: recipient: {}, token_index{}, amount: {}, status: {}",
+            "#{}: recipient: {}, token_index: {}, amount: {}, status: {}",
             i,
             withdrawal.recipient,
             withdrawal.token_index,
