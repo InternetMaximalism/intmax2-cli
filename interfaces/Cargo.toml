@@ -4,11 +4,12 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-plonky2 = {workspace = true} 
-intmax2-zkp = {workspace = true}
+plonky2 = { workspace = true }
+plonky2_keccak = { workspace = true }
+intmax2-zkp = { workspace = true }
 tokio = { workspace = true }
-serde_json ={workspace = true}
-serde = { workspace = true}
+serde_json = { workspace = true }
+serde = { workspace = true }
 anyhow = "1.0.93"
 bincode = "1.3.3"
 hashbrown = "0.14.5"

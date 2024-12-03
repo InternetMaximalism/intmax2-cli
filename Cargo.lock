@@ -2976,6 +2976,7 @@ dependencies = [
  "hashbrown 0.14.5",
  "intmax2-zkp",
  "plonky2",
+ "plonky2_keccak",
  "serde",
  "serde_json",
  "thiserror 2.0.3",

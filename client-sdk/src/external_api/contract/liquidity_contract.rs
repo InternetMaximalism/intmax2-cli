@@ -8,7 +8,9 @@ use ethers::{
     signers::Wallet,
     types::{Address as EthAddress, H256},
 };
-use intmax2_interfaces::data::deposit_data::TokenType;
+use intmax2_interfaces::{
+    api::withdrawal_server::interface::ContractWithdrawal, data::deposit_data::TokenType,
+};
 use intmax2_zkp::ethereum_types::{
     address::Address, bytes32::Bytes32, u256::U256, u32limb_trait::U32LimbTrait as _,
 };
@@ -17,7 +19,7 @@ use crate::external_api::utils::retry::with_retry;
 
 use super::{
     handlers::handle_contract_call,
-    interface::{BlockchainError, ContractWithdrawal},
+    interface::BlockchainError,
     proxy_contract::ProxyContract,
     utils::{get_address, get_client, get_client_with_signer},
 };
@@ -59,6 +61,7 @@ impl LiquidityContract {
     pub async fn initialize(
         &self,
         signer_private_key: H256,
+        adim: EthAddress,
         l_1_scroll_messenger: EthAddress,
         rollup: EthAddress,
         withdrawal: EthAddress,
@@ -68,6 +71,7 @@ impl LiquidityContract {
     ) -> Result<H256, BlockchainError> {
         let contract = self.get_contract_with_signer(signer_private_key).await?;
         let mut tx = contract.initialize(
+            adim,
             l_1_scroll_messenger,
             rollup,
             withdrawal,
@@ -232,12 +236,12 @@ impl LiquidityContract {
                 let recipient = EthAddress::from_slice(&w.recipient.to_bytes_be());
                 let token_index = w.token_index;
                 let amount = ethers::types::U256::from_big_endian(&w.amount.to_bytes_be());
-                let id = ethers::types::U256::from(w.id);
+                let nullifier: [u8; 32] = w.nullifier.to_bytes_be().try_into().unwrap();
                 Withdrawal {
                     recipient,
                     token_index,
                     amount,
-                    id,
+                    nullifier,
                 }
             })
             .collect::<Vec<_>>();

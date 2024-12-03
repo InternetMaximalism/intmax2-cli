@@ -8,17 +8,17 @@ CREATE TYPE withdrawal_status AS ENUM (
     'failed'
 );
 
-CREATE TABLE withdrawal (
+CREATE TABLE withdrawals (
     id uuid NOT NULL DEFAULT uuid_generate_v4(),
     status withdrawal_status NOT NULL DEFAULT 'requested',
     pubkey CHAR(66) NOT NULL,
     recipient CHAR(42) NOT NULL,
+    withdrawal_hash CHAR(66) NOT NULL,
+    contract_withdrawal jsonb NOT NULL,
     single_withdrawal_proof bytea,
-    chained_withdrawal jsonb NOT NULL,
-    withdrawal_id int,
     created_at timestamptz NOT NULL DEFAULT now(),
     PRIMARY KEY (id)
 );
 
-CREATE INDEX idx_withdrawal_pubkey ON withdrawal(pubkey);
-CREATE INDEX idx_withdrawal_recipient ON withdrawal(recipient);
+CREATE INDEX idx_withdrawals_pubkey ON withdrawals(pubkey);
+CREATE INDEX idx_withdrawals_recipient ON withdrawals(recipient);

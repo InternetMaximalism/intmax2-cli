@@ -29,6 +29,7 @@ async fn deploy_contracts() -> anyhow::Result<()> {
             zero_address,
             zero_address,
             zero_address,
+            zero_address,
         )
         .await?;
 
@@ -47,6 +48,7 @@ async fn deploy_contracts() -> anyhow::Result<()> {
     liquidity_contract
         .initialize(
             config.deployer_private_key,
+            zero_address,   
             zero_address,
             zero_address,
             zero_address,
