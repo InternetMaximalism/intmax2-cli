@@ -41,7 +41,7 @@ impl WithdrawalServerClient {
 impl WithdrawalServerClientInterface for WithdrawalServerClient {
     async fn fee(&self) -> Result<Vec<Fee>, ServerError> {
         let response: GetFeeResponse =
-            get_request::<(), _>(&self.base_url, "/withdrawal-server/fee", None).await?;
+            get_request::<(), _>(&self.base_url, "/withdrawal-server/fee", None, None).await?;
         Ok(response.fees)
     }
 
@@ -58,6 +58,7 @@ impl WithdrawalServerClientInterface for WithdrawalServerClient {
             &self.base_url,
             "/withdrawal-server/request-withdrawal",
             &request,
+            None,
         )
         .await
     }
@@ -70,6 +71,7 @@ impl WithdrawalServerClientInterface for WithdrawalServerClient {
             &self.base_url,
             "/withdrawal-server/get-withdrawal-info",
             Some(query),
+            None,
         )
         .await?;
         Ok(response.withdrawal_info)
@@ -84,6 +86,7 @@ impl WithdrawalServerClientInterface for WithdrawalServerClient {
             &self.base_url,
             "/withdrawal-server/get-withdrawal-info-by-recipient",
             Some(query),
+            None,
         )
         .await?;
         Ok(response.withdrawal_info)
