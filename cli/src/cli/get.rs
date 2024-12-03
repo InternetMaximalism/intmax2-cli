@@ -1,13 +1,14 @@
 use intmax2_zkp::common::signature::key_set::KeySet;
 
-use crate::cli::client::get_client;
+use crate::cli::{client::get_client, sync::sync};
 
 use super::error::CliError;
 
 pub async fn balance(key: KeySet) -> Result<(), CliError> {
     let client = get_client()?;
-    client.sync(key).await?;
-
+    if !sync(key.clone()).await? {
+        return Ok(());
+    }
     let user_data = client.get_user_data(key).await?;
     let balances = user_data.balances();
 

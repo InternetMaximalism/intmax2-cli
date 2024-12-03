@@ -1,12 +1,12 @@
 use ethers::types::U256;
-use intmax2_client_sdk::{client::error::ClientError, external_api::indexer::IndexerClient};
+use intmax2_client_sdk::external_api::indexer::IndexerClient;
 use intmax2_interfaces::api::indexer::interface::IndexerClientInterface;
 use intmax2_zkp::common::{
     generic_address::GenericAddress, salt::Salt, signature::key_set::KeySet, transfer::Transfer,
 };
 
 use crate::{
-    cli::{client::get_client, utils::convert_u256},
+    cli::{client::get_client, sync::sync, utils::convert_u256},
     Env,
 };
 
@@ -21,19 +21,8 @@ pub async fn tx(
     let env = envy::from_env::<Env>()?;
     let client = get_client()?;
 
-    match client.sync(key).await {
-        Ok(_) => {
-            log::info!("Synced successfully");
-        }
-        Err(e) => match e {
-            ClientError::PendingError(_) => {
-                println!("There are pending actions. Please try again later.");
-                return Ok(());
-            }
-            _ => {
-                return Err(CliError::UnexpectedError(format!("{:?}", e)));
-            }
-        },
+    if !sync(key.clone()).await? {
+        return Ok(());
     }
 
     // override block builder base url if it is set in the env
