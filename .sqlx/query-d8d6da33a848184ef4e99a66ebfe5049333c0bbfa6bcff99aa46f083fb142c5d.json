@@ -1,0 +1,14 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE validity_state SET last_block_number = $1 WHERE id = 1",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int4"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "d8d6da33a848184ef4e99a66ebfe5049333c0bbfa6bcff99aa46f083fb142c5d"
+}

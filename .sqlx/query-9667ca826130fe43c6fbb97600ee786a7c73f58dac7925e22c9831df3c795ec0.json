@@ -1,0 +1,35 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            SELECT timestamp, block_number, encrypted_data\n            FROM encrypted_data\n            WHERE data_type = $1 AND uuid = $2\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "timestamp",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 1,
+        "name": "block_number",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 2,
+        "name": "encrypted_data",
+        "type_info": "Bytea"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int4",
+        "Text"
+      ]
+    },
+    "nullable": [
+      false,
+      true,
+      false
+    ]
+  },
+  "hash": "9667ca826130fe43c6fbb97600ee786a7c73f58dac7925e22c9831df3c795ec0"
+}

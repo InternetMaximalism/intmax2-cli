@@ -1,0 +1,14 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO sender_leaves (block_number, leaves) VALUES (0, $1)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Jsonb"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "f5730b8961c7d39aa361b744484b999395a6fe34dc8f183699c148d755cf00d5"
+}
