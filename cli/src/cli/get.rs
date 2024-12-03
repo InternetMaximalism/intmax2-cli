@@ -35,3 +35,12 @@ pub async fn withdrawal_status(key: KeySet) -> Result<(), CliError> {
     }
     Ok(())
 }
+
+pub async fn history(key: KeySet) -> Result<(), CliError> {
+    let client = get_client()?;
+    let history = client.fetch_history(key).await?;
+    for entry in history {
+        println!("{}", entry);
+    }
+    Ok(())
+}

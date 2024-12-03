@@ -3,7 +3,7 @@ use clap::{Parser, Subcommand};
 use ethers::types::{Address as EthAddress, H256, U256 as EthU256};
 use intmax2_cli::cli::{
     deposit::deposit,
-    get::{balance, withdrawal_status},
+    get::{balance, history, withdrawal_status},
     send::tx,
     sync::{sync, sync_withdrawals},
 };
@@ -60,6 +60,10 @@ enum Commands {
         private_key: H256,
     },
     Balance {
+        #[clap(long)]
+        private_key: H256,
+    },
+    History {
         #[clap(long)]
         private_key: H256,
     },
@@ -120,6 +124,10 @@ async fn main() -> anyhow::Result<()> {
         Commands::Balance { private_key } => {
             let key = h256_to_keyset(private_key);
             balance(key).await?;
+        }
+        Commands::History { private_key } => {
+            let key = h256_to_keyset(private_key);
+            history(key).await?;
         }
         Commands::WithdrawalStatus { private_key } => {
             let key = h256_to_keyset(private_key);
