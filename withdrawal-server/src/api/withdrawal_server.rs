@@ -14,6 +14,7 @@ use plonky2::{
     plonk::{config::PoseidonGoldilocksConfig, proof::ProofWithPublicInputs},
 };
 use sqlx::{postgres::PgPoolOptions, PgPool};
+use uuid::Uuid;
 
 type F = GoldilocksField;
 type C = PoseidonGoldilocksConfig;
@@ -55,6 +56,7 @@ impl WithdrawalServer {
             amount: withdrawal.amount,
             nullifier: withdrawal.nullifier,
         };
+        let uuid_str = Uuid::new_v4().to_string();
         let withdrawal_hash_str = contract_withdrawal.withdrawal_hash().to_hex();
         let pubkey_str = pubkey.to_hex();
         let recipient = withdrawal.recipient.to_hex();
@@ -64,6 +66,7 @@ impl WithdrawalServer {
         sqlx::query!(
             r#"
             INSERT INTO withdrawals (
+                uuid,
                 pubkey,
                 recipient,
                 withdrawal_hash,
@@ -71,8 +74,9 @@ impl WithdrawalServer {
                 contract_withdrawal,
                 status
             )
-            VALUES ($1, $2, $3, $4, $5, $6::withdrawal_status)
+            VALUES ($1, $2, $3, $4, $5, $6, $7::withdrawal_status)
             "#,
+            uuid_str,
             pubkey_str,
             recipient,
             withdrawal_hash_str,
