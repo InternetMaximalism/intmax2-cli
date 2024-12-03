@@ -22,13 +22,14 @@ async fn deploy_contracts() -> anyhow::Result<()> {
         config.deployer_private_key,
     )
     .await?;
-    let zero_address = ethers::types::Address::zero();
+    let random_address = ethers::types::Address::random();
     rollup_contract
         .initialize(
             config.deployer_private_key,
-            zero_address,
-            zero_address,
-            zero_address,
+            random_address,
+            random_address,
+            random_address,
+            random_address,
         )
         .await?;
 
@@ -47,11 +48,12 @@ async fn deploy_contracts() -> anyhow::Result<()> {
     liquidity_contract
         .initialize(
             config.deployer_private_key,
-            zero_address,
-            zero_address,
-            zero_address,
-            zero_address,
-            zero_address,
+            random_address,
+            random_address,
+            random_address,
+            random_address,
+            random_address,
+            random_address,
             vec![],
         )
         .await?;

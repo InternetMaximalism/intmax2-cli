@@ -53,6 +53,7 @@ impl StoreVaultClientInterface for StoreVaultServerClient {
             &self.base_url,
             "/store-vault-server/save-balance-proof",
             &request,
+            None,
         )
         .await
     }
@@ -72,6 +73,7 @@ impl StoreVaultClientInterface for StoreVaultServerClient {
             &self.base_url,
             "/store-vault-server/get-balance-proof",
             Some(query),
+            None,
         )
         .await?;
         Ok(response.balance_proof)
@@ -91,6 +93,7 @@ impl StoreVaultClientInterface for StoreVaultServerClient {
             &self.base_url,
             &format!("/store-vault-server/{}/save", data_type.to_string()),
             &request,
+            None,
         )
         .await
     }
@@ -107,6 +110,7 @@ impl StoreVaultClientInterface for StoreVaultServerClient {
             &self.base_url,
             &format!("/store-vault-server/{}/get", data_type.to_string()),
             Some(query),
+            None,
         )
         .await?;
         Ok(response.data)
@@ -126,6 +130,7 @@ impl StoreVaultClientInterface for StoreVaultServerClient {
                 data_type.to_string()
             ),
             Some(query),
+            None,
         )
         .await?;
         Ok(response.data)
@@ -144,6 +149,7 @@ impl StoreVaultClientInterface for StoreVaultServerClient {
             &self.base_url,
             "/store-vault-server/save-user-data",
             &request,
+            None,
         )
         .await
     }
@@ -154,6 +160,7 @@ impl StoreVaultClientInterface for StoreVaultServerClient {
             &self.base_url,
             "/store-vault-server/get-user-data",
             Some(query),
+            None,
         )
         .await?;
         Ok(response.data)

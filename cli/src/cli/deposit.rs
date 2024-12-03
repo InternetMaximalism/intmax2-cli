@@ -10,7 +10,7 @@ use super::{
     utils::{convert_address, convert_u256, is_dev},
 };
 
-pub async fn deposit_ft(
+pub async fn deposit(
     key: KeySet,
     eth_private_key: H256,
     amount: U256,
@@ -27,24 +27,49 @@ pub async fn deposit_ft(
         .await?;
 
     let liquidity_contract = client.liquidity_contract.clone();
-    if token_type == TokenType::NATIVE {
-        liquidity_contract
-            .deposit_native(
-                eth_private_key,
-                deposit_data.pubkey_salt_hash,
-                deposit_data.amount,
-            )
-            .await?;
-    } else {
-        liquidity_contract
-            .deposit_erc20(
-                eth_private_key,
-                deposit_data.pubkey_salt_hash,
-                deposit_data.amount,
-                deposit_data.token_address,
-            )
-            .await?;
-    };
+
+    match token_type {
+        TokenType::NATIVE => {
+            liquidity_contract
+                .deposit_native(
+                    eth_private_key,
+                    deposit_data.pubkey_salt_hash,
+                    deposit_data.amount,
+                )
+                .await?;
+        }
+        TokenType::ERC20 => {
+            liquidity_contract
+                .deposit_erc20(
+                    eth_private_key,
+                    deposit_data.pubkey_salt_hash,
+                    deposit_data.amount,
+                    deposit_data.token_address,
+                )
+                .await?;
+        }
+        TokenType::ERC721 => {
+            liquidity_contract
+                .deposit_erc721(
+                    eth_private_key,
+                    deposit_data.pubkey_salt_hash,
+                    deposit_data.token_address,
+                    deposit_data.token_id,
+                )
+                .await?;
+        }
+        TokenType::ERC1155 => {
+            liquidity_contract
+                .deposit_erc1155(
+                    eth_private_key,
+                    deposit_data.pubkey_salt_hash,
+                    deposit_data.token_address,
+                    deposit_data.token_id,
+                    deposit_data.amount,
+                )
+                .await?;
+        }
+    }
 
     // relay deposits by self if env is dev
     if is_dev()? {

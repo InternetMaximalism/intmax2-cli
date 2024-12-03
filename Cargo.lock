@@ -2898,6 +2898,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "clap",
+ "colored",
  "dotenv",
  "envy",
  "ethers",
@@ -2976,6 +2977,7 @@ dependencies = [
  "hashbrown 0.14.5",
  "intmax2-zkp",
  "plonky2",
+ "plonky2_keccak",
  "serde",
  "serde_json",
  "thiserror 2.0.3",

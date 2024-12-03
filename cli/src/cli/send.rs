@@ -6,7 +6,7 @@ use intmax2_zkp::common::{
 };
 
 use crate::{
-    cli::{client::get_client, utils::convert_u256},
+    cli::{client::get_client, sync::sync, utils::convert_u256},
     Env,
 };
 
@@ -20,6 +20,10 @@ pub async fn tx(
 ) -> Result<(), CliError> {
     let env = envy::from_env::<Env>()?;
     let client = get_client()?;
+
+    if !sync(key.clone()).await? {
+        return Ok(());
+    }
 
     // override block builder base url if it is set in the env
     let block_builder_url = if let Some(block_builder_base_url) = env.block_builder_base_url {

@@ -1,5 +1,8 @@
 #[derive(Debug, thiserror::Error)]
 pub enum ServerError {
+    #[error("Env error: {0}")]
+    EnvError(String),
+
     #[error("Network error: {0}")]
     NetworkError(String),
 

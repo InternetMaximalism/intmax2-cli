@@ -23,7 +23,7 @@ impl IndexerClient {
 impl IndexerClientInterface for IndexerClient {
     async fn get_block_builder_info(&self) -> Result<Vec<BlockBuilderInfo>, ServerError> {
         let response: Vec<BlockBuilderInfo> =
-            get_request::<(), _>(&self.base_url, "/v1/indexer/builders", None).await?;
+            get_request::<(), _>(&self.base_url, "/v1/indexer/builders", None, None).await?;
         Ok(response)
     }
 }

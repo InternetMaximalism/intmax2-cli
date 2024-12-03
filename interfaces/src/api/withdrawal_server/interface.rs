@@ -2,13 +2,14 @@ use std::fmt::{self, Display, Formatter};
 
 use async_trait::async_trait;
 use intmax2_zkp::{
-    common::{signature::key_set::KeySet, withdrawal::Withdrawal},
-    ethereum_types::{address::Address, u256::U256},
+    common::signature::key_set::KeySet,
+    ethereum_types::{address::Address, bytes32::Bytes32, u256::U256, u32limb_trait::U32LimbTrait},
 };
 use plonky2::{
     field::goldilocks_field::GoldilocksField,
     plonk::{config::PoseidonGoldilocksConfig, proof::ProofWithPublicInputs},
 };
+use plonky2_keccak::utils::solidity_keccak256;
 use serde::{Deserialize, Serialize};
 
 use crate::api::error::ServerError;
@@ -30,19 +31,7 @@ pub struct Fee {
 #[serde(rename_all = "camelCase")]
 pub struct WithdrawalInfo {
     pub status: WithdrawalStatus,
-    pub withdrawal: Withdrawal,
-    pub withdrawal_id: Option<u32>,
-}
-
-impl WithdrawalInfo {
-    pub fn to_contract_withdrawal(&self) -> Option<ContractWithdrawal> {
-        self.withdrawal_id.map(|id| ContractWithdrawal {
-            recipient: self.withdrawal.recipient,
-            token_index: self.withdrawal.token_index,
-            amount: self.withdrawal.amount,
-            id,
-        })
-    }
+    pub contract_withdrawal: ContractWithdrawal,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -51,7 +40,18 @@ pub struct ContractWithdrawal {
     pub recipient: Address,
     pub token_index: u32,
     pub amount: U256,
-    pub id: u32,
+    pub nullifier: Bytes32,
+}
+
+impl ContractWithdrawal {
+    pub fn withdrawal_hash(&self) -> Bytes32 {
+        let mut input = Vec::new();
+        input.extend_from_slice(&self.recipient.to_u32_vec());
+        input.extend_from_slice(&[self.token_index]);
+        input.extend_from_slice(&self.amount.to_u32_vec());
+        input.extend_from_slice(&self.nullifier.to_u32_vec());
+        Bytes32::from_u32_slice(solidity_keccak256(&input).as_slice())
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

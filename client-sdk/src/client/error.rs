@@ -30,4 +30,7 @@ pub enum ClientError {
 
     #[error("Pending error: {0}")]
     PendingError(String),
+
+    #[error("Unexpected error: {0}")]
+    UnexpectedError(String),
 }

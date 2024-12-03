@@ -39,6 +39,7 @@ impl BlockBuilderClientInterface for BlockBuilderClient {
             block_builder_url,
             "/block-builder/status",
             Some(query),
+            None,
         )
         .await?;
         Ok(response.status)
@@ -58,7 +59,13 @@ impl BlockBuilderClientInterface for BlockBuilderClient {
             tx,
             fee_proof,
         };
-        post_request::<_, ()>(block_builder_url, "/block-builder/tx-request", &request).await
+        post_request::<_, ()>(
+            block_builder_url,
+            "/block-builder/tx-request",
+            &request,
+            None,
+        )
+        .await
     }
 
     async fn query_proposal(
@@ -73,8 +80,13 @@ impl BlockBuilderClientInterface for BlockBuilderClient {
             pubkey,
             tx,
         };
-        let response: QueryProposalResponse =
-            post_request(block_builder_url, "/block-builder/query-proposal", &request).await?;
+        let response: QueryProposalResponse = post_request(
+            block_builder_url,
+            "/block-builder/query-proposal",
+            &request,
+            None,
+        )
+        .await?;
         Ok(response.block_proposal)
     }
 
@@ -92,6 +104,12 @@ impl BlockBuilderClientInterface for BlockBuilderClient {
             tx,
             signature,
         };
-        post_request::<_, ()>(block_builder_url, "/block-builder/post-signature", &request).await
+        post_request::<_, ()>(
+            block_builder_url,
+            "/block-builder/post-signature",
+            &request,
+            None,
+        )
+        .await
     }
 }

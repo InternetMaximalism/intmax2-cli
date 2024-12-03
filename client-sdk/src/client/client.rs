@@ -54,6 +54,7 @@ use super::{
     balance_logic::process_deposit,
     config::ClientConfig,
     error::ClientError,
+    history::{fetch_history, HistoryEntry},
     strategy::{
         strategy::{determin_next_action, Action},
         withdrawal::fetch_withdrawal_info,
@@ -704,5 +705,9 @@ where
     ) -> Result<Vec<WithdrawalInfo>, ClientError> {
         let withdrawal_info = self.withdrawal_server.get_withdrawal_info(key).await?;
         Ok(withdrawal_info)
+    }
+
+    pub async fn fetch_history(&self, key: KeySet) -> Result<Vec<HistoryEntry>, ClientError> {
+        fetch_history(self, key).await
     }
 }
