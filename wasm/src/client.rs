@@ -38,6 +38,12 @@ pub struct Config {
     /// If this time is exceeded, the deposit backup will be ignored
     pub deposit_timeout: u64,
 
+    /// Auth token for the validity prover
+    pub auth_validity_prover: String,
+
+    /// Auth token for the balance prover
+    pub auth_balance_prover: String,
+
     /// Time to reach the rollup contract after sending a tx request
     /// If this time is exceeded, the tx request will be ignored
     pub tx_timeout: u64,
@@ -74,6 +80,8 @@ impl Config {
         withdrawal_server_url: String,
         deposit_timeout: u64,
         tx_timeout: u64,
+        auth_validity_prover: String,
+        auth_balance_prover: String,
 
         l1_rpc_url: String,
         l1_chain_id: u64,
@@ -89,6 +97,8 @@ impl Config {
             validity_prover_url,
             withdrawal_server_url,
             deposit_timeout,
+            auth_validity_prover,
+            auth_balance_prover,
             tx_timeout,
             l1_rpc_url,
             l1_chain_id,
@@ -104,8 +114,14 @@ impl Config {
 pub fn get_client(config: &Config) -> Client<BB, S, V, B, W> {
     let block_builder = BB::new();
     let store_vault_server = S::new(&config.store_vault_server_url);
-    let balance_prover: BalanceProverClient = B::new(&config.balance_prover_url);
-    let validity_prover = V::new(&config.validity_prover_url);
+    let balance_prover: BalanceProverClient = B::new(
+        &config.balance_prover_url,
+        Some(config.auth_balance_prover.clone()),
+    );
+    let validity_prover = V::new(
+        &config.validity_prover_url,
+        Some(config.auth_validity_prover.clone()),
+    );
     let withdrawal_server = W::new(&config.withdrawal_server_url);
 
     let client_config = ClientConfig {

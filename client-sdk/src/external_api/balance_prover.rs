@@ -35,12 +35,15 @@ const D: usize = 2;
 #[derive(Debug, Clone)]
 pub struct BalanceProverClient {
     base_url: String,
+    auth_token: Option<String>,
 }
 
 impl BalanceProverClient {
-    pub fn new(base_url: &str) -> Self {
+    pub fn new(base_url: &str, auth_token: Option<String>) -> Self {
+        let auth_token = auth_token.or_else(|| get_bearer_token().ok());
         BalanceProverClient {
             base_url: base_url.to_string(),
+            auth_token,
         }
     }
 }
@@ -59,7 +62,7 @@ impl BalanceProverClientInterface for BalanceProverClient {
             &self.base_url,
             "/balance-prover/prove-spent",
             &request,
-            Some(get_bearer_token()?),
+            self.auth_token.clone(),
         )
         .await?;
         Ok(response.proof)
@@ -85,7 +88,7 @@ impl BalanceProverClientInterface for BalanceProverClient {
             &self.base_url,
             "/balance-prover/prove-send",
             &request,
-            Some(get_bearer_token()?),
+            self.auth_token.clone(),
         )
         .await?;
         Ok(response.proof)
@@ -107,7 +110,7 @@ impl BalanceProverClientInterface for BalanceProverClient {
             &self.base_url,
             "/balance-prover/prove-update",
             &request,
-            Some(get_bearer_token()?),
+            self.auth_token.clone(),
         )
         .await?;
         Ok(response.proof)
@@ -129,7 +132,7 @@ impl BalanceProverClientInterface for BalanceProverClient {
             &self.base_url,
             "/balance-prover/prove-receive-transfer",
             &request,
-            Some(get_bearer_token()?),
+            self.auth_token.clone(),
         )
         .await?;
         Ok(response.proof)
@@ -151,7 +154,7 @@ impl BalanceProverClientInterface for BalanceProverClient {
             &self.base_url,
             "/balance-prover/prove-receive-deposit",
             &request,
-            Some(get_bearer_token()?),
+            self.auth_token.clone(),
         )
         .await?;
         Ok(response.proof)
@@ -169,7 +172,7 @@ impl BalanceProverClientInterface for BalanceProverClient {
             &self.base_url,
             "/balance-prover/prove-single-withdrawal",
             &request,
-            Some(get_bearer_token()?),
+            self.auth_token.clone(),
         )
         .await?;
         Ok(response.proof)

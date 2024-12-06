@@ -25,8 +25,8 @@ pub fn get_client() -> Result<Client<BB, S, V, B, W>, CliError> {
     let block_builder = BB::new();
     let store_vault_server = S::new(&env.store_vault_server_base_url);
 
-    let validity_prover = V::new(&env.validity_prover_base_url);
-    let balance_prover = B::new(&env.balance_prover_base_url);
+    let validity_prover = V::new(&env.validity_prover_base_url, None);
+    let balance_prover = B::new(&env.balance_prover_base_url, None);
     let withdrawal_server = W::new(&env.withdrawal_server_base_url);
 
     let liquidity_contract = LiquidityContract::new(

@@ -35,12 +35,16 @@ const D: usize = 2;
 #[derive(Debug, Clone)]
 pub struct ValidityProverClient {
     base_url: String,
+    auth_token: Option<String>,
 }
 
 impl ValidityProverClient {
-    pub fn new(base_url: &str) -> Self {
+    pub fn new(base_url: &str, auth_token: Option<String>) -> Self {
+        let auth_token = auth_token.or_else(|| get_bearer_token().ok());
+
         ValidityProverClient {
             base_url: base_url.to_string(),
+            auth_token,
         }
     }
 
@@ -49,7 +53,7 @@ impl ValidityProverClient {
             &self.base_url,
             "/validity-prover/sync",
             None,
-            Some(get_bearer_token()?),
+            self.auth_token.clone(),
         )
         .await?;
         Ok(())
@@ -63,7 +67,7 @@ impl ValidityProverClientInterface for ValidityProverClient {
             &self.base_url,
             "/validity-prover/block-number",
             None,
-            Some(get_bearer_token()?),
+            self.auth_token.clone(),
         )
         .await?;
         Ok(response.block_number)
@@ -86,7 +90,7 @@ impl ValidityProverClientInterface for ValidityProverClient {
             &self.base_url,
             "/validity-prover/get-update-witness",
             Some(query),
-            Some(get_bearer_token()?),
+            self.auth_token.clone(),
         )
         .await?;
         Ok(response.update_witness)
@@ -101,7 +105,7 @@ impl ValidityProverClientInterface for ValidityProverClient {
             &self.base_url,
             "/validity-prover/get-deposit-info",
             Some(query),
-            Some(get_bearer_token()?),
+            self.auth_token.clone(),
         )
         .await?;
         Ok(response.deposit_info)
@@ -116,7 +120,7 @@ impl ValidityProverClientInterface for ValidityProverClient {
             &self.base_url,
             "/validity-prover/get-block-number-by-tx-tree-root",
             Some(query),
-            Some(get_bearer_token()?),
+            self.auth_token.clone(),
         )
         .await?;
         Ok(response.block_number)
@@ -131,7 +135,7 @@ impl ValidityProverClientInterface for ValidityProverClient {
             &self.base_url,
             "/validity-prover/get-validity-pis",
             Some(query),
-            Some(get_bearer_token()?),
+            self.auth_token.clone(),
         )
         .await?;
         Ok(response.validity_pis)
@@ -146,7 +150,7 @@ impl ValidityProverClientInterface for ValidityProverClient {
             &self.base_url,
             "/validity-prover/get-sender-leaves",
             Some(query),
-            Some(get_bearer_token()?),
+            self.auth_token.clone(),
         )
         .await?;
         Ok(response.sender_leaves)
@@ -165,7 +169,7 @@ impl ValidityProverClientInterface for ValidityProverClient {
             &self.base_url,
             "/validity-prover/get-block-merkle-proof",
             Some(query),
-            Some(get_bearer_token()?),
+            self.auth_token.clone(),
         )
         .await?;
         Ok(response.block_merkle_proof)
@@ -184,7 +188,7 @@ impl ValidityProverClientInterface for ValidityProverClient {
             &self.base_url,
             "/validity-prover/get-deposit-merkle-proof",
             Some(query),
-            Some(get_bearer_token()?),
+            self.auth_token.clone(),
         )
         .await?;
         Ok(response.deposit_merkle_proof)
@@ -196,7 +200,7 @@ impl ValidityProverClientInterface for ValidityProverClient {
             &self.base_url,
             "/validity-prover/get-account-info",
             Some(query),
-            Some(get_bearer_token()?),
+            self.auth_token.clone(),
         )
         .await?;
         Ok(response.account_info)
