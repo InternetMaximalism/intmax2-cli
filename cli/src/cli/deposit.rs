@@ -92,7 +92,7 @@ pub async fn deposit(
     Ok(())
 }
 
-async fn post_empty_block() -> Result<(), CliError> {
+pub async fn post_empty_block() -> Result<(), CliError> {
     let env = envy::from_env::<Env>()?;
     let block_builder_base_url = env.block_builder_base_url.ok_or(CliError::UnexpectedError(
         "BLOCK_BUILDER_BASE_URL".to_string(),

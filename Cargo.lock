@@ -5996,6 +5996,7 @@ dependencies = [
  "bincode",
  "chrono",
  "dotenv",
+ "env_logger",
  "envy",
  "ethers",
  "hashbrown 0.14.5",
