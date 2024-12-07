@@ -2,12 +2,10 @@ use ethers::types::{Address, H256, U256};
 use intmax2_interfaces::data::deposit_data::TokenType;
 use intmax2_zkp::common::signature::key_set::KeySet;
 
-use crate::Env;
-
 use super::{
     client::get_client,
     error::CliError,
-    utils::{convert_address, convert_u256, is_dev},
+    utils::{convert_address, convert_u256, is_dev, post_empty_block},
 };
 
 pub async fn deposit(
@@ -94,20 +92,4 @@ pub async fn deposit(
 
 pub async fn balance_check() -> Result<(), CliError> {
     todo!()
-}
-
-pub async fn post_empty_block() -> Result<(), CliError> {
-    let env = envy::from_env::<Env>()?;
-    let block_builder_base_url = env.block_builder_base_url.ok_or(CliError::UnexpectedError(
-        "BLOCK_BUILDER_BASE_URL".to_string(),
-    ))?;
-    reqwest::Client::new()
-        .post(&format!(
-            "{}/block-builder/post-empty-block",
-            block_builder_base_url
-        ))
-        .send()
-        .await
-        .map_err(|e| CliError::UnexpectedError(e.to_string()))?;
-    Ok(())
 }

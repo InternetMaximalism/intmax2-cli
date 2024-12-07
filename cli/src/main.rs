@@ -2,10 +2,11 @@ use anyhow::{bail, ensure};
 use clap::{Parser, Subcommand};
 use ethers::types::{Address as EthAddress, H256, U256 as EthU256};
 use intmax2_cli::cli::{
-    deposit::{deposit, post_empty_block},
+    deposit::deposit,
     get::{balance, history, withdrawal_status},
     send::tx,
     sync::{sync, sync_withdrawals},
+    utils::post_empty_block,
 };
 use intmax2_client_sdk::utils::init_logger::init_logger;
 use intmax2_interfaces::data::deposit_data::TokenType;
