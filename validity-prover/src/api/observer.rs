@@ -39,6 +39,14 @@ impl Observer {
                 eth_tx_index: 0,
             };
 
+            // Initialize sync_state
+            sqlx::query!(
+                "INSERT INTO sync_state (id, sync_eth_block_number) VALUES (1, $1)",
+                rollup_contract.deployed_block_number as i64
+            )
+            .execute(&pool)
+            .await?;
+
             // Insert genesis block
             sqlx::query!(
                 "INSERT INTO full_blocks (block_number, eth_block_number, eth_tx_index, full_block) 
