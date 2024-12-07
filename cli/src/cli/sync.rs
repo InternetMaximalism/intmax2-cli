@@ -28,6 +28,7 @@ pub async fn sync(key: KeySet) -> Result<bool, CliError> {
 
 pub async fn sync_withdrawals(key: KeySet) -> Result<(), CliError> {
     let client = get_client()?;
+    sync(key).await?;
     client.sync_withdrawals(key).await?;
     Ok(())
 }
