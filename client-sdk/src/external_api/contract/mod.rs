@@ -1,5 +1,7 @@
 pub mod data_decoder;
+pub mod erc1155_contract;
 pub mod erc20_contract;
+pub mod erc721_contract;
 pub mod handlers;
 pub mod interface;
 pub mod liquidity_contract;

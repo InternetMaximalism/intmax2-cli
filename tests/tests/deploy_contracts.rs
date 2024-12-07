@@ -1,6 +1,7 @@
-use ethers::types::H256;
+use ethers::types::{Address, H256};
 use intmax2_client_sdk::external_api::contract::{
-    liquidity_contract::LiquidityContract, rollup_contract::RollupContract,
+    erc20_contract::ERC20Contract, liquidity_contract::LiquidityContract,
+    rollup_contract::RollupContract,
 };
 use serde::Deserialize;
 
@@ -9,6 +10,7 @@ struct Config {
     pub rpc_url: String,
     pub chain_id: u64,
     pub deployer_private_key: H256,
+    pub token_holder: Address,
 }
 
 #[tokio::test]
@@ -62,6 +64,15 @@ async fn deploy_contracts() -> anyhow::Result<()> {
         "Liquidity contract address: {:?}",
         liquidity_contract.address()
     );
+
+    let erc20_token = ERC20Contract::deploy(
+        &config.rpc_url,
+        config.chain_id,
+        config.deployer_private_key,
+        config.token_holder,
+    )
+    .await?;
+    println!("erc20 contract address: {:?}", erc20_token.address());
 
     Ok(())
 }

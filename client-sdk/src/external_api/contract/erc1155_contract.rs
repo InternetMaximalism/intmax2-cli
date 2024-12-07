@@ -6,7 +6,7 @@ use ethers::{
     middleware::SignerMiddleware,
     providers::{Http, Provider},
     signers::Wallet,
-    types::{Address, H256, U256},
+    types::{Address, Bytes, H256, U256},
 };
 
 use crate::external_api::utils::retry::with_retry;
@@ -17,16 +17,16 @@ use super::{
     utils::{get_address, get_client, get_client_with_signer},
 };
 
-abigen!(ERC20, "abi/TestERC20.json",);
+abigen!(ERC1155, "abi/TestERC1155.json",);
 
 #[derive(Debug, Clone)]
-pub struct ERC20Contract {
+pub struct ERC1155Contract {
     pub rpc_url: String,
     pub chain_id: u64,
     pub address: Address,
 }
 
-impl ERC20Contract {
+impl ERC1155Contract {
     pub fn new(rpc_url: &str, chain_id: u64, address: Address) -> Self {
         Self {
             rpc_url: rpc_url.to_string(),
@@ -35,17 +35,10 @@ impl ERC20Contract {
         }
     }
 
-    pub async fn deploy(
-        rpc_url: &str,
-        chain_id: u64,
-        private_key: H256,
-        initial_address: Address,
-    ) -> anyhow::Result<Self> {
+    pub async fn deploy(rpc_url: &str, chain_id: u64, private_key: H256) -> anyhow::Result<Self> {
         let client = get_client_with_signer(rpc_url, chain_id, private_key).await?;
-        let erc20_contract = ERC20::deploy::<Address>(Arc::new(client), initial_address)?
-            .send()
-            .await?;
-        let address = erc20_contract.address();
+        let erc1155_contract = ERC1155::deploy::<()>(Arc::new(client), ())?.send().await?;
+        let address = erc1155_contract.address();
         Ok(Self::new(rpc_url, chain_id, address))
     }
 
@@ -53,76 +46,84 @@ impl ERC20Contract {
         self.address
     }
 
-    pub async fn get_contract(&self) -> Result<ERC20<Provider<Http>>, BlockchainError> {
+    pub async fn get_contract(&self) -> Result<ERC1155<Provider<Http>>, BlockchainError> {
         let client = get_client(&self.rpc_url).await?;
-        let contract = ERC20::new(self.address, client);
+        let contract = ERC1155::new(self.address, client);
         Ok(contract)
     }
 
     async fn get_contract_with_signer(
         &self,
         private_key: H256,
-    ) -> Result<ERC20<SignerMiddleware<Provider<Http>, Wallet<SigningKey>>>, BlockchainError> {
+    ) -> Result<ERC1155<SignerMiddleware<Provider<Http>, Wallet<SigningKey>>>, BlockchainError>
+    {
         let client = get_client_with_signer(&self.rpc_url, self.chain_id, private_key).await?;
-        let contract = ERC20::new(self.address, Arc::new(client));
+        let contract = ERC1155::new(self.address, Arc::new(client));
         Ok(contract)
     }
 
-    pub async fn balance_of(&self, account: Address) -> Result<U256, BlockchainError> {
+    pub async fn balance_of(
+        &self,
+        account: Address,
+        token_id: U256,
+    ) -> Result<U256, BlockchainError> {
         let contract = self.get_contract().await?;
-        let balance = with_retry(|| async { contract.balance_of(account).call().await })
+        let balance = with_retry(|| async { contract.balance_of(account, token_id).call().await })
             .await
             .map_err(|e| BlockchainError::NetworkError(format!("Failed to get balance: {}", e)))?;
         Ok(balance)
     }
 
-    pub async fn transfer(
+    pub async fn transfer_from(
         &self,
         signer_private_key: H256,
+        from: Address,
         to: Address,
+        token_id: U256,
         amount: U256,
     ) -> Result<(), BlockchainError> {
         let contract = self.get_contract_with_signer(signer_private_key).await?;
-        let mut tx = contract.transfer(to, amount);
+        let mut tx = contract.safe_transfer_from(from, to, token_id, amount, Bytes::default());
         handle_contract_call(
             &mut tx,
             get_address(self.chain_id, signer_private_key),
-            "sender",
-            "transfer",
+            "from",
+            "transfer from",
         )
         .await?;
         Ok(())
     }
 
-    pub async fn approve(
+    pub async fn set_approval_for_all(
         &self,
         signer_private_key: H256,
-        spender: Address,
-        amount: U256,
+        operator: Address,
+        approved: bool,
     ) -> Result<(), BlockchainError> {
         let contract = self.get_contract_with_signer(signer_private_key).await?;
-        let mut tx = contract.approve(spender, amount);
+        let mut tx = contract.set_approval_for_all(operator, approved);
         handle_contract_call(
             &mut tx,
             get_address(self.chain_id, signer_private_key),
             "token_owner",
-            "approve",
+            "set_approval_for_all",
         )
         .await?;
         Ok(())
     }
 
-    pub async fn allowance(
+    pub async fn is_approved_for_all(
         &self,
-        owner: Address,
-        spender: Address,
-    ) -> Result<U256, BlockchainError> {
+        account: Address,
+        operator: Address,
+    ) -> Result<bool, BlockchainError> {
         let contract = self.get_contract().await?;
-        let allowance = with_retry(|| async { contract.allowance(owner, spender).call().await })
-            .await
-            .map_err(|e| {
-                BlockchainError::NetworkError(format!("Failed to get allowance: {}", e))
-            })?;
-        Ok(allowance)
+        let account =
+            with_retry(|| async { contract.is_approved_for_all(account, operator).call().await })
+                .await
+                .map_err(|e| {
+                    BlockchainError::NetworkError(format!("Failed to get approved: {}", e))
+                })?;
+        Ok(account)
     }
 }
