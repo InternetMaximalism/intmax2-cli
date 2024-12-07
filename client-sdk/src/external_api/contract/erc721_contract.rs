@@ -69,6 +69,14 @@ impl ERC721Contract {
         Ok(balance)
     }
 
+    pub async fn owner_of(&self, token_id: U256) -> Result<Address, BlockchainError> {
+        let contract = self.get_contract().await?;
+        let owner = with_retry(|| async { contract.owner_of(token_id).call().await })
+            .await
+            .map_err(|e| BlockchainError::NetworkError(format!("Failed to get balance: {}", e)))?;
+        Ok(owner)
+    }
+
     pub async fn transfer_from(
         &self,
         signer_private_key: H256,
