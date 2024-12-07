@@ -1,4 +1,11 @@
 use ethers::types::{Address, H256, U256};
+use intmax2_client_sdk::external_api::contract::{
+    erc1155_contract::ERC1155Contract,
+    erc20_contract::ERC20Contract,
+    erc721_contract::ERC721Contract,
+    liquidity_contract::LiquidityContract,
+    utils::{get_address, get_eth_balance},
+};
 use intmax2_interfaces::data::deposit_data::TokenType;
 use intmax2_zkp::common::signature::key_set::KeySet;
 
@@ -17,14 +24,24 @@ pub async fn deposit(
     token_id: U256,
 ) -> Result<(), CliError> {
     let client = get_client()?;
+    let liquidity_contract = client.liquidity_contract.clone();
+    balance_check_and_approve(
+        &liquidity_contract,
+        eth_private_key,
+        amount,
+        token_type,
+        token_address,
+        token_id,
+    )
+    .await?;
+
     let amount = convert_u256(amount);
     let token_address = convert_address(token_address);
     let token_id = convert_u256(token_id);
+
     let deposit_data = client
         .prepare_deposit(key.pubkey, amount, token_type, token_address, token_id)
         .await?;
-
-    let liquidity_contract = client.liquidity_contract.clone();
 
     match token_type {
         TokenType::NATIVE => {
@@ -90,6 +107,81 @@ pub async fn deposit(
     Ok(())
 }
 
-pub async fn balance_check() -> Result<(), CliError> {
+async fn balance_check_and_approve(
+    liquidity_contract: &LiquidityContract,
+    eth_private_key: H256,
+    amount: U256,
+    token_type: TokenType,
+    token_address: Address,
+    token_id: U256,
+) -> Result<(), CliError> {
+    let chain_id = liquidity_contract.chain_id;
+    let rpc_url = liquidity_contract.rpc_url.clone();
+    let address = get_address(chain_id, eth_private_key);
+
+    match token_type {
+        TokenType::NATIVE => {
+            let balance = get_eth_balance(&rpc_url, address).await?;
+            if amount > balance {
+                return Err(CliError::InsufficientBalance(
+                    "Insufficient eth balance".to_string(),
+                ));
+            }
+        }
+        TokenType::ERC20 => {
+            let contract = ERC20Contract::new(&rpc_url, chain_id, token_address);
+            let balance = contract.balance_of(address).await?;
+            if amount > balance {
+                return Err(CliError::InsufficientBalance(
+                    "Insufficient token balance".to_string(),
+                ));
+            }
+            // approve if nessesary
+            let allowance = contract
+                .allowance(address, liquidity_contract.address())
+                .await?;
+            if allowance < amount {
+                contract
+                    .approve(eth_private_key, liquidity_contract.address(), amount)
+                    .await?;
+            }
+        }
+        TokenType::ERC721 => {
+            let contract = ERC721Contract::new(&rpc_url, chain_id, token_address);
+            let owner = contract.owner_of(token_id).await?;
+            if owner != address {
+                return Err(CliError::InsufficientBalance(
+                    "You don't have the nft of given token id".to_string(),
+                ));
+            }
+            // approve if nessesary
+            let operator = contract.get_approved(token_id).await?;
+            if operator != liquidity_contract.address() {
+                contract
+                    .approve(eth_private_key, liquidity_contract.address(), token_id)
+                    .await?;
+            }
+        }
+        TokenType::ERC1155 => {
+            let contract = ERC1155Contract::new(&rpc_url, chain_id, token_address);
+            let balance = contract.balance_of(address, token_id).await?;
+            if amount > balance {
+                return Err(CliError::InsufficientBalance(
+                    "Insufficient token balance".to_string(),
+                ));
+            }
+            // approve if nessesary
+            let is_approved = contract
+                .is_approved_for_all(address, liquidity_contract.address())
+                .await?;
+
+            if !is_approved {
+                contract
+                    .set_approval_for_all(eth_private_key, liquidity_contract.address(), true)
+                    .await?;
+            }
+        }
+    }
+
     todo!()
 }
