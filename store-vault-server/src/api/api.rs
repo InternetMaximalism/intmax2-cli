@@ -25,8 +25,6 @@ pub async fn save_balance_proof(
     let request = request.into_inner();
     state
         .store_vault_server
-        .write()
-        .await
         .save_balance_proof(request.pubkey, request.balance_proof)
         .await
         .map_err(|e| actix_web::error::ErrorInternalServerError(e))?;
@@ -41,8 +39,6 @@ pub async fn get_balance_proof(
     let query = query.into_inner();
     let balance_proof = state
         .store_vault_server
-        .read()
-        .await
         .get_balance_proof(query.pubkey, query.block_number, query.private_commitment)
         .await
         .map_err(|e| actix_web::error::ErrorInternalServerError(e))?;
@@ -61,8 +57,6 @@ pub async fn save_data(
     let request = request.into_inner();
     state
         .store_vault_server
-        .write()
-        .await
         .save_data(data_type, request.pubkey, request.data)
         .await
         .map_err(|e| actix_web::error::ErrorInternalServerError(e))?;
@@ -81,8 +75,6 @@ pub async fn get_data(
     let query = query.into_inner();
     let data = state
         .store_vault_server
-        .read()
-        .await
         .get_data(data_type, &query.uuid)
         .await
         .map_err(|e| actix_web::error::ErrorInternalServerError(e))?;
@@ -101,8 +93,6 @@ pub async fn get_data_all_after(
     let query = query.into_inner();
     let data = state
         .store_vault_server
-        .read()
-        .await
         .get_data_all_after(data_type, query.pubkey, query.timestamp)
         .await
         .map_err(|e| actix_web::error::ErrorInternalServerError(e))?;
@@ -117,8 +107,6 @@ pub async fn save_user_data(
     let request = request.into_inner();
     state
         .store_vault_server
-        .write()
-        .await
         .save_user_data(request.pubkey, request.data)
         .await
         .map_err(|e| actix_web::error::ErrorInternalServerError(e))?;
@@ -133,8 +121,6 @@ pub async fn get_user_data(
     let query = query.into_inner();
     let data = state
         .store_vault_server
-        .read()
-        .await
         .get_user_data(query.pubkey)
         .await
         .map_err(|e| actix_web::error::ErrorInternalServerError(e))?;

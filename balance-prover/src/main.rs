@@ -3,6 +3,7 @@ use actix_web::{middleware::Logger, web::Data, App, HttpServer};
 use balance_prover::{
     api::{api::balance_prover_scope, balance_prover::BalanceProver},
     health_check::health_check,
+    Env,
 };
 use env_logger::fmt::Formatter;
 use log::{LevelFilter, Record};
@@ -30,8 +31,13 @@ async fn main() -> std::io::Result<()> {
     init_file_logger();
 
     dotenv::dotenv().ok();
+    let env: Env = envy::from_env().map_err(|e| {
+        io::Error::new(
+            io::ErrorKind::Other,
+            format!("Failed to parse environment variables: {}", e),
+        )
+    })?;
 
-    let port = std::env::var("PORT").unwrap_or_else(|_| "8080".to_string());
     let state = BalanceProver::new().map_err(|e| io::Error::new(io::ErrorKind::Other, e))?;
     let state = Data::new(state);
     HttpServer::new(move || {
@@ -43,7 +49,7 @@ async fn main() -> std::io::Result<()> {
             .service(health_check)
             .service(balance_prover_scope())
     })
-    .bind(format!("0.0.0.0:{}", port))?
+    .bind(format!("0.0.0.0:{}", env.port))?
     .run()
     .await
 }

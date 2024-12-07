@@ -139,6 +139,7 @@ impl ValidityProver {
     }
 
     pub async fn sync(&self) -> Result<(), ValidityProverError> {
+        log::info!("Start sync validity prover");
         self.sync_observer().await?;
 
         let last_block_number = self.get_block_number().await?;
@@ -291,6 +292,7 @@ impl ValidityProver {
             tx.commit().await?;
         }
 
+        log::info!("End of sync validity prover");
         Ok(())
     }
 
