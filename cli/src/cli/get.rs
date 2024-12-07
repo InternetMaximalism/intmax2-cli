@@ -1,4 +1,4 @@
-use intmax2_zkp::common::signature::key_set::KeySet;
+use intmax2_zkp::common::{signature::key_set::KeySet, trees::asset_tree::AssetLeaf};
 
 use crate::cli::{client::get_client, sync::sync};
 
@@ -10,7 +10,8 @@ pub async fn balance(key: KeySet) -> Result<(), CliError> {
         return Ok(());
     }
     let user_data = client.get_user_data(key).await?;
-    let balances = user_data.balances();
+    let mut balances: Vec<(u64, AssetLeaf)> = user_data.balances().into_iter().collect();
+    balances.sort_by_key(|(i, _leaf)| *i);
 
     println!("Balances:");
     for (i, leaf) in balances.iter() {

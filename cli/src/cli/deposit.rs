@@ -12,7 +12,7 @@ use intmax2_zkp::common::signature::key_set::KeySet;
 use super::{
     client::get_client,
     error::CliError,
-    utils::{convert_address, convert_u256, is_dev, post_empty_block},
+    utils::{convert_address, convert_u256, is_dev},
 };
 
 pub async fn deposit(
@@ -102,8 +102,6 @@ pub async fn deposit(
             .rollup_contract
             .process_deposits(eth_private_key, 0, &[deposit_data.deposit_hash().unwrap()])
             .await?;
-        // post empty block
-        post_empty_block().await?;
     }
 
     Ok(())
