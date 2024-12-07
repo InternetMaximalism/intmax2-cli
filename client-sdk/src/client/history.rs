@@ -241,8 +241,8 @@ pub async fn fetch_history<
         let mut transfers = Vec::new();
         for transfer in tx_data.spent_witness.transfers.iter() {
             let recipient = transfer.recipient;
-            if recipient.is_pubkey
-                && recipient.data == U256::dummy_pubkey()
+            if !recipient.is_pubkey
+                && recipient.data == U256::default()
                 && transfer.amount == U256::default()
             {
                 // dummy transfer

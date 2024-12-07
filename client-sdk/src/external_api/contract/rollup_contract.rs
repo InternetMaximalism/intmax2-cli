@@ -79,6 +79,13 @@ impl RollupContract {
         address: ethers::types::Address,
         deployed_block_number: u64,
     ) -> Self {
+        log::info!(
+            "RollupContract: rpc_url={}, chain_id={}, address={}, deployed_block_number={}",
+            rpc_url,
+            chain_id,
+            address,
+            deployed_block_number
+        );
         Self {
             rpc_url: rpc_url.to_string(),
             chain_id,
@@ -126,7 +133,10 @@ impl RollupContract {
         &self,
         from_block: Option<u64>,
     ) -> Result<Vec<DepositLeafInserted>, BlockchainError> {
-        log::info!("get_deposit_leaf_inserted_event");
+        log::info!(
+            "get_deposit_leaf_inserted_event: from_block={:?}",
+            from_block
+        );
         let mut events = Vec::new();
         let mut from_block = from_block.unwrap_or(self.deployed_block_number);
         loop {

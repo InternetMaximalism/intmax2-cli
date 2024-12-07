@@ -4,18 +4,19 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-anyhow ={workspace = true} 
-plonky2 = {workspace = true} 
-intmax2-zkp = {workspace = true}
-intmax2-client-sdk = {path="../client-sdk"}
-intmax2-interfaces = {path="../interfaces"}
+anyhow = { workspace = true }
+plonky2 = { workspace = true }
+intmax2-zkp = { workspace = true }
+intmax2-client-sdk = { path = "../client-sdk" }
+intmax2-interfaces = { path = "../interfaces" }
 tokio = { workspace = true }
-reqwest = { workspace = true}
-ethers = {workspace = true}
-serde_json ={workspace = true}
-serde = { workspace = true}
-sqlx = {workspace = true}
+reqwest = { workspace = true }
+ethers = { workspace = true }
+serde_json = { workspace = true }
+serde = { workspace = true }
+sqlx = { workspace = true }
 chrono = { workspace = true }
+env_logger = { workspace = true }
 log = { workspace = true }
 uuid = { workspace = true }
 dotenv = { workspace = true }

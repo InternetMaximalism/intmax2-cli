@@ -15,6 +15,9 @@ pub enum CliError {
     #[error("Blockchain error: {0}")]
     BlockchainError(#[from] BlockchainError),
 
+    #[error("InsufficientBalance: {0}")]
+    InsufficientBalance(String),
+
     #[error("Server error: {0}")]
     ServerError(#[from] ServerError),
 

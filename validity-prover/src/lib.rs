@@ -14,4 +14,6 @@ pub struct Env {
     pub rollup_contract_address: Address,
     pub rollup_contract_deployed_block_number: u64,
     pub database_url: String,
+    pub database_max_connections: u32,
+    pub database_timeout: u64,
 }

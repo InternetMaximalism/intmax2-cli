@@ -6,6 +6,7 @@ use intmax2_cli::cli::{
     get::{balance, history, withdrawal_status},
     send::tx,
     sync::{sync, sync_withdrawals},
+    utils::post_empty_block,
 };
 use intmax2_client_sdk::utils::init_logger::init_logger;
 use intmax2_interfaces::data::deposit_data::TokenType;
@@ -43,9 +44,9 @@ enum Commands {
         #[clap(long)]
         private_key: H256,
         #[clap(long)]
-        amount: u128,
-        #[clap(long)]
         token_type: TokenType,
+        #[clap(long)]
+        amount: Option<u128>,
         #[clap(long)]
         token_address: Option<EthAddress>,
         #[clap(long)]
@@ -55,6 +56,7 @@ enum Commands {
         #[clap(long)]
         private_key: H256,
     },
+    PostEmptyBlock,
     SyncWithdrawals {
         #[clap(long)]
         private_key: H256,
@@ -101,13 +103,15 @@ async fn main() -> anyhow::Result<()> {
             token_id,
         } => {
             let key = h256_to_keyset(private_key);
+            let amount = amount.map(|x| x.into());
             let token_id = token_id.map(|x| x.into());
-            let (token_address, token_id) = format_token_info(token_type, token_address, token_id)?;
+            let (amount, token_address, token_id) =
+                format_token_info(token_type, amount, token_address, token_id)?;
             deposit(
                 key,
                 eth_private_key,
-                amount.into(),
                 token_type,
+                amount,
                 token_address,
                 token_id,
             )
@@ -120,6 +124,9 @@ async fn main() -> anyhow::Result<()> {
         Commands::SyncWithdrawals { private_key } => {
             let key = h256_to_keyset(private_key);
             sync_withdrawals(key).await?;
+        }
+        Commands::PostEmptyBlock => {
+            post_empty_block().await?;
         }
         Commands::Balance { private_key } => {
             let key = h256_to_keyset(private_key);
@@ -148,21 +155,36 @@ async fn main() -> anyhow::Result<()> {
 
 fn format_token_info(
     token_type: TokenType,
+    amount: Option<EthU256>,
     token_address: Option<EthAddress>,
     token_id: Option<EthU256>,
-) -> anyhow::Result<(EthAddress, EthU256)> {
+) -> anyhow::Result<(EthU256, EthAddress, EthU256)> {
     match token_type {
-        TokenType::NATIVE => Ok((EthAddress::zero(), EthU256::zero())),
+        TokenType::NATIVE => Ok({
+            let amount = amount.ok_or_else(|| anyhow::anyhow!("Missing amount"))?;
+            (amount, EthAddress::zero(), EthU256::zero())
+        }),
         TokenType::ERC20 => {
+            let amount = amount.ok_or_else(|| anyhow::anyhow!("Missing amount"))?;
             let token_address =
                 token_address.ok_or_else(|| anyhow::anyhow!("Missing token address"))?;
-            Ok((token_address, EthU256::zero()))
+            Ok((amount, token_address, EthU256::zero()))
         }
-        TokenType::ERC721 | TokenType::ERC1155 => {
+        TokenType::ERC721 => {
+            if amount.is_some() {
+                anyhow::bail!("Amount should not be specified");
+            }
             let token_address =
                 token_address.ok_or_else(|| anyhow::anyhow!("Missing token address"))?;
             let token_id = token_id.ok_or_else(|| anyhow::anyhow!("Missing token id"))?;
-            Ok((token_address, token_id))
+            Ok((EthU256::one(), token_address, token_id))
+        }
+        TokenType::ERC1155 => {
+            let amount = amount.ok_or_else(|| anyhow::anyhow!("Missing amount"))?;
+            let token_address =
+                token_address.ok_or_else(|| anyhow::anyhow!("Missing token address"))?;
+            let token_id = token_id.ok_or_else(|| anyhow::anyhow!("Missing token id"))?;
+            Ok((amount, token_address, token_id))
         }
     }
 }

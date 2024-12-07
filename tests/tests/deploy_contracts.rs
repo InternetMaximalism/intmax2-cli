@@ -1,6 +1,8 @@
-use ethers::types::H256;
+use ethers::types::{Address, H256};
 use intmax2_client_sdk::external_api::contract::{
-    liquidity_contract::LiquidityContract, rollup_contract::RollupContract,
+    erc1155_contract::ERC1155Contract, erc20_contract::ERC20Contract,
+    erc721_contract::ERC721Contract, liquidity_contract::LiquidityContract,
+    rollup_contract::RollupContract,
 };
 use serde::Deserialize;
 
@@ -9,6 +11,7 @@ struct Config {
     pub rpc_url: String,
     pub chain_id: u64,
     pub deployer_private_key: H256,
+    pub token_holder: Address,
 }
 
 #[tokio::test]
@@ -62,6 +65,34 @@ async fn deploy_contracts() -> anyhow::Result<()> {
         "Liquidity contract address: {:?}",
         liquidity_contract.address()
     );
+
+    let erc20_token = ERC20Contract::deploy(
+        &config.rpc_url,
+        config.chain_id,
+        config.deployer_private_key,
+        config.token_holder,
+    )
+    .await?;
+    println!("erc20 contract address: {:?}", erc20_token.address());
+
+    let erc721_token = ERC721Contract::deploy(
+        &config.rpc_url,
+        config.chain_id,
+        config.deployer_private_key,
+    )
+    .await?;
+    println!("erc721 contract address: {:?}", erc721_token.address());
+
+    let erc1155_token = ERC1155Contract::deploy(
+        &config.rpc_url,
+        config.chain_id,
+        config.deployer_private_key,
+    )
+    .await?;
+    // mint some token
+    erc1155_token.setup(config.deployer_private_key).await?;
+
+    println!("erc1155 contract address: {:?}", erc1155_token.address());
 
     Ok(())
 }

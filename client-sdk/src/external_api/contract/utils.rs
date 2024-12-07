@@ -5,7 +5,7 @@ use ethers::{
     middleware::SignerMiddleware,
     providers::{Http, Middleware as _, Provider},
     signers::{Signer as _, Wallet},
-    types::{Address, H256},
+    types::{Address, H256, U256},
 };
 
 use crate::external_api::utils::retry::with_retry;
@@ -48,6 +48,14 @@ pub async fn get_latest_block_number(rpc_url: &str) -> Result<u64, BlockchainErr
         .await
         .map_err(|_| BlockchainError::NetworkError("failed to get block number".to_string()))?;
     Ok(block_number.as_u64())
+}
+
+pub async fn get_eth_balance(rpc_url: &str, address: Address) -> Result<U256, BlockchainError> {
+    let client = get_client(rpc_url).await?;
+    let balance = with_retry(|| async { client.get_balance(address, None).await })
+        .await
+        .map_err(|_| BlockchainError::NetworkError("failed to get block number".to_string()))?;
+    Ok(balance)
 }
 
 pub async fn get_transaction(

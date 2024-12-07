@@ -42,7 +42,7 @@ impl Observer {
             // Initialize sync_state
             sqlx::query!(
                 "INSERT INTO sync_state (id, sync_eth_block_number) VALUES (1, $1)",
-                0i64
+                rollup_contract.deployed_block_number as i64
             )
             .execute(&pool)
             .await?;

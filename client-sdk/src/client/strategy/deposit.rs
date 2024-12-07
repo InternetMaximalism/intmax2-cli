@@ -60,7 +60,11 @@ pub async fn fetch_deposit_info<S: StoreVaultClientInterface, V: ValidityProverC
                 } else {
                     if meta.timestamp + deposit_timeout < chrono::Utc::now().timestamp() as u64 {
                         // timeout
-                        log::error!("Deposit {} is timeouted", meta.uuid);
+                        log::error!(
+                            "Deposit uuid: {}, hash: {} is timeouted",
+                            meta.uuid,
+                            deposit_hash
+                        );
                         rejected.push(meta);
                     } else {
                         // pending

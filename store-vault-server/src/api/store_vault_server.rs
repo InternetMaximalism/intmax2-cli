@@ -1,3 +1,5 @@
+use std::time::Duration;
+
 use anyhow::{Ok, Result};
 use intmax2_interfaces::{api::store_vault_server::interface::DataType, data::meta_data::MetaData};
 use intmax2_zkp::{
@@ -12,6 +14,8 @@ use plonky2::{
 use sqlx::{postgres::PgPoolOptions, PgPool};
 use uuid::Uuid;
 
+use crate::Env;
+
 type F = GoldilocksField;
 type C = PoseidonGoldilocksConfig;
 const D: usize = 2;
@@ -21,16 +25,17 @@ pub struct StoreVaultServer {
 }
 
 impl StoreVaultServer {
-    pub async fn new(database_url: &str) -> Result<Self> {
+    pub async fn new(env: &Env) -> Result<Self> {
         let pool = PgPoolOptions::new()
-            .max_connections(5)
-            .connect(database_url)
+            .max_connections(env.database_max_connections)
+            .idle_timeout(Duration::from_secs(env.database_timeout))
+            .connect(&env.database_url)
             .await?;
 
         Ok(Self { pool })
     }
 
-    pub async fn reset(&mut self) -> Result<()> {
+    pub async fn reset(&self) -> Result<()> {
         sqlx::query!("TRUNCATE encrypted_user_data, balance_proofs, encrypted_data")
             .execute(&self.pool)
             .await?;
@@ -38,7 +43,7 @@ impl StoreVaultServer {
     }
 
     pub async fn save_balance_proof(
-        &mut self,
+        &self,
         pubkey: U256,
         proof: ProofWithPublicInputs<F, C, D>,
     ) -> Result<()> {
@@ -96,7 +101,7 @@ impl StoreVaultServer {
         }
     }
 
-    pub async fn save_user_data(&mut self, pubkey: U256, encrypted_data: Vec<u8>) -> Result<()> {
+    pub async fn save_user_data(&self, pubkey: U256, encrypted_data: Vec<u8>) -> Result<()> {
         let pubkey_hex = pubkey.to_hex();
 
         sqlx::query!(
@@ -130,7 +135,7 @@ impl StoreVaultServer {
     }
 
     pub async fn save_data(
-        &mut self,
+        &self,
         data_type: DataType,
         pubkey: U256,
         encrypted_data: Vec<u8>,

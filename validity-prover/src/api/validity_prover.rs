@@ -23,10 +23,10 @@ use plonky2::{
     plonk::{config::PoseidonGoldilocksConfig, proof::ProofWithPublicInputs},
 };
 use sqlx::{postgres::PgPoolOptions, PgPool};
-use std::sync::OnceLock;
+use std::{sync::OnceLock, time::Duration};
 
 use super::{error::ValidityProverError, observer::Observer};
-use crate::utils::deposit_hash_tree::DepositHashTree;
+use crate::{utils::deposit_hash_tree::DepositHashTree, Env};
 
 type F = GoldilocksField;
 type C = PoseidonGoldilocksConfig;
@@ -38,25 +38,20 @@ pub struct ValidityProver {
 }
 
 impl ValidityProver {
-    pub async fn new(
-        rpc_url: &str,
-        chain_id: u64,
-        rollup_contract_address: ethers::types::Address,
-        rollup_contract_deployed_block_number: u64,
-        database_url: &str,
-    ) -> Result<Self, ValidityProverError> {
+    pub async fn new(env: &Env) -> Result<Self, ValidityProverError> {
         let rollup_contract = RollupContract::new(
-            rpc_url,
-            chain_id,
-            rollup_contract_address,
-            rollup_contract_deployed_block_number,
+            &env.l2_rpc_url,
+            env.l2_chain_id,
+            env.rollup_contract_address,
+            env.rollup_contract_deployed_block_number,
         );
-        let observer = Observer::new(rollup_contract, database_url).await?;
+        let observer = Observer::new(rollup_contract, &env.database_url).await?;
         let validity_processor = OnceLock::new();
 
         let pool = PgPoolOptions::new()
-            .max_connections(5)
-            .connect(database_url)
+            .max_connections(env.database_max_connections)
+            .idle_timeout(Duration::from_secs(env.database_timeout))
+            .connect(&env.database_url)
             .await?;
 
         // Initialize state if empty
@@ -144,14 +139,10 @@ impl ValidityProver {
     }
 
     pub async fn sync(&self) -> Result<(), ValidityProverError> {
+        log::info!("Start sync validity prover");
         self.sync_observer().await?;
 
-        let last_block_number =
-            sqlx::query!("SELECT last_block_number FROM validity_state WHERE id = 1")
-                .fetch_one(&self.pool)
-                .await?
-                .last_block_number as u32;
-
+        let last_block_number = self.get_block_number().await?;
         // Load current state
         let mut account_tree: AccountTree = {
             let record = sqlx::query!(
@@ -160,7 +151,6 @@ impl ValidityProver {
             )
             .fetch_one(&self.pool)
             .await?;
-
             serde_json::from_value(record.tree_data)?
         };
 
@@ -302,6 +292,7 @@ impl ValidityProver {
             tx.commit().await?;
         }
 
+        log::info!("End of sync validity prover");
         Ok(())
     }
 
@@ -339,15 +330,11 @@ impl ValidityProver {
     }
 
     pub async fn get_account_id(&self, pubkey: U256) -> Result<Option<u64>, ValidityProverError> {
-        let last_block_number =
-            sqlx::query!("SELECT last_block_number FROM validity_state WHERE id = 1")
-                .fetch_one(&self.pool)
-                .await?
-                .last_block_number;
+        let last_block_number = self.get_block_number().await?;
 
         let record = sqlx::query!(
             "SELECT tree_data FROM account_trees WHERE block_number = $1",
-            last_block_number
+            last_block_number as i32
         )
         .fetch_one(&self.pool)
         .await?;
@@ -358,10 +345,7 @@ impl ValidityProver {
     }
 
     pub async fn get_account_info(&self, pubkey: U256) -> Result<AccountInfo, ValidityProverError> {
-        let block_number = sqlx::query!("SELECT last_block_number FROM validity_state WHERE id = 1")
-            .fetch_one(&self.pool)
-            .await?
-            .last_block_number as u32;
+        let block_number = self.get_block_number().await?;
 
         let record = sqlx::query!(
             "SELECT tree_data FROM account_trees WHERE block_number = $1",
