@@ -42,6 +42,15 @@ impl ERC1155Contract {
         Ok(Self::new(rpc_url, chain_id, address))
     }
 
+    // this is for test method
+    pub async fn setup(&self, private_key: H256) -> Result<(), BlockchainError> {
+        let contract = self.get_contract_with_signer(private_key).await?;
+        let address = get_address(self.chain_id, private_key);
+        let mut tx = contract.mint(address, 0.into(), 100.into(), Bytes::default());
+        handle_contract_call(&mut tx, address, "from", "setup").await?;
+        Ok(())
+    }
+
     pub fn address(&self) -> Address {
         self.address
     }

@@ -18,8 +18,8 @@ use super::{
 pub async fn deposit(
     key: KeySet,
     eth_private_key: H256,
-    amount: U256,
     token_type: TokenType,
+    amount: U256,
     token_address: Address,
     token_id: U256,
 ) -> Result<(), CliError> {
@@ -34,6 +34,8 @@ pub async fn deposit(
         token_id,
     )
     .await?;
+
+    log::info!("Balance check done");
 
     let amount = convert_u256(amount);
     let token_address = convert_address(token_address);
