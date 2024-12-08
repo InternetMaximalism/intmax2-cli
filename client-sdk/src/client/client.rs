@@ -224,15 +224,41 @@ where
         let account_info = self.validity_prover.get_account_info(key.pubkey).await?;
         let is_registration_block = account_info.account_id.is_none();
 
-        self.block_builder
-            .send_tx_request(
-                block_builder_url,
-                is_registration_block,
-                key.pubkey,
-                tx,
-                None,
-            )
-            .await?;
+        // send tx request
+        let mut retries = 0;
+        loop {
+            let result = self
+                .block_builder
+                .send_tx_request(
+                    block_builder_url,
+                    is_registration_block,
+                    key.pubkey,
+                    tx,
+                    None,
+                )
+                .await;
+            match result {
+                Ok(_) => break,
+                Err(e) => {
+                    if retries >= self.config.max_tx_request_retries {
+                        return Err(ClientError::SendTxRequestError(format!(
+                            "failed to send tx request: {}",
+                            e
+                        )));
+                    }
+                    retries += 1;
+                    log::info!(
+                        "Failed to send tx request, retrying in {} seconds. error: {}",
+                        self.config.tx_request_retry_interval,
+                        e
+                    );
+                    tokio::time::sleep(tokio::time::Duration::from_secs(
+                        self.config.tx_request_retry_interval,
+                    ))
+                    .await;
+                }
+            }
+        }
 
         let memo = TxRequestMemo {
             is_registration_block,

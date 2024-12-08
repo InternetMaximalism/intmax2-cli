@@ -37,7 +37,6 @@ const env = cleanEnv(process.env, {
   L2_CHAIN_ID: num(),
   ROLLUP_CONTRACT_ADDRESS: str(),
   ROLLUP_CONTRACT_DEPLOYED_BLOCK_NUMBER: num(),
-
 });
 
 async function main() {
@@ -48,6 +47,8 @@ async function main() {
     env.WITHDRAWAL_SERVER_BASE_URL,
     BigInt(env.DEPOSIT_TIMEOUT),
     BigInt(env.TX_TIMEOUT),
+    BigInt(env.BLOCK_BUILDER_REQUEST_LIMIT),
+    BigInt(env.BLOCK_BUILDER_QUERY_INTERVAL),
     env.L1_RPC_URL,
     BigInt(env.L1_CHAIN_ID),
     env.LIQUIDITY_CONTRACT_ADDRESS,
@@ -160,20 +161,7 @@ async function syncBalanceProof(config: Config, privateKey: string) {
 
 async function sendTx(config: Config, block_builder_base_url: string, privateKey: string, transfers: JsTransfer[]) {
   console.log("Sending tx...");
-  let memo: JsTxRequestMemo | undefined = undefined;
-  for (let i = 0; i < env.BLOCK_BUILDER_REQUEST_LIMIT; i++) {
-    try {
-      memo = await send_tx_request(config, block_builder_base_url, privateKey, transfers);
-      break;
-    } catch (error) {
-      console.log("Error sending tx request: ", error, "retrying...");
-    }
-    await sleep(env.BLOCK_BUILDER_REQUEST_INTERVAL);
-  }
-  if (!memo) {
-    throw new Error("Failed to send tx request after all retries");
-  }
-
+  let memo: JsTxRequestMemo = await send_tx_request(config, block_builder_base_url, privateKey, transfers);
   const tx = memo.tx();
   const isRegistrationBlock = memo.is_registration_block();
 

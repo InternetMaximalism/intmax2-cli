@@ -10,6 +10,9 @@ pub enum ClientError {
     #[error("Blockchain error: {0}")]
     BlockchainError(#[from] BlockchainError),
 
+    #[error("Send tx request error: {0}")]
+    SendTxRequestError(String),
+
     #[error("Witness generation error: {0}")]
     WitnessGenerationError(String),
 
