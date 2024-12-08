@@ -8,7 +8,7 @@ use intmax2_cli::cli::{
     sync::{sync, sync_withdrawals},
     utils::post_empty_block,
 };
-use intmax2_client_sdk::utils::init_logger::init_logger;
+use intmax2_client_sdk::utils::logger::init_logger;
 use intmax2_interfaces::data::deposit_data::TokenType;
 use intmax2_zkp::{
     common::{generic_address::GenericAddress, signature::key_set::KeySet},
