@@ -9,6 +9,9 @@ import { WithdrawalServerClient } from './withdrawal-status';
 dotenv.config();
 
 const env = cleanEnv(process.env, {
+  USER_ETH_PRIVATE_KEY: str(),
+  ENV: str(),
+
   // Base URLs
   STORE_VAULT_SERVER_BASE_URL: url(),
   BALANCE_PROVER_BASE_URL: url(),
@@ -66,7 +69,7 @@ async function main() {
   console.log("publicKey: ", publicKey);
 
   // One of default anvil keys
-  const ethKey = "0x7c852118294e51e653712a81e05800f419141751be58f605c371e15141b007a6"
+  const ethKey = env.USER_ETH_PRIVATE_KEY;
 
   // deposit to the account
   const tokenType = 0; // 0: native token, 1: ERC20, 2: ERC721, 3: ERC1155
@@ -81,6 +84,9 @@ async function main() {
   console.log("pubkeySaltHash: ", pubkeySaltHash);
 
   await deposit(ethKey, env.L1_RPC_URL, env.LIQUIDITY_CONTRACT_ADDRESS, env.L2_RPC_URL, env.ROLLUP_CONTRACT_ADDRESS, BigInt(amount), tokenType, tokenAddress, tokenId, pubkeySaltHash);
+
+  console.log("Deposit done. Sleeping for 700s...");
+  await sleep(700);
 
   await postEmptyBlock(env.BLOCK_BUILDER_BASE_URL); // block builder post empty block (this is not used in production)
 

@@ -3,6 +3,11 @@
 import { ethers } from 'ethers';
 import * as RollupArtifact from '../abi/Rollup.json';
 import * as LiquidityArtifact from '../abi/Liquidity.json';
+import { cleanEnv, str } from 'envalid';
+
+// const env = cleanEnv(process.env, {
+//     ENV: str(),
+// });
 
 export async function deposit(privateKey: string, l1RpcUrl: string, liquidityContractAddress: string, l2RpcUrl: string, rollupContractAddress: string, amount: bigint, tokenType: number, tokenAddress: string, tokenId: string, pubkeySaltHash: string,) {
     const { liquidityContract, rollupContract } = await getContract(privateKey, l1RpcUrl, liquidityContractAddress, l2RpcUrl, rollupContractAddress);
@@ -23,11 +28,13 @@ export async function deposit(privateKey: string, l1RpcUrl: string, liquidityCon
     }
     console.log("Deposited successfully");
 
-    // following code is not used in testnet-alpha. Relay the deposits to the rollup contract
-    const depositHash = getDepositHash(pubkeySaltHash, tokenIndex, amount);
-    const tx = await rollupContract.processDeposits(0, [depositHash,]);
-    await tx.wait();
-    console.log("Deposits relayed to the rollup contract");
+    if (process.env.ENV === "local") {
+        // following code is not used in testnet-alpha. Relay the deposits to the rollup contract
+        const depositHash = getDepositHash(pubkeySaltHash, tokenIndex, amount);
+        const tx = await rollupContract.processDeposits(0, [depositHash,]);
+        await tx.wait();
+        console.log("Deposits relayed to the rollup contract");
+    }
 }
 
 function getDepositHash(recipientSaltHash: string, tokenIndex: number, amount: bigint): string {
