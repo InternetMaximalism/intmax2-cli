@@ -54,7 +54,7 @@ impl ContractWithdrawal {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub enum WithdrawalStatus {
     Requested = 0,
