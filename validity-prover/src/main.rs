@@ -3,6 +3,7 @@ use actix_web::{middleware::Logger, web::Data, App, HttpServer};
 use env_logger::fmt::Formatter;
 use log::{LevelFilter, Record};
 use std::{
+    env,
     fs::File,
     io::{self, Write},
     sync::{
@@ -19,17 +20,22 @@ use validity_prover::{
 };
 
 fn init_file_logger() {
-    let log_file = File::create("log.txt").expect("Unable to create log file");
-    let log_file = std::sync::Mutex::new(log_file);
+    let mut builder = env_logger::Builder::new();
 
-    env_logger::Builder::new()
-        .format(move |buf: &mut Formatter, record: &Record| {
-            let mut log_file = log_file.lock().unwrap();
+    if env::var("LOG_TO_FILE").unwrap_or_default() == "1" {
+        let log_file = File::create("log.txt").expect("Unable to create log file");
+        let log_file = std::sync::Mutex::new(log_file);
+        builder.format(move |buf: &mut Formatter, record: &Record| {
             writeln!(buf, "{}: {}", record.level(), record.args())?;
-            writeln!(log_file, "{}: {}", record.level(), record.args())
-        })
-        .filter(None, LevelFilter::Info)
-        .init();
+            if let Ok(mut file) = log_file.lock() {
+                writeln!(file, "{}: {}", record.level(), record.args())?;
+            }
+            Ok(())
+        });
+    } else {
+        builder.format(|buf, record| writeln!(buf, "{}: {}", record.level(), record.args()));
+    }
+    builder.filter(None, LevelFilter::Info).init();
 }
 
 #[actix_web::main]
