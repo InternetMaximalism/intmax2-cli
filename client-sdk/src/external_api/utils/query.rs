@@ -1,11 +1,8 @@
 use intmax2_interfaces::api::error::ServerError;
-use reqwest::{
-    header::{HeaderMap, HeaderValue, AUTHORIZATION},
-    Response,
-};
+use reqwest::Response;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 
-use super::retry::with_retry;
+use super::{debug::is_debug_mode, retry::with_retry};
 
 #[derive(Debug, Deserialize)]
 struct ErrorResponse {
@@ -18,31 +15,19 @@ pub async fn post_request<B: Serialize, R: DeserializeOwned>(
     base_url: &str,
     endpoint: &str,
     body: &B,
-    bearer_token: Option<String>,
 ) -> Result<R, ServerError> {
     let url = format!("{}{}", base_url, endpoint);
-
-    let mut headers = HeaderMap::new();
-    if let Some(token) = bearer_token {
-        headers.insert(
-            AUTHORIZATION,
-            HeaderValue::from_str(&format!("Bearer {}", token))
-                .map_err(|e| ServerError::SerializeError(format!("Failed to set header: {}", e)))?,
-        );
-    }
     let client = reqwest::Client::new();
-    let response = with_retry(|| async {
-        client
-            .post(&url)
-            .headers(headers.clone())
-            .json(body)
-            .send()
-            .await
-    })
-    .await
-    .map_err(|e| ServerError::NetworkError(e.to_string()))?;
+    let response = with_retry(|| async { client.post(&url).json(body).send().await })
+        .await
+        .map_err(|e| ServerError::NetworkError(e.to_string()))?;
     let body_str = serde_json::to_string(body)
         .map_err(|e| ServerError::SerializeError(format!("Failed to serialize body: {}", e)))?;
+
+    if is_debug_mode() {
+        let body_size = body_str.len();
+        log::info!("POST request url: {} body size: {} bytes", url, body_size);
+    }
     handle_response(response, &url, &Some(body_str)).await
 }
 
@@ -50,7 +35,6 @@ pub async fn get_request<Q, R>(
     base_url: &str,
     endpoint: &str,
     query: Option<Q>,
-    bearer_token: Option<String>,
 ) -> Result<R, ServerError>
 where
     Q: Serialize,
@@ -69,18 +53,12 @@ where
         url = format!("{}?{}", url, query_str.as_ref().unwrap());
     }
     let client = reqwest::Client::new();
-    let mut headers = HeaderMap::new();
-    if let Some(token) = bearer_token {
-        headers.insert(
-            AUTHORIZATION,
-            HeaderValue::from_str(&format!("Bearer {}", token))
-                .map_err(|e| ServerError::SerializeError(format!("Failed to set header: {}", e)))?,
-        );
-    }
-    let response = with_retry(|| async { client.get(&url).headers(headers.clone()).send().await })
+    let response = with_retry(|| async { client.get(&url).send().await })
         .await
         .map_err(|e| ServerError::NetworkError(e.to_string()))?;
-
+    if is_debug_mode() {
+        log::info!("GET request url: {}", url);
+    }
     handle_response(response, &url, &query_str).await
 }
 
@@ -99,10 +77,16 @@ async fn handle_response<R: DeserializeOwned>(
             Ok(error_resp) => error_resp.message.unwrap_or_else(|| error_resp.error),
             Err(_) => error_text,
         };
-        let abr_request = request_str
-            .as_ref()
-            .map(|s| s.chars().take(500).collect::<String>())
-            .unwrap_or_else(|| "".to_string());
+        let abr_request = if is_debug_mode() {
+            // full request string
+            request_str.clone().unwrap_or_else(|| "".to_string())
+        } else {
+            // Truncate the request string to 500 characters if it is too long
+            request_str
+                .as_ref()
+                .map(|s| s.chars().take(500).collect::<String>())
+                .unwrap_or_else(|| "".to_string())
+        };
         return Err(ServerError::ServerError(
             status.into(),
             error_message,

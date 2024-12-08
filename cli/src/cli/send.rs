@@ -63,8 +63,9 @@ pub async fn tx(
         }
         tries += 1;
         log::info!(
-            "Failed to request tx, retrying in {} seconds",
-            env.block_builder_request_interval
+            "Failed to request tx, retrying in {} seconds. error: {}",
+            env.block_builder_request_interval,
+            res.unwrap_err()
         );
         tokio::time::sleep(std::time::Duration::from_secs(
             env.block_builder_request_interval,

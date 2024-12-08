@@ -45,13 +45,7 @@ impl ValidityProverClient {
     }
 
     pub async fn sync(&self) -> Result<(), ServerError> {
-        get_request::<(), ()>(
-            &self.base_url,
-            "/validity-prover/sync",
-            None,
-            Some(get_bearer_token()?),
-        )
-        .await?;
+        get_request::<(), ()>(&self.base_url, "/validity-prover/sync", None).await?;
         Ok(())
     }
 }
@@ -59,13 +53,8 @@ impl ValidityProverClient {
 #[async_trait(?Send)]
 impl ValidityProverClientInterface for ValidityProverClient {
     async fn get_block_number(&self) -> Result<u32, ServerError> {
-        let response: GetBlockNumberResponse = get_request::<(), _>(
-            &self.base_url,
-            "/validity-prover/block-number",
-            None,
-            Some(get_bearer_token()?),
-        )
-        .await?;
+        let response: GetBlockNumberResponse =
+            get_request::<(), _>(&self.base_url, "/validity-prover/block-number", None).await?;
         Ok(response.block_number)
     }
 
@@ -86,7 +75,6 @@ impl ValidityProverClientInterface for ValidityProverClient {
             &self.base_url,
             "/validity-prover/get-update-witness",
             Some(query),
-            Some(get_bearer_token()?),
         )
         .await?;
         Ok(response.update_witness)
@@ -101,7 +89,6 @@ impl ValidityProverClientInterface for ValidityProverClient {
             &self.base_url,
             "/validity-prover/get-deposit-info",
             Some(query),
-            Some(get_bearer_token()?),
         )
         .await?;
         Ok(response.deposit_info)
@@ -116,7 +103,6 @@ impl ValidityProverClientInterface for ValidityProverClient {
             &self.base_url,
             "/validity-prover/get-block-number-by-tx-tree-root",
             Some(query),
-            Some(get_bearer_token()?),
         )
         .await?;
         Ok(response.block_number)
@@ -131,7 +117,6 @@ impl ValidityProverClientInterface for ValidityProverClient {
             &self.base_url,
             "/validity-prover/get-validity-pis",
             Some(query),
-            Some(get_bearer_token()?),
         )
         .await?;
         Ok(response.validity_pis)
@@ -146,7 +131,6 @@ impl ValidityProverClientInterface for ValidityProverClient {
             &self.base_url,
             "/validity-prover/get-sender-leaves",
             Some(query),
-            Some(get_bearer_token()?),
         )
         .await?;
         Ok(response.sender_leaves)
@@ -165,7 +149,6 @@ impl ValidityProverClientInterface for ValidityProverClient {
             &self.base_url,
             "/validity-prover/get-block-merkle-proof",
             Some(query),
-            Some(get_bearer_token()?),
         )
         .await?;
         Ok(response.block_merkle_proof)
@@ -184,7 +167,6 @@ impl ValidityProverClientInterface for ValidityProverClient {
             &self.base_url,
             "/validity-prover/get-deposit-merkle-proof",
             Some(query),
-            Some(get_bearer_token()?),
         )
         .await?;
         Ok(response.deposit_merkle_proof)
@@ -196,15 +178,8 @@ impl ValidityProverClientInterface for ValidityProverClient {
             &self.base_url,
             "/validity-prover/get-account-info",
             Some(query),
-            Some(get_bearer_token()?),
         )
         .await?;
         Ok(response.account_info)
     }
-}
-
-fn get_bearer_token() -> Result<String, ServerError> {
-    let token = std::env::var("VALIDITY_PROVER_BEARER_TOKEN")
-        .map_err(|e| ServerError::EnvError(format!("Failed to get bearer token: {}", e)))?;
-    Ok(token)
 }

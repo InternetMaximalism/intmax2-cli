@@ -55,13 +55,8 @@ impl BalanceProverClientInterface for BalanceProverClient {
         let request = ProveSpentRequest {
             spent_witness: spent_witness.clone(),
         };
-        let response: ProveResponse = post_request(
-            &self.base_url,
-            "/balance-prover/prove-spent",
-            &request,
-            Some(get_bearer_token()?),
-        )
-        .await?;
+        let response: ProveResponse =
+            post_request(&self.base_url, "/balance-prover/prove-spent", &request).await?;
         Ok(response.proof)
     }
 
@@ -81,13 +76,8 @@ impl BalanceProverClientInterface for BalanceProverClient {
             spent_proof: spent_proof.clone(),
             prev_proof: prev_proof.clone(),
         };
-        let response: ProveResponse = post_request(
-            &self.base_url,
-            "/balance-prover/prove-send",
-            &request,
-            Some(get_bearer_token()?),
-        )
-        .await?;
+        let response: ProveResponse =
+            post_request(&self.base_url, "/balance-prover/prove-send", &request).await?;
         Ok(response.proof)
     }
 
@@ -103,13 +93,8 @@ impl BalanceProverClientInterface for BalanceProverClient {
             update_witness: update_witness.clone(),
             prev_proof: prev_proof.clone(),
         };
-        let response: ProveResponse = post_request(
-            &self.base_url,
-            "/balance-prover/prove-update",
-            &request,
-            Some(get_bearer_token()?),
-        )
-        .await?;
+        let response: ProveResponse =
+            post_request(&self.base_url, "/balance-prover/prove-update", &request).await?;
         Ok(response.proof)
     }
 
@@ -129,7 +114,6 @@ impl BalanceProverClientInterface for BalanceProverClient {
             &self.base_url,
             "/balance-prover/prove-receive-transfer",
             &request,
-            Some(get_bearer_token()?),
         )
         .await?;
         Ok(response.proof)
@@ -151,7 +135,6 @@ impl BalanceProverClientInterface for BalanceProverClient {
             &self.base_url,
             "/balance-prover/prove-receive-deposit",
             &request,
-            Some(get_bearer_token()?),
         )
         .await?;
         Ok(response.proof)
@@ -169,15 +152,8 @@ impl BalanceProverClientInterface for BalanceProverClient {
             &self.base_url,
             "/balance-prover/prove-single-withdrawal",
             &request,
-            Some(get_bearer_token()?),
         )
         .await?;
         Ok(response.proof)
     }
-}
-
-fn get_bearer_token() -> Result<String, ServerError> {
-    let token = std::env::var("BALANCE_PROVER_BEARER_TOKEN")
-        .map_err(|e| ServerError::EnvError(format!("Failed to get bearer token: {}", e)))?;
-    Ok(token)
 }
