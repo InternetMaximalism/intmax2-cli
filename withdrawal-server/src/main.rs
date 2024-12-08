@@ -33,7 +33,7 @@ async fn main() -> std::io::Result<()> {
 
     let env = envy::from_env::<Env>()
         .map_err(|e| io::Error::new(io::ErrorKind::Other, format!("env error: {}", e)))?;
-    let state = State::new(&env.database_url)
+    let state = State::new(&env)
         .await
         .map_err(|e| io::Error::new(io::ErrorKind::Other, format!("state error: {}", e)))?;
     let state = Data::new(state);

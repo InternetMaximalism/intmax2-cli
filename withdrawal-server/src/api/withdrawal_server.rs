@@ -25,9 +25,14 @@ pub struct WithdrawalServer {
 }
 
 impl WithdrawalServer {
-    pub async fn new(database_url: &str) -> anyhow::Result<Self> {
+    pub async fn new(
+        database_url: &str,
+        database_max_connections: u32,
+        database_timeout: u64,
+    ) -> anyhow::Result<Self> {
         let pool = PgPoolOptions::new()
-            .max_connections(5)
+            .max_connections(database_max_connections)
+            .idle_timeout(std::time::Duration::from_secs(database_timeout))
             .connect(database_url)
             .await?;
         Ok(Self { pool })

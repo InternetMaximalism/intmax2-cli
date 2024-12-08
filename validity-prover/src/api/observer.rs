@@ -19,9 +19,12 @@ impl Observer {
     pub async fn new(
         rollup_contract: RollupContract,
         database_url: &str,
+        database_max_connections: u32,
+        database_timeout: u64,
     ) -> Result<Self, ObserverError> {
         let pool = PgPoolOptions::new()
-            .max_connections(5)
+            .max_connections(database_max_connections)
+            .idle_timeout(std::time::Duration::from_secs(database_timeout))
             .connect(database_url)
             .await?;
 

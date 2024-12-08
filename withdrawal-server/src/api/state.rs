@@ -1,5 +1,7 @@
 use std::sync::Arc;
 
+use crate::Env;
+
 use super::withdrawal_server::WithdrawalServer;
 
 #[derive(Clone)]
@@ -8,8 +10,13 @@ pub struct State {
 }
 
 impl State {
-    pub async fn new(database_url: &str) -> anyhow::Result<Self> {
-        let withdrawal_server = WithdrawalServer::new(database_url).await?;
+    pub async fn new(env: &Env) -> anyhow::Result<Self> {
+        let withdrawal_server = WithdrawalServer::new(
+            &env.database_url,
+            env.database_max_connections,
+            env.database_timeout,
+        )
+        .await?;
         Ok(State {
             withdrawl_server: Arc::new(withdrawal_server),
         })

@@ -45,7 +45,13 @@ impl ValidityProver {
             env.rollup_contract_address,
             env.rollup_contract_deployed_block_number,
         );
-        let observer = Observer::new(rollup_contract, &env.database_url).await?;
+        let observer = Observer::new(
+            rollup_contract,
+            &env.database_url,
+            env.database_max_connections,
+            env.database_timeout,
+        )
+        .await?;
         let validity_processor = OnceLock::new();
 
         let pool = PgPoolOptions::new()
