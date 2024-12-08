@@ -1,0 +1,12 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "TRUNCATE encrypted_user_data, balance_proofs, encrypted_data",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": []
+  },
+  "hash": "514e0e6ff7c963c24e543c8289c6d6651097b44c10f086577070e1c0c3254e55"
+}

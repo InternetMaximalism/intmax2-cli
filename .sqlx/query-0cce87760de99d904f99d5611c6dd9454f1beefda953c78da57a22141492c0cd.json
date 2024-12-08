@@ -1,0 +1,14 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO account_trees (block_number, tree_data) VALUES (0, $1)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Jsonb"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "0cce87760de99d904f99d5611c6dd9454f1beefda953c78da57a22141492c0cd"
+}

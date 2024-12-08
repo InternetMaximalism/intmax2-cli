@@ -1,0 +1,18 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            INSERT INTO encrypted_data \n            (data_type, pubkey, uuid, timestamp, encrypted_data)\n            VALUES ($1, $2, $3, $4, $5)\n            ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int4",
+        "Varchar",
+        "Text",
+        "Int8",
+        "Bytea"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "1469d01c18e278375959d6b6bc99bd1e199e671d94ff3f1bc3d1ed40dc2ace51"
+}
