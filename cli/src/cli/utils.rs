@@ -23,8 +23,8 @@ pub fn load_env() -> Result<Env, CliError> {
     Ok(env)
 }
 
-pub fn is_dev() -> Result<bool, CliError> {
-    Ok(load_env()?.env == EnvType::Dev)
+pub fn is_local() -> Result<bool, CliError> {
+    Ok(load_env()?.env == EnvType::Local)
 }
 
 pub async fn post_empty_block() -> Result<(), CliError> {

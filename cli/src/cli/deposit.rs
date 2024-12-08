@@ -12,7 +12,7 @@ use intmax2_zkp::common::signature::key_set::KeySet;
 use super::{
     client::get_client,
     error::CliError,
-    utils::{convert_address, convert_u256, is_dev},
+    utils::{convert_address, convert_u256, is_local},
 };
 
 pub async fn deposit(
@@ -88,8 +88,8 @@ pub async fn deposit(
         }
     }
 
-    // relay deposits by self if env is dev
-    if is_dev()? {
+    // relay deposits by self if local
+    if is_local()? {
         let token_index = liquidity_contract
             .get_token_index(token_type, token_address, token_id)
             .await?
@@ -172,7 +172,6 @@ async fn balance_check_and_approve(
                     "Insufficient token balance".to_string(),
                 ));
             }
-            
             // approve if nessesary
             let is_approved = contract
                 .is_approved_for_all(address, liquidity_contract.address())
