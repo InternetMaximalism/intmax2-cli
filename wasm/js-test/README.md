@@ -24,6 +24,5 @@ npm install
 ## Run
 
 ```bash
-export BASE_URL=<URL>
 npm run main
 ```
