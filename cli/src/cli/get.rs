@@ -15,7 +15,7 @@ pub async fn balance(key: KeySet) -> Result<(), CliError> {
 
     println!("Balances:");
     for (i, leaf) in balances.iter() {
-        println!("\t Token {}: {}", i, leaf.amount);
+        println!("\t Token #{}: {}", i, leaf.amount);
     }
     Ok(())
 }
@@ -23,6 +23,7 @@ pub async fn balance(key: KeySet) -> Result<(), CliError> {
 pub async fn withdrawal_status(key: KeySet) -> Result<(), CliError> {
     let client = get_client()?;
     let withdrawal_info = client.get_withdrawal_info(key).await?;
+    println!("Withdrawal status:");
     for (i, withdrawal_info) in withdrawal_info.iter().enumerate() {
         let withdrawal = withdrawal_info.contract_withdrawal.clone();
         println!(
@@ -40,6 +41,7 @@ pub async fn withdrawal_status(key: KeySet) -> Result<(), CliError> {
 pub async fn history(key: KeySet) -> Result<(), CliError> {
     let client = get_client()?;
     let history = client.fetch_history(key).await?;
+    println!("History:");
     for entry in history {
         println!("{}", entry);
     }

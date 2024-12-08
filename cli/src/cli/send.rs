@@ -50,28 +50,11 @@ pub async fn tx(
         token_index,
         salt,
     };
-    let mut tries = 0;
-    let memo = loop {
-        let res = client
-            .send_tx_request(&block_builder_url, key, vec![transfer])
-            .await;
-        if let Ok(memo) = res {
-            break memo;
-        }
-        if tries > env.block_builder_query_limit {
-            return Err(CliError::FailedToRequestTx);
-        }
-        tries += 1;
-        log::info!(
-            "Failed to request tx, retrying in {} seconds. error: {}",
-            env.block_builder_request_interval,
-            res.unwrap_err()
-        );
-        tokio::time::sleep(std::time::Duration::from_secs(
-            env.block_builder_request_interval,
-        ))
-        .await;
-    };
+
+    let memo = client
+        .send_tx_request(&block_builder_url, key, vec![transfer])
+        .await?;
+
     let is_registration_block = memo.is_registration_block;
     let tx = memo.tx.clone();
 
