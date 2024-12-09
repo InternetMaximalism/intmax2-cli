@@ -1,6 +1,6 @@
 use std::{sync::Arc, time::Duration};
 
-use tokio::sync::RwLock;
+use tokio::{sync::RwLock, time::sleep};
 
 use crate::Env;
 
@@ -38,6 +38,11 @@ impl State {
                     }
                     Err(e) => {
                         log::error!("Error in block builder: {}", e);
+                        self.block_builder
+                            .write()
+                            .await
+                            .reset(is_registration_block);
+                        sleep(Duration::from_secs(10)).await;
                     }
                 }
             }
