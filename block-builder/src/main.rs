@@ -8,6 +8,7 @@ use block_builder::{
     Env,
 };
 use env_logger::fmt::Formatter;
+use intmax2_client_sdk::external_api::contract::utils::get_address;
 use log::{LevelFilter, Record};
 use std::{fs::File, io::Write};
 
@@ -37,6 +38,10 @@ async fn main() -> std::io::Result<()> {
 
     let env = envy::from_env::<Env>()
         .map_err(|e| io::Error::new(io::ErrorKind::Other, format!("env error: {}", e)))?;
+    log::info!(
+        "Starting block builder with block builder address: {:?}",
+        get_address(env.l2_chain_id, env.block_builder_private_key)
+    );
 
     let eth_allowance_for_block = ethers::utils::parse_ether(env.eth_allowance_for_block).unwrap();
     let block_builder = BlockBuilder::new(

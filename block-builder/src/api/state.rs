@@ -42,6 +42,7 @@ impl State {
                             .write()
                             .await
                             .reset(is_registration_block);
+                        *self.force_post.write().await = false;
                         sleep(Duration::from_secs(10)).await;
                     }
                 }
