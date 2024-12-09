@@ -2,7 +2,7 @@ use intmax2_interfaces::api::withdrawal_server::interface::WithdrawalStatus;
 
 #[derive(Debug, sqlx::Type)]
 #[sqlx(type_name = "withdrawal_status")]
-#[sqlx(rename_all = "lowercase")]
+#[sqlx(rename_all = "snake_case")]
 pub enum SqlWithdrawalStatus {
     Requested,
     Relayed,
