@@ -67,7 +67,13 @@ Post empty block after deposits relayed to Scroll (about ~10min):
    ```
    cargo run -r -- withdrawal-status --private-key 0x186aab4d91978e03f84890147e0e4bc114c8188588deb2c58bd877f5911ad78c
    ```
-8. Check history: 
+
+8. Claim withdrawal status (if there are claimable withdrawals): 
+   ```
+   cargo run -r -- claim-withdrawals --eth-private-key 0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80　--private-key 0x186aab4d91978e03f84890147e0e4bc114c8188588deb2c58bd877f5911ad78c
+   ```
+
+9. Check history: 
    ```
    cargo run -r -- history --private-key 0x186aab4d91978e03f84890147e0e4bc114c8188588deb2c58bd877f5911ad78c
    ```
