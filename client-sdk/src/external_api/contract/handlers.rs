@@ -4,7 +4,7 @@ use ethers::{
     middleware::SignerMiddleware,
     providers::{Http, Provider},
     signers::Wallet,
-    types::{Address, H256},
+    types::{Address, H256, U256},
 };
 
 use super::{interface::BlockchainError, utils::get_gas_price};
@@ -74,11 +74,13 @@ async fn set_gas_price<O>(
 ) -> Result<(), BlockchainError> {
     let gas_price = get_gas_price(rpc_url).await?;
     log::info!("Gas price: {:?}", gas_price);
+
+    let max_gas_price = gas_price.max(U256::from(1_000_000_000));
     // todo: fix gas setting
     let inner_tx = tx.tx.as_eip1559_mut().expect("EIP-1559 tx expected");
     *inner_tx = inner_tx
         .clone()
         .max_priority_fee_per_gas(100_000_000)
-        .max_fee_per_gas(gas_price * 4);
+        .max_fee_per_gas(max_gas_price);
     Ok(())
 }
