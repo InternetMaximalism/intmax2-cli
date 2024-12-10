@@ -80,6 +80,7 @@ impl LiquidityContract {
             initial_erc20_tokens,
         );
         let tx_hash = handle_contract_call(
+            &self.rpc_url,
             &mut tx,
             get_address(self.chain_id, signer_private_key),
             "initialize",
@@ -148,6 +149,7 @@ impl LiquidityContract {
             .deposit_native_token(recipient_salt_hash)
             .value(amount);
         handle_contract_call(
+            &self.rpc_url,
             &mut tx,
             get_address(self.chain_id, signer_private_key),
             "depositer",
@@ -170,6 +172,7 @@ impl LiquidityContract {
         let token_address = EthAddress::from_slice(&token_address.to_bytes_be());
         let mut tx = contract.deposit_erc20(token_address, recipient_salt_hash, amount);
         handle_contract_call(
+            &self.rpc_url,
             &mut tx,
             get_address(self.chain_id, signer_private_key),
             "depositer",
@@ -192,6 +195,7 @@ impl LiquidityContract {
         let token_address = EthAddress::from_slice(&token_address.to_bytes_be());
         let mut tx = contract.deposit_erc721(token_address, recipient_salt_hash, token_id);
         handle_contract_call(
+            &self.rpc_url,
             &mut tx,
             get_address(self.chain_id, signer_private_key),
             "depositer",
@@ -216,6 +220,7 @@ impl LiquidityContract {
         let token_address = EthAddress::from_slice(&token_address.to_bytes_be());
         let mut tx = contract.deposit_erc1155(token_address, recipient_salt_hash, token_id, amount);
         handle_contract_call(
+            &self.rpc_url,
             &mut tx,
             get_address(self.chain_id, signer_private_key),
             "depositer",
@@ -248,6 +253,7 @@ impl LiquidityContract {
         let contract = self.get_contract_with_signer(signer_private_key).await?;
         let mut tx = contract.claim_withdrawals(withdrawals);
         handle_contract_call(
+            &self.rpc_url,
             &mut tx,
             get_address(self.chain_id, signer_private_key),
             "withdrawer",

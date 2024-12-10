@@ -4757,6 +4757,10 @@ dependencies = [
 ]
 
 [[package]]
+name = "send-tx"
+version = "0.1.0"
+
+[[package]]
 name = "send_wrapper"
 version = "0.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"

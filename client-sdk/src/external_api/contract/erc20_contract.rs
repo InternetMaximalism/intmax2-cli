@@ -85,6 +85,7 @@ impl ERC20Contract {
         let contract = self.get_contract_with_signer(signer_private_key).await?;
         let mut tx = contract.transfer(to, amount);
         handle_contract_call(
+            &self.rpc_url,
             &mut tx,
             get_address(self.chain_id, signer_private_key),
             "sender",
@@ -103,6 +104,7 @@ impl ERC20Contract {
         let contract = self.get_contract_with_signer(signer_private_key).await?;
         let mut tx = contract.approve(spender, amount);
         handle_contract_call(
+            &self.rpc_url,
             &mut tx,
             get_address(self.chain_id, signer_private_key),
             "token_owner",

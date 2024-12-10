@@ -87,6 +87,7 @@ impl ERC721Contract {
         let contract = self.get_contract_with_signer(signer_private_key).await?;
         let mut tx = contract.transfer_from(from, to, token_id);
         handle_contract_call(
+            &self.rpc_url,
             &mut tx,
             get_address(self.chain_id, signer_private_key),
             "from",
@@ -105,6 +106,7 @@ impl ERC721Contract {
         let contract = self.get_contract_with_signer(signer_private_key).await?;
         let mut tx = contract.approve(to, token_id);
         handle_contract_call(
+            &self.rpc_url,
             &mut tx,
             get_address(self.chain_id, signer_private_key),
             "token_owner",

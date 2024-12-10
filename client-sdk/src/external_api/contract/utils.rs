@@ -31,6 +31,14 @@ pub fn get_address(chain_id: u64, private_key: H256) -> Address {
     get_wallet(chain_id, private_key).address()
 }
 
+pub async fn get_gas_price(rpc_url: &str) -> Result<U256, BlockchainError> {
+    let client = get_client(rpc_url).await?;
+    let gas_price = with_retry(|| async { client.get_gas_price().await })
+        .await
+        .map_err(|_| BlockchainError::NetworkError("failed to get gas price".to_string()))?;
+    Ok(gas_price)
+}
+
 pub async fn get_client_with_signer(
     rpc_url: &str,
     chain_id: u64,

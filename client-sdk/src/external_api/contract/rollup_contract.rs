@@ -274,6 +274,7 @@ impl RollupContract {
             constribution_address,
         );
         let tx_hash = handle_contract_call(
+            &self.rpc_url,
             &mut tx,
             get_address(self.chain_id, signer_private_key),
             "initialize",
@@ -315,9 +316,10 @@ impl RollupContract {
             )
             .value(msg_value);
         let tx_hash = handle_contract_call(
+            &self.rpc_url,
             &mut tx,
             get_address(self.chain_id, signer_private_key),
-            "post_registration_block",
+            "block builder",
             "post_registration_block",
         )
         .await?;
@@ -356,10 +358,11 @@ impl RollupContract {
             )
             .value(msg_value);
         let tx_hash = handle_contract_call(
+            &self.rpc_url,
             &mut tx,
             get_address(self.chain_id, signer_private_key),
-            "post_registration_block",
-            "post_registration_block",
+            "block builder",
+            "post_non_registration_block",
         )
         .await?;
         Ok(tx_hash)
@@ -379,6 +382,7 @@ impl RollupContract {
             .collect();
         let mut tx = contract.process_deposits(last_processed_deposit_id.into(), deposit_hashes);
         let tx_hash = handle_contract_call(
+            &self.rpc_url,
             &mut tx,
             get_address(self.chain_id, signer_private_key),
             "process_deposits",

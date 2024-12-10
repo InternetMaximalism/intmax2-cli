@@ -47,7 +47,7 @@ impl ERC1155Contract {
         let contract = self.get_contract_with_signer(private_key).await?;
         let address = get_address(self.chain_id, private_key);
         let mut tx = contract.mint(address, 0.into(), 100.into(), Bytes::default());
-        handle_contract_call(&mut tx, address, "from", "setup").await?;
+        handle_contract_call(&self.rpc_url, &mut tx, address, "from", "setup").await?;
         Ok(())
     }
 
@@ -94,6 +94,7 @@ impl ERC1155Contract {
         let contract = self.get_contract_with_signer(signer_private_key).await?;
         let mut tx = contract.safe_transfer_from(from, to, token_id, amount, Bytes::default());
         handle_contract_call(
+            &self.rpc_url,
             &mut tx,
             get_address(self.chain_id, signer_private_key),
             "from",
@@ -112,6 +113,7 @@ impl ERC1155Contract {
         let contract = self.get_contract_with_signer(signer_private_key).await?;
         let mut tx = contract.set_approval_for_all(operator, approved);
         handle_contract_call(
+            &self.rpc_url,
             &mut tx,
             get_address(self.chain_id, signer_private_key),
             "token_owner",
