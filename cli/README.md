@@ -22,15 +22,15 @@ cp .env.example .env
 
 Set your Alchemy API keys for `L1_RPC_URL` and `L2_RPC_URL` in the `.env` file.
 
-## Building the CLI
+## Update
 
-Run:
+To update the CLI tool to the latest version, simply pull the latest changes from the repository:
 
 ```bash
-cargo build --release
+git pull
 ```
 
-This will produce a binary in `target/release`.
+After pulling the latest changes, the tool will automatically use the updated version when you run any commands.
 
 ## Commands
 
