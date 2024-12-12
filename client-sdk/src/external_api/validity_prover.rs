@@ -4,12 +4,7 @@ use intmax2_interfaces::api::{
     validity_prover::{
         interface::{AccountInfo, DepositInfo, ValidityProverClientInterface},
         types::{
-            GetAccountInfoQuery, GetAccountInfoResponse, GetBlockMerkleProofQuery,
-            GetBlockMerkleProofResponse, GetBlockNumberByTxTreeRootQuery,
-            GetBlockNumberByTxTreeRootResponse, GetBlockNumberResponse, GetDepositInfoQuery,
-            GetDepositInfoResponse, GetDepositMerkleProofQuery, GetDepositMerkleProofResponse,
-            GetSenderLeavesQuery, GetSenderLeavesResponse, GetUpdateWitnessQuery,
-            GetUpdateWitnessResponse, GetValidityPisQuery, GetValidityPisResponse,
+            GetAccountInfoQuery, GetAccountInfoResponse, GetBlockMerkleProofQuery, GetBlockMerkleProofResponse, GetBlockNumberByTxTreeRootQuery, GetBlockNumberByTxTreeRootResponse, GetBlockNumberResponse, GetDepositInfoQuery, GetDepositInfoResponse, GetDepositMerkleProofQuery, GetDepositMerkleProofResponse, GetNextDepositIndexResponse, GetSenderLeavesQuery, GetSenderLeavesResponse, GetUpdateWitnessQuery, GetUpdateWitnessResponse, GetValidityPisQuery, GetValidityPisResponse
         },
     },
 };
@@ -56,6 +51,13 @@ impl ValidityProverClientInterface for ValidityProverClient {
         let response: GetBlockNumberResponse =
             get_request::<(), _>(&self.base_url, "/validity-prover/block-number", None).await?;
         Ok(response.block_number)
+    }
+
+    async fn get_next_deposit_index(&self) -> Result<u32, ServerError> {
+        let response: GetNextDepositIndexResponse =
+            get_request::<(), _>(&self.base_url, "/validity-prover/next-deposit-index", None)
+                .await?;
+        Ok(response.deposit_index)
     }
 
     async fn get_update_witness(

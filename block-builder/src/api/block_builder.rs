@@ -36,6 +36,7 @@ pub struct BlockBuilder {
     block_builder_private_key: H256,
     eth_allowance_for_block: ethers::types::U256,
 
+    next_deposit_index: u32,
     registration_state: BuilderState,
     non_registration_state: BuilderState,
 }
@@ -63,6 +64,7 @@ impl BlockBuilder {
             rollup_contract,
             block_builder_private_key,
             eth_allowance_for_block,
+            next_deposit_index: 0,
             registration_state: BuilderState::new(),
             non_registration_state: BuilderState::new(),
         }
@@ -388,7 +390,27 @@ impl BlockBuilder {
         Ok(())
     }
 
-    pub async fn post_empty_block(&mut self) -> Result<(), BlockBuilderError> {
+    pub async fn check_new_deposits(&mut self) -> Result<bool, BlockBuilderError> {
+        log::info!("check_new_deposits");
+        let next_deposit_index = self.validity_prover_client.get_next_deposit_index().await?;
+
+        // sanity check
+        if next_deposit_index < self.next_deposit_index {
+            return Err(BlockBuilderError::UnexpectedError(format!(
+                "next_deposit_index is smaller than the current one: {} < {}",
+                next_deposit_index, self.next_deposit_index
+            )));
+        }
+
+        if next_deposit_index == self.next_deposit_index {
+            return Ok(false);
+        }
+        self.next_deposit_index = next_deposit_index;
+        log::info!("new deposit found: {}", next_deposit_index);
+        Ok(true)
+    }
+
+    pub async fn post_empty_block_if_necessary(&mut self) -> Result<(), BlockBuilderError> {
         log::info!("post_empty_block");
         let is_registration_block = false;
         self.start_accepting_txs(is_registration_block)?;

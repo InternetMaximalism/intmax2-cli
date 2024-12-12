@@ -38,6 +38,8 @@ pub struct AccountInfo {
 pub trait ValidityProverClientInterface {
     async fn get_block_number(&self) -> Result<u32, ServerError>;
 
+    async fn get_next_deposit_index(&self) -> Result<u32, ServerError>;
+
     async fn get_update_witness(
         &self,
         pubkey: U256,

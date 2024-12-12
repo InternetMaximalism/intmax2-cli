@@ -468,6 +468,11 @@ impl ValidityProver {
         Ok(record.last_block_number as u32)
     }
 
+    pub async fn get_next_deposit_index(&self) -> Result<u32, ValidityProverError> {
+        let deposit_index = self.observer.get_next_deposit_index().await?;
+        Ok(deposit_index)
+    }
+
     pub async fn get_deposit_merkle_proof(
         &self,
         block_number: u32,

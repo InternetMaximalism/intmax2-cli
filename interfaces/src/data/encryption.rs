@@ -5,7 +5,7 @@ pub(super) fn encrypt(_pubkey: U256, data: &[u8]) -> Vec<u8> {
     data.to_vec()
 }
 
-pub(super) fn decrypt(_key: KeySet, encypted_data: &[u8]) -> anyhow::Result<Vec<u8>> {
+pub(super) fn decrypt(_key: KeySet, encrypted_data: &[u8]) -> anyhow::Result<Vec<u8>> {
     // todo: add decryption
-    Ok(encypted_data.to_vec())
+    Ok(encrypted_data.to_vec())
 }

@@ -42,4 +42,7 @@ pub enum BlockBuilderError {
 
     #[error("Block builder should be pausing")]
     ShouldBePausing,
+
+    #[error("Unexpected error: {0}")]
+    UnexpectedError(String),
 }

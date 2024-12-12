@@ -22,7 +22,26 @@ impl State {
         }
     }
 
-    pub async fn job(self, is_registration_block: bool) {
+    pub async fn post_empty_block_job(self) {
+        let env = envy::from_env::<Env>().unwrap();
+        actix_web::rt::spawn(async move {
+            loop {
+                tokio::time::sleep(Duration::from_secs(env.deposit_check_interval)).await;
+                match self.block_builder.write().await.check_new_deposits().await {
+                    Ok(new_deposits_exist) => {
+                        if new_deposits_exist {
+                            self.evoke_force_post().await.unwrap();
+                        }
+                    }
+                    Err(e) => {
+                        log::error!("Error in checking new deposits: {}", e);
+                    }
+                }
+            }
+        });
+    }
+
+    pub async fn main_job(self, is_registration_block: bool) {
         actix_web::rt::spawn(async move {
             loop {
                 if self.is_shutting_down.read().await.clone() {

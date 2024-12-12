@@ -1,6 +1,7 @@
 use ethers::types::H256;
 use intmax2_client_sdk::{
-    external_api::contract::rollup_contract::RollupContract, utils::logger::init_logger,
+    external_api::contract::{rollup_contract::RollupContract, utils::get_latest_block_number},
+    utils::logger::init_logger,
 };
 use intmax2_zkp::common::signature::SignatureContent;
 use serde::Deserialize;
@@ -25,6 +26,9 @@ async fn post_blocks() -> anyhow::Result<()> {
         env.rollup_contract_address,
         env.rollup_contract_deployed_block_number,
     );
+
+    let block_number = get_latest_block_number(&env.l2_rpc_url).await?;
+    println!("block_number: {:?}", block_number);
 
     let (keys, signature) = SignatureContent::rand(&mut rng);
     let pubkeys = keys.iter().map(|key| key.pubkey).collect::<Vec<_>>();
