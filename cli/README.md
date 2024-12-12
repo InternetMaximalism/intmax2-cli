@@ -116,7 +116,7 @@ Single transfer:
 ```bash
 cargo run -r -- transfer \
   --private-key 0x... \
-  --to "recipient_address" \
+  --to 0x... \
   --amount 100 \
   --token-index 0
 ```
@@ -131,9 +131,9 @@ cargo run -r -- batch-transfer \
 Example CSV format (transfers.csv):
 ```csv
 recipient,amount,tokenIndex
-0x123...,100,0
-0x456...,200,1
-0x789...,300,0
+0x123...,100,1
+0x456...,200,2
+0x789...,300,3
 ```
 
 Note: The batch transfer is limited to a maximum of 64 transfers per transaction. If you need to process more transfers, please split them into multiple CSV files or transactions.
