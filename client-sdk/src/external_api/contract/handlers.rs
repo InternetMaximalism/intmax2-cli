@@ -75,12 +75,13 @@ async fn set_gas_price<O>(
     let gas_price = get_gas_price(rpc_url).await?;
     log::info!("Gas price: {:?}", gas_price);
 
-    let max_gas_price = gas_price.max(U256::from(1_000_000_000));
+    let max_gas_price = gas_price.max(U256::from(5_000_000_000u64));
+    let max_priority_fee_per_gas = gas_price.max(U256::from(2_000_000_000u64));
     // todo: fix gas setting
     let inner_tx = tx.tx.as_eip1559_mut().expect("EIP-1559 tx expected");
     *inner_tx = inner_tx
         .clone()
-        .max_priority_fee_per_gas(100_000_000)
+        .max_priority_fee_per_gas(max_priority_fee_per_gas)
         .max_fee_per_gas(max_gas_price);
     Ok(())
 }
