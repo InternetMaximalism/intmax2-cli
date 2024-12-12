@@ -81,6 +81,10 @@ enum Commands {
         eth_private_key: H256,
     },
     GenerateKey,
+    GenerateFromEthKey {
+        #[clap(long)]
+        eth_private_key: H256,
+    },
 }
 
 #[tokio::main]
@@ -158,6 +162,14 @@ async fn main() -> anyhow::Result<()> {
             println!("Generating key");
             let mut rng = rand::thread_rng();
             let key = KeySet::rand(&mut rng);
+            let private_key = BigUint::from(key.privkey);
+            let private_key: IU256 = private_key.try_into().unwrap();
+            println!("Private key: {}", private_key.to_hex());
+            println!("Public key: {}", key.pubkey.to_hex());
+        }
+        Commands::GenerateFromEthKey { eth_private_key } => {
+            let provisional = BigUint::from_bytes_be(eth_private_key.as_bytes());
+            let key = KeySet::generate_from_provisional(provisional.into());
             let private_key = BigUint::from(key.privkey);
             let private_key: IU256 = private_key.try_into().unwrap();
             println!("Private key: {}", private_key.to_hex());

@@ -28,6 +28,9 @@ pub enum ClientError {
     #[error("Internal error: {0}")]
     InternalError(String),
 
+    #[error("Balance proof not found")]
+    BalanceProofNotFound,
+
     #[error("Invalid block proposal: {0}")]
     InvalidBlockProposal(String),
 

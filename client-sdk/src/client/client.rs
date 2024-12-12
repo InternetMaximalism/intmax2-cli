@@ -170,15 +170,6 @@ where
         self.sync(key).await?;
 
         let user_data = self.get_user_data(key).await?;
-        let _balance_proof = self
-            .store_vault_server
-            .get_balance_proof(
-                key.pubkey,
-                user_data.block_number,
-                user_data.private_commitment(),
-            )
-            .await?
-            .ok_or_else(|| ClientError::InternalError("balance proof not found".to_string()))?;
 
         // balance check
         let balances = user_data.balances();
@@ -195,11 +186,22 @@ where
             }
             if balance.amount < transfer.amount {
                 return Err(ClientError::BalanceError(format!(
-                    "Insufficient balance: {} < {} for token index {}",
+                    "Insufficient balance: {} < {} for token #{}",
                     balance.amount, transfer.amount, transfer.token_index
                 )));
             }
         }
+
+        // balance proof existence check
+        let _balance_proof = self
+            .store_vault_server
+            .get_balance_proof(
+                key.pubkey,
+                user_data.block_number,
+                user_data.private_commitment(),
+            )
+            .await?
+            .ok_or_else(|| ClientError::BalanceProofNotFound)?;
 
         // generate spent proof
         let transfer_tree = generate_transfer_tree(&transfers);
@@ -686,9 +688,7 @@ where
                 spent_proof_pis.prev_private_commitment,
             )
             .await?
-            .ok_or_else(|| {
-                ClientError::InternalError("prev balance proof not found".to_string())
-            })?;
+            .ok_or_else(|| ClientError::BalanceProofNotFound)?;
 
         let new_sender_balance_proof = process_common_tx(
             &self.validity_prover,
