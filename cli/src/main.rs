@@ -1,21 +1,18 @@
-use anyhow::{bail, ensure};
 use clap::{Parser, Subcommand};
 use ethers::types::{Address as EthAddress, H256, U256 as EthU256};
 use intmax2_cli::cli::{
     claim::claim_withdrawals,
     deposit::deposit,
     get::{balance, history, withdrawal_status},
-    send::tx,
+    send::{transfer, TransferInput},
     sync::{sync, sync_withdrawals},
     utils::post_empty_block,
 };
 use intmax2_client_sdk::utils::logger::init_logger;
 use intmax2_interfaces::data::deposit_data::TokenType;
 use intmax2_zkp::{
-    common::{generic_address::GenericAddress, signature::key_set::KeySet},
-    ethereum_types::{
-        address::Address as IAddress, u256::U256 as IU256, u32limb_trait::U32LimbTrait,
-    },
+    common::signature::key_set::KeySet,
+    ethereum_types::{u256::U256 as IU256, u32limb_trait::U32LimbTrait},
 };
 use num_bigint::BigUint;
 
@@ -29,7 +26,7 @@ struct Args {
 
 #[derive(Subcommand)]
 enum Commands {
-    Tx {
+    Transfer {
         #[clap(long)]
         private_key: H256,
         #[clap(long)]
@@ -38,6 +35,12 @@ enum Commands {
         amount: u128,
         #[clap(long)]
         token_index: u32,
+    },
+    BatchTransfer {
+        #[clap(long)]
+        private_key: H256,
+        #[clap(long)]
+        csv_path: String,
     },
     Deposit {
         #[clap(long)]
@@ -95,15 +98,32 @@ async fn main() -> anyhow::Result<()> {
     dotenv::dotenv().ok();
 
     match args.command {
-        Commands::Tx {
+        Commands::Transfer {
             private_key,
             to,
             amount,
             token_index,
         } => {
-            let to = parse_generic_address(&to)?;
             let key = h256_to_keyset(private_key);
-            tx(key, to, amount.into(), token_index).await?;
+            let transfer_input = TransferInput {
+                recipient: to,
+                amount: amount.into(),
+                token_index,
+            };
+            transfer(key, &[transfer_input]).await?;
+        }
+        Commands::BatchTransfer {
+            private_key,
+            csv_path,
+        } => {
+            let key = h256_to_keyset(private_key);
+            let mut reader = csv::Reader::from_path(csv_path)?;
+            let mut transfers = vec![];
+            for result in reader.deserialize() {
+                let transfer_input: TransferInput = result?;
+                transfers.push(transfer_input);
+            }
+            transfer(key, &transfers).await?;
         }
         Commands::Deposit {
             eth_private_key,
@@ -212,20 +232,6 @@ fn format_token_info(
             let token_id = token_id.ok_or_else(|| anyhow::anyhow!("Missing token id"))?;
             Ok((amount, token_address, token_id))
         }
-    }
-}
-
-fn parse_generic_address(address: &str) -> anyhow::Result<GenericAddress> {
-    ensure!(address.starts_with("0x"), "Invalid prefix");
-    let bytes = hex::decode(&address[2..])?;
-    if bytes.len() == 20 {
-        let address = IAddress::from_bytes_be(&bytes);
-        return Ok(GenericAddress::from_address(address));
-    } else if bytes.len() == 32 {
-        let pubkey = IU256::from_bytes_be(&bytes);
-        return Ok(GenericAddress::from_pubkey(pubkey));
-    } else {
-        bail!("Invalid length");
     }
 }
 

@@ -2,16 +2,17 @@
 
 This CLI tool allows you to interact with the Intmax2 network. It includes functionalities such as:
 
-- Generating keys
+- Generating keys (from scratch or from Ethereum private keys)
 - Depositing assets (native tokens, ERC20, ERC721, ERC1155) into the rollup
+- Transferring assets (single and batch transfers)
 - Checking balances and transaction history
-- Sending rollup transactions
 - Managing withdrawals (including syncing and claiming)
-
+- Network synchronization
 
 ## Prerequisites
 
-Rust and Cargo installed.
+- Rust and Cargo installed
+- Environment variables properly configured
 
 Please copy the `.env.example` file to `.env` and adjust it as needed:
 
@@ -41,29 +42,33 @@ cargo run -r -- --help
 
 Available Commands:
 
-- generate-key
-- generate-from-eth-key
-- deposit
-- tx
-- balance
-- history
-- withdrawal-status
-- claim-withdrawals
-- sync
-- sync-withdrawals
-- post-empty-block
-
-Each command has its own flags and options. For example, `deposit` requires specifying `--eth-private-key` and `--private-key` along with token details.
+- `generate-key`: Generate a new key pair
+- `generate-from-eth-key`: Generate a key pair from an Ethereum private key
+- `transfer`: Send a single transfer transaction
+- `batch-transfer`: Process multiple transfers from a CSV file
+- `deposit`: Deposit assets into the rollup
+- `balance`: Check account balance
+- `history`: View transaction history
+- `withdrawal-status`: Check withdrawal status
+- `claim-withdrawals`: Claim processed withdrawals
+- `sync`: Synchronize balance proof
+- `sync-withdrawals`: Synchronize withdrawal data
 
 ## Examples
 
-### 1. Generate a key pair:
+### 1. Generate Keys
 
+Generate a new key pair:
 ```bash
 cargo run -r -- generate-key
 ```
 
-### 2. Deposit tokens:
+Generate from Ethereum private key:
+```bash
+cargo run -r -- generate-from-eth-key --eth-private-key 0x...
+```
+
+### 2. Deposit Assets
 
 Native token:
 ```bash
@@ -105,40 +110,70 @@ cargo run -r -- deposit \
   --token-id 0
 ```
 
-### 3. Check your balance:
+### 3. Transfer Assets
 
+Single transfer:
+```bash
+cargo run -r -- transfer \
+  --private-key 0x... \
+  --to "recipient_address" \
+  --amount 100 \
+  --token-index 0
+```
+
+Batch transfer (using CSV):
+```bash
+cargo run -r -- batch-transfer \
+  --private-key 0x... \
+  --csv-path "transfers.csv"
+```
+
+Example CSV format (transfers.csv):
+```csv
+recipient,amount,tokenIndex
+0x123...,100,0
+0x456...,200,1
+0x789...,300,0
+```
+
+Note: The batch transfer is limited to a maximum of 64 transfers per transaction. If you need to process more transfers, please split them into multiple CSV files or transactions.
+
+### 4. Account Management
+
+Check balance:
 ```bash
 cargo run -r -- balance --private-key 0x...
 ```
 
-If you see a "pending actions" error, please wait and retry.
-
-### 4. Send a transaction:
-
+View transaction history:
 ```bash
-cargo run -r -- tx \
-  --private-key 0x... \
-  --to 0x... \
-  --amount 1 \
-  --token-index 0
+cargo run -r -- history --private-key 0x...
 ```
 
-### 5. Check withdrawal status:
+### 5. Withdrawal Management
 
+Check withdrawal status:
 ```bash
 cargo run -r -- withdrawal-status --private-key 0x...
 ```
 
-### 6. Claim withdrawals:
+Sync withdrawals:
+```bash
+cargo run -r -- sync-withdrawals --private-key 0x...
+```
 
+Claim withdrawals:
 ```bash
 cargo run -r -- claim-withdrawals \
   --eth-private-key 0x... \
   --private-key 0x...
 ```
 
-### 7. Check history:
+### 6. Network Operations
 
+Sync balance proof:
 ```bash
-cargo run -r -- history --private-key 0x...
+cargo run -r -- sync --private-key 0x...
 ```
+
+Note: For all commands that require private keys, ensure you're using the correct format (0x-prefixed hexadecimal).

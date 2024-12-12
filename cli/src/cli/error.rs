@@ -29,4 +29,10 @@ pub enum CliError {
 
     #[error("Unexpected error: {0}")]
     UnexpectedError(String),
+
+    #[error("Parse error: {0}")]
+    ParseError(String),
+
+    #[error("Too many transfer")]
+    TooManyTransfer,
 }
