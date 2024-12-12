@@ -9,8 +9,8 @@ use intmax2_interfaces::api::validity_prover::types::{
     GetBlockMerkleProofResponse, GetBlockNumberByTxTreeRootQuery,
     GetBlockNumberByTxTreeRootResponse, GetBlockNumberResponse, GetDepositInfoQuery,
     GetDepositInfoResponse, GetDepositMerkleProofQuery, GetDepositMerkleProofResponse,
-    GetSenderLeavesQuery, GetSenderLeavesResponse, GetUpdateWitnessQuery, GetUpdateWitnessResponse,
-    GetValidityPisQuery, GetValidityPisResponse,
+    GetNextDepositIndexResponse, GetSenderLeavesQuery, GetSenderLeavesResponse,
+    GetUpdateWitnessQuery, GetUpdateWitnessResponse, GetValidityPisQuery, GetValidityPisResponse,
 };
 use serde_qs::actix::QsQuery;
 
@@ -27,13 +27,13 @@ pub async fn get_block_number(state: Data<State>) -> Result<Json<GetBlockNumberR
 #[get("/next-deposit-index")]
 pub async fn get_next_deposit_index(
     state: Data<State>,
-) -> Result<Json<GetBlockNumberResponse>, Error> {
-    let block_number = state
+) -> Result<Json<GetNextDepositIndexResponse>, Error> {
+    let deposit_index = state
         .validity_prover
         .get_next_deposit_index()
         .await
         .map_err(|e| actix_web::error::ErrorInternalServerError(e))?;
-    Ok(Json(GetBlockNumberResponse { block_number }))
+    Ok(Json(GetNextDepositIndexResponse { deposit_index }))
 }
 
 #[get("/get-account-info")]
