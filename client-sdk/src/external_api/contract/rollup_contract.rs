@@ -79,13 +79,6 @@ impl RollupContract {
         address: ethers::types::Address,
         deployed_block_number: u64,
     ) -> Self {
-        log::info!(
-            "RollupContract: rpc_url={}, chain_id={}, address={}, deployed_block_number={}",
-            rpc_url,
-            chain_id,
-            address,
-            deployed_block_number
-        );
         Self {
             rpc_url: rpc_url.to_string(),
             chain_id,
@@ -261,17 +254,17 @@ impl RollupContract {
     pub async fn initialize(
         &self,
         signer_private_key: H256,
-        adim: types::Address,
+        admin: types::Address,
         scroll_messenger_address: types::Address,
         liquidity_address: types::Address,
-        constribution_address: types::Address,
+        contribution_address: types::Address,
     ) -> Result<H256, BlockchainError> {
         let contract = self.get_contract_with_signer(signer_private_key).await?;
         let mut tx = contract.initialize(
-            adim,
+            admin,
             scroll_messenger_address,
             liquidity_address,
-            constribution_address,
+            contribution_address,
         );
         let tx_hash = handle_contract_call(
             &self.rpc_url,
