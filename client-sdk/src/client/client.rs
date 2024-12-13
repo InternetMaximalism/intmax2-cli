@@ -325,6 +325,9 @@ where
         for transfer in &memo.transfers {
             transfer_tree.push(transfer.clone());
         }
+
+        let mut save_transfers = Vec::new();
+        let mut save_withdrawals = Vec::new();
         for (i, transfer) in memo.transfers.iter().enumerate() {
             let transfer_merkle_proof = transfer_tree.prove(i as u64);
             let transfer_data = TransferData {
@@ -338,23 +341,21 @@ where
             };
             if transfer.recipient.is_pubkey {
                 let recipient = transfer.recipient.to_pubkey().unwrap();
-                self.store_vault_server
-                    .save_data(
-                        DataType::Transfer,
-                        transfer.recipient.to_pubkey().unwrap(),
-                        &transfer_data.encrypt(recipient),
-                    )
-                    .await?;
+                save_transfers.push((
+                    transfer.recipient.to_pubkey().unwrap(),
+                    transfer_data.encrypt(recipient),
+                ));
             } else {
-                self.store_vault_server
-                    .save_data(
-                        DataType::Withdrawal,
-                        key.pubkey,
-                        &transfer_data.encrypt(key.pubkey),
-                    )
-                    .await?;
+                save_withdrawals.push((key.pubkey, transfer_data.encrypt(key.pubkey)));
             }
         }
+
+        self.store_vault_server
+            .save_data_batch(DataType::Transfer, save_transfers)
+            .await?;
+        self.store_vault_server
+            .save_data_batch(DataType::Withdrawal, save_withdrawals)
+            .await?;
 
         // sign and post signature
         let signature = proposal.sign(key);

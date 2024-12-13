@@ -1,5 +1,9 @@
 use actix_cors::Cors;
-use actix_web::{middleware::Logger, web::Data, App, HttpServer};
+use actix_web::{
+    middleware::Logger,
+    web::{Data, JsonConfig},
+    App, HttpServer,
+};
 use env_logger::fmt::Formatter;
 use log::{LevelFilter, Record};
 use std::{
@@ -56,6 +60,7 @@ async fn main() -> std::io::Result<()> {
         App::new()
             .wrap(cors)
             .wrap(Logger::new("Request: %r | Status: %s | Duration: %Ts"))
+            .app_data(JsonConfig::default().limit(35_000_000))
             .app_data(state.clone())
             .service(health_check)
             .service(store_vault_server_scope())
