@@ -12,7 +12,7 @@ use crate::external_api::{
     utils::{retry::with_retry, time::sleep_for},
 };
 
-use super::interface::BlockchainError;
+use super::error::BlockchainError;
 
 const MAX_GAS_BUMP_ATTEMPTS: u32 = 3;
 const WAIT_TIME: u64 = 20;

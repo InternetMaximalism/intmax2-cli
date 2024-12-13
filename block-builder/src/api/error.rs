@@ -1,4 +1,4 @@
-use intmax2_client_sdk::external_api::contract::interface::BlockchainError;
+use intmax2_client_sdk::external_api::contract::error::BlockchainError;
 use intmax2_interfaces::api::error::ServerError;
 use intmax2_zkp::ethereum_types::u256::U256;
 

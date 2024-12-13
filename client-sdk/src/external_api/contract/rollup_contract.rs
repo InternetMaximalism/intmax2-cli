@@ -24,7 +24,7 @@ use crate::external_api::{contract::utils::get_latest_block_number, utils::retry
 use super::{
     data_decoder::decode_post_block_calldata,
     handlers::handle_contract_call,
-    interface::BlockchainError,
+    error::BlockchainError,
     proxy_contract::ProxyContract,
     utils::{get_client, get_client_with_signer, get_transaction},
 };

@@ -10,7 +10,7 @@ use ethers::{
 
 use crate::external_api::utils::retry::with_retry;
 
-use super::interface::BlockchainError;
+use super::error::BlockchainError;
 
 async fn get_provider(rpc_url: &str) -> Result<Provider<Http>, BlockchainError> {
     let provider = Provider::<Http>::try_from(rpc_url)

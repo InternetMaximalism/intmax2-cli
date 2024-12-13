@@ -1,4 +1,4 @@
-use intmax2_client_sdk::external_api::contract::interface::BlockchainError;
+use intmax2_client_sdk::external_api::contract::error::BlockchainError;
 use intmax2_zkp::ethereum_types::bytes32::Bytes32;
 
 #[derive(Debug, thiserror::Error)]

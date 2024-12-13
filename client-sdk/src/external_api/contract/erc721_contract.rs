@@ -13,7 +13,7 @@ use crate::external_api::utils::retry::with_retry;
 
 use super::{
     handlers::handle_contract_call,
-    interface::BlockchainError,
+    error::BlockchainError,
     utils::{get_client, get_client_with_signer},
 };
 

@@ -1,6 +1,6 @@
 use intmax2_interfaces::api::error::ServerError;
 
-use crate::external_api::contract::interface::BlockchainError;
+use crate::external_api::contract::error::BlockchainError;
 
 #[derive(Debug, thiserror::Error)]
 pub enum ClientError {

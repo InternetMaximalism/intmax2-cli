@@ -1,6 +1,6 @@
 use envy::Error as EnvyError;
 use intmax2_client_sdk::{
-    client::error::ClientError, external_api::contract::interface::BlockchainError,
+    client::error::ClientError, external_api::contract::error::BlockchainError,
 };
 use intmax2_interfaces::api::error::ServerError;
 
