@@ -39,7 +39,7 @@ pub struct NextAction {
 }
 
 // generate strategy of the balance proof update process
-pub async fn determin_next_action<
+pub async fn determine_next_action<
     S: StoreVaultClientInterface,
     V: ValidityProverClientInterface,
 >(

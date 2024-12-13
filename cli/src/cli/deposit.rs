@@ -137,7 +137,7 @@ async fn balance_check_and_approve(
                 ));
             }
 
-            // approve if nessesary
+            // approve if necessary
             let allowance = contract
                 .allowance(address, liquidity_contract.address())
                 .await?;
@@ -156,7 +156,7 @@ async fn balance_check_and_approve(
                 ));
             }
 
-            // approve if nessesary
+            // approve if necessary
             let operator = contract.get_approved(token_id).await?;
             if operator != liquidity_contract.address() {
                 contract
@@ -172,7 +172,7 @@ async fn balance_check_and_approve(
                     "Insufficient token balance".to_string(),
                 ));
             }
-            // approve if nessesary
+            // approve if necessary
             let is_approved = contract
                 .is_approved_for_all(address, liquidity_contract.address())
                 .await?;

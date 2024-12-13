@@ -29,7 +29,7 @@ pub async fn request_withdrawal(
     request: Json<RequestWithdrawalRequest>,
 ) -> Result<Json<()>, Error> {
     state
-        .withdrawl_server
+        .withdrawal_server
         .request_withdrawal(request.pubkey, &request.single_withdrawal_proof)
         .await
         .map_err(|e| actix_web::error::ErrorInternalServerError(e))?;
@@ -42,7 +42,7 @@ pub async fn get_withdrawal_info(
     query: QsQuery<GetWithdrawalInfoRequest>,
 ) -> Result<Json<GetWithdrawalInfoResponse>, Error> {
     let withdrawal_info = state
-        .withdrawl_server
+        .withdrawal_server
         .get_withdrawal_info(query.pubkey, query.signature.clone())
         .await
         .map_err(|e| actix_web::error::ErrorInternalServerError(e))?;
@@ -56,7 +56,7 @@ pub async fn get_withdrawal_info_by_recipient(
     query: QsQuery<GetWithdrawalInfoByRecipientRequest>,
 ) -> Result<Json<GetWithdrawalInfoResponse>, Error> {
     let withdrawal_info = state
-        .withdrawl_server
+        .withdrawal_server
         .get_withdrawal_info_by_recipient(query.recipient)
         .await
         .map_err(|e| actix_web::error::ErrorInternalServerError(e))?;

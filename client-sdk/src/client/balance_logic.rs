@@ -158,7 +158,7 @@ pub async fn process_transfer<V: ValidityProverClientInterface, B: BalanceProver
             sender_balance_pis.public_state.block_number,
         )
         .await?;
-    let receive_trasfer_witness = ReceiveTransferWitness {
+    let receive_transfer_witness = ReceiveTransferWitness {
         transfer_witness,
         private_transition_witness,
         sender_balance_proof: sender_balance_proof.clone(),
@@ -170,7 +170,7 @@ pub async fn process_transfer<V: ValidityProverClientInterface, B: BalanceProver
         .prove_receive_transfer(
             key,
             pubkey,
-            &receive_trasfer_witness,
+            &receive_transfer_witness,
             &Some(before_balance_proof),
         )
         .await?;

@@ -6,7 +6,7 @@ use super::withdrawal_server::WithdrawalServer;
 
 #[derive(Clone)]
 pub struct State {
-    pub withdrawl_server: Arc<WithdrawalServer>,
+    pub withdrawal_server: Arc<WithdrawalServer>,
 }
 
 impl State {
@@ -18,7 +18,7 @@ impl State {
         )
         .await?;
         Ok(State {
-            withdrawl_server: Arc::new(withdrawal_server),
+            withdrawal_server: Arc::new(withdrawal_server),
         })
     }
 }

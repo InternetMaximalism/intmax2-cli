@@ -56,7 +56,7 @@ use super::{
     error::ClientError,
     history::{fetch_history, HistoryEntry},
     strategy::{
-        strategy::{determin_next_action, Action},
+        strategy::{determine_next_action, Action},
         withdrawal::fetch_withdrawal_info,
     },
     utils::generate_transfer_tree,
@@ -386,7 +386,7 @@ where
     }
 
     pub async fn sync_single(&self, key: KeySet) -> Result<SyncStatus, ClientError> {
-        let next_action = determin_next_action(
+        let next_action = determine_next_action(
             &self.store_vault_server,
             &self.validity_prover,
             &self.liquidity_contract,
