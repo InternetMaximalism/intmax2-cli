@@ -2,4 +2,6 @@
 
 log.txt
 
+# For testing purposes
 transfers.csv
+private_keys.txt

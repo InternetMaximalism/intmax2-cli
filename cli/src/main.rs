@@ -179,7 +179,6 @@ async fn main() -> anyhow::Result<()> {
             claim_withdrawals(key, eth_private_key).await?;
         }
         Commands::GenerateKey => {
-            println!("Generating key");
             let mut rng = rand::thread_rng();
             let key = KeySet::rand(&mut rng);
             let private_key = BigUint::from(key.privkey);
