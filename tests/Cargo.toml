@@ -4,18 +4,18 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-anyhow ={workspace = true} 
+anyhow = { workspace = true }
 bincode = "1.3.3"
-plonky2 = {workspace = true} 
-intmax2-zkp = {workspace = true}
-intmax2-client-sdk = {path="../client-sdk"}
-intmax2-interfaces = {path="../interfaces"}
-validity-prover = {path="../validity-prover"}
+plonky2 = { workspace = true }
+intmax2-zkp = { workspace = true }
+intmax2-client-sdk = { path = "../client-sdk" }
+intmax2-interfaces = { path = "../interfaces" }
+validity-prover = { path = "../validity-prover" }
 tokio = { workspace = true }
-reqwest = { workspace = true}
-ethers = {workspace = true}
-serde_json ={workspace = true}
-serde = { workspace = true}
+reqwest = { workspace = true }
+ethers = { workspace = true }
+serde_json = { workspace = true }
+serde = { workspace = true }
 thiserror = "1.0.64"
 actix-web = "4.9.0"
 hashbrown = "0.14.5"
