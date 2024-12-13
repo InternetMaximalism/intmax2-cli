@@ -14,7 +14,7 @@ use crate::external_api::utils::retry::with_retry;
 use super::{
     handlers::handle_contract_call,
     interface::BlockchainError,
-    utils::{get_address, get_client, get_client_with_signer},
+    utils::{get_client, get_client_with_signer},
 };
 
 abigen!(ERC721, "abi/TestNFT.json",);
@@ -65,7 +65,7 @@ impl ERC721Contract {
         let contract = self.get_contract().await?;
         let balance = with_retry(|| async { contract.balance_of(account).call().await })
             .await
-            .map_err(|e| BlockchainError::NetworkError(format!("Failed to get balance: {}", e)))?;
+            .map_err(|e| BlockchainError::RPCError(format!("Failed to get balance: {}", e)))?;
         Ok(balance)
     }
 
@@ -73,7 +73,7 @@ impl ERC721Contract {
         let contract = self.get_contract().await?;
         let owner = with_retry(|| async { contract.owner_of(token_id).call().await })
             .await
-            .map_err(|e| BlockchainError::NetworkError(format!("Failed to get balance: {}", e)))?;
+            .map_err(|e| BlockchainError::RPCError(format!("Failed to get balance: {}", e)))?;
         Ok(owner)
     }
 
@@ -86,14 +86,9 @@ impl ERC721Contract {
     ) -> Result<(), BlockchainError> {
         let contract = self.get_contract_with_signer(signer_private_key).await?;
         let mut tx = contract.transfer_from(from, to, token_id);
-        handle_contract_call(
-            &self.rpc_url,
-            &mut tx,
-            get_address(self.chain_id, signer_private_key),
-            "from",
-            "transfer from",
-        )
-        .await?;
+        let client =
+            get_client_with_signer(&self.rpc_url, self.chain_id, signer_private_key).await?;
+        handle_contract_call(&client, &mut tx, "transfer_from").await?;
         Ok(())
     }
 
@@ -105,14 +100,9 @@ impl ERC721Contract {
     ) -> Result<(), BlockchainError> {
         let contract = self.get_contract_with_signer(signer_private_key).await?;
         let mut tx = contract.approve(to, token_id);
-        handle_contract_call(
-            &self.rpc_url,
-            &mut tx,
-            get_address(self.chain_id, signer_private_key),
-            "token_owner",
-            "approve",
-        )
-        .await?;
+        let client =
+            get_client_with_signer(&self.rpc_url, self.chain_id, signer_private_key).await?;
+        handle_contract_call(&client, &mut tx, "approve").await?;
         Ok(())
     }
 
@@ -120,7 +110,7 @@ impl ERC721Contract {
         let contract = self.get_contract().await?;
         let account = with_retry(|| async { contract.get_approved(token_id).call().await })
             .await
-            .map_err(|e| BlockchainError::NetworkError(format!("Failed to get approved: {}", e)))?;
+            .map_err(|e| BlockchainError::RPCError(format!("Failed to get approved: {}", e)))?;
         Ok(account)
     }
 }

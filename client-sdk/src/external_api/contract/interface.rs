@@ -1,3 +1,5 @@
+use ethers::types::H256;
+
 #[derive(Debug, thiserror::Error)]
 pub enum BlockchainError {
     #[error("Insufficient funds: {0}")]
@@ -6,8 +8,8 @@ pub enum BlockchainError {
     #[error("Transaction failed: {0}")]
     TransactionFailed(String),
 
-    #[error("Network error: {0}")]
-    NetworkError(String),
+    #[error("RPC error: {0}")]
+    RPCError(String),
 
     #[error("Decode call data error: {0}")]
     DecodeCallDataError(String),
@@ -15,6 +17,18 @@ pub enum BlockchainError {
     #[error("Token not found")]
     TokenNotFound,
 
-    #[error("Internal error: {0}")]
-    InternalError(String),
+    #[error("Block base fee not found")]
+    BlockBaseFeeNotFound,
+
+    #[error("Transaction not found: {0:?}")]
+    TxNotFound(H256),
+
+    #[error("Transaction error: {0}")]
+    TransactionError(String),
+
+    #[error("Max tx retries reached")]
+    MaxTxRetriesReached,
+
+    #[error("Parse error: {0}")]
+    ParseError(String),
 }

@@ -14,7 +14,7 @@ use crate::external_api::utils::retry::with_retry;
 use super::{
     handlers::handle_contract_call,
     interface::BlockchainError,
-    utils::{get_address, get_client, get_client_with_signer},
+    utils::{get_client, get_client_with_signer},
 };
 
 abigen!(ERC20, "abi/TestERC20.json",);
@@ -72,7 +72,7 @@ impl ERC20Contract {
         let contract = self.get_contract().await?;
         let balance = with_retry(|| async { contract.balance_of(account).call().await })
             .await
-            .map_err(|e| BlockchainError::NetworkError(format!("Failed to get balance: {}", e)))?;
+            .map_err(|e| BlockchainError::RPCError(format!("Failed to get balance: {}", e)))?;
         Ok(balance)
     }
 
@@ -84,14 +84,9 @@ impl ERC20Contract {
     ) -> Result<(), BlockchainError> {
         let contract = self.get_contract_with_signer(signer_private_key).await?;
         let mut tx = contract.transfer(to, amount);
-        handle_contract_call(
-            &self.rpc_url,
-            &mut tx,
-            get_address(self.chain_id, signer_private_key),
-            "sender",
-            "transfer",
-        )
-        .await?;
+        let client =
+            get_client_with_signer(&self.rpc_url, self.chain_id, signer_private_key).await?;
+        handle_contract_call(&client, &mut tx, "transfer").await?;
         Ok(())
     }
 
@@ -103,14 +98,9 @@ impl ERC20Contract {
     ) -> Result<(), BlockchainError> {
         let contract = self.get_contract_with_signer(signer_private_key).await?;
         let mut tx = contract.approve(spender, amount);
-        handle_contract_call(
-            &self.rpc_url,
-            &mut tx,
-            get_address(self.chain_id, signer_private_key),
-            "token_owner",
-            "approve",
-        )
-        .await?;
+        let client =
+            get_client_with_signer(&self.rpc_url, self.chain_id, signer_private_key).await?;
+        handle_contract_call(&client, &mut tx, "approve").await?;
         Ok(())
     }
 
@@ -122,9 +112,7 @@ impl ERC20Contract {
         let contract = self.get_contract().await?;
         let allowance = with_retry(|| async { contract.allowance(owner, spender).call().await })
             .await
-            .map_err(|e| {
-                BlockchainError::NetworkError(format!("Failed to get allowance: {}", e))
-            })?;
+            .map_err(|e| BlockchainError::RPCError(format!("Failed to get allowance: {}", e)))?;
         Ok(allowance)
     }
 }

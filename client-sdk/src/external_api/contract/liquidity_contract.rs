@@ -21,7 +21,7 @@ use super::{
     handlers::handle_contract_call,
     interface::BlockchainError,
     proxy_contract::ProxyContract,
-    utils::{get_address, get_client, get_client_with_signer},
+    utils::{get_client, get_client_with_signer},
 };
 
 abigen!(Liquidity, "abi/Liquidity.json",);
@@ -79,14 +79,9 @@ impl LiquidityContract {
             contribution,
             initial_erc20_tokens,
         );
-        let tx_hash = handle_contract_call(
-            &self.rpc_url,
-            &mut tx,
-            get_address(self.chain_id, signer_private_key),
-            "initialize",
-            "initialize",
-        )
-        .await?;
+        let client =
+            get_client_with_signer(&self.rpc_url, self.chain_id, signer_private_key).await?;
+        let tx_hash = handle_contract_call(&client, &mut tx, "initialize").await?;
         Ok(tx_hash)
     }
 
@@ -126,9 +121,7 @@ impl LiquidityContract {
                 .await
         })
         .await
-        .map_err(|e| {
-            BlockchainError::NetworkError(format!("Error getting token index: {:?}", e))
-        })?;
+        .map_err(|e| BlockchainError::RPCError(format!("Error getting token index: {:?}", e)))?;
         if !is_found {
             return Ok(None);
         } else {
@@ -148,14 +141,9 @@ impl LiquidityContract {
         let mut tx = contract
             .deposit_native_token(recipient_salt_hash)
             .value(amount);
-        handle_contract_call(
-            &self.rpc_url,
-            &mut tx,
-            get_address(self.chain_id, signer_private_key),
-            "depositer",
-            "deposit_native_token",
-        )
-        .await?;
+        let client =
+            get_client_with_signer(&self.rpc_url, self.chain_id, signer_private_key).await?;
+        handle_contract_call(&client, &mut tx, "deposit_native_token").await?;
         Ok(())
     }
 
@@ -171,14 +159,9 @@ impl LiquidityContract {
         let amount = ethers::types::U256::from_big_endian(&amount.to_bytes_be());
         let token_address = EthAddress::from_slice(&token_address.to_bytes_be());
         let mut tx = contract.deposit_erc20(token_address, recipient_salt_hash, amount);
-        handle_contract_call(
-            &self.rpc_url,
-            &mut tx,
-            get_address(self.chain_id, signer_private_key),
-            "depositer",
-            "deposit_erc20_token",
-        )
-        .await?;
+        let client =
+            get_client_with_signer(&self.rpc_url, self.chain_id, signer_private_key).await?;
+        handle_contract_call(&client, &mut tx, "deposit_erc20_token").await?;
         Ok(())
     }
 
@@ -194,14 +177,9 @@ impl LiquidityContract {
         let token_id = ethers::types::U256::from_big_endian(&token_id.to_bytes_be());
         let token_address = EthAddress::from_slice(&token_address.to_bytes_be());
         let mut tx = contract.deposit_erc721(token_address, recipient_salt_hash, token_id);
-        handle_contract_call(
-            &self.rpc_url,
-            &mut tx,
-            get_address(self.chain_id, signer_private_key),
-            "depositer",
-            "deposit_erc721_token",
-        )
-        .await?;
+        let client =
+            get_client_with_signer(&self.rpc_url, self.chain_id, signer_private_key).await?;
+        handle_contract_call(&client, &mut tx, "deposit_erc721_token").await?;
         Ok(())
     }
 
@@ -219,14 +197,9 @@ impl LiquidityContract {
         let token_id = ethers::types::U256::from_big_endian(&token_id.to_bytes_be());
         let token_address = EthAddress::from_slice(&token_address.to_bytes_be());
         let mut tx = contract.deposit_erc1155(token_address, recipient_salt_hash, token_id, amount);
-        handle_contract_call(
-            &self.rpc_url,
-            &mut tx,
-            get_address(self.chain_id, signer_private_key),
-            "depositer",
-            "deposit_erc1155_token",
-        )
-        .await?;
+        let client =
+            get_client_with_signer(&self.rpc_url, self.chain_id, signer_private_key).await?;
+        handle_contract_call(&client, &mut tx, "deposit_erc1155_token").await?;
         Ok(())
     }
 
@@ -252,14 +225,9 @@ impl LiquidityContract {
             .collect::<Vec<_>>();
         let contract = self.get_contract_with_signer(signer_private_key).await?;
         let mut tx = contract.claim_withdrawals(withdrawals);
-        handle_contract_call(
-            &self.rpc_url,
-            &mut tx,
-            get_address(self.chain_id, signer_private_key),
-            "withdrawer",
-            "claim_withdrawals",
-        )
-        .await?;
+        let client =
+            get_client_with_signer(&self.rpc_url, self.chain_id, signer_private_key).await?;
+        handle_contract_call(&client, &mut tx, "claim_withdrawals").await?;
         Ok(())
     }
 }

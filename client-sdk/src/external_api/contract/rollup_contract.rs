@@ -26,7 +26,7 @@ use super::{
     handlers::handle_contract_call,
     interface::BlockchainError,
     proxy_contract::ProxyContract,
-    utils::{get_address, get_client, get_client_with_signer, get_transaction},
+    utils::{get_client, get_client_with_signer, get_transaction},
 };
 
 const EVENT_BLOCK_RANGE: u64 = 10000;
@@ -146,9 +146,7 @@ impl RollupContract {
             })
             .await
             .map_err(|_| {
-                BlockchainError::NetworkError(
-                    "failed to get deposit leaf inserted event".to_string(),
-                )
+                BlockchainError::RPCError("failed to get deposit leaf inserted event".to_string())
             })?;
             events.extend(new_events);
             let latest_block_number = get_latest_block_number(&self.rpc_url).await?;
@@ -191,7 +189,7 @@ impl RollupContract {
             })
             .await
             .map_err(|_| {
-                BlockchainError::NetworkError("failed to get blocks posted event".to_string())
+                BlockchainError::RPCError("failed to get blocks posted event".to_string())
             })?;
             events.extend(new_events);
             let latest_block_number = get_latest_block_number(&self.rpc_url).await?;
@@ -224,9 +222,9 @@ impl RollupContract {
         let blocks_posted_events = self.get_blocks_posted_event(from_block).await?;
         let mut full_blocks = Vec::new();
         for event in blocks_posted_events {
-            let tx = get_transaction(&self.rpc_url, event.tx_hash).await?.ok_or(
-                BlockchainError::InternalError("failed to get transaction".to_string()),
-            )?;
+            let tx = get_transaction(&self.rpc_url, event.tx_hash)
+                .await?
+                .ok_or(BlockchainError::TxNotFound(event.tx_hash))?;
             let contract = self.get_contract().await?;
             let functions = contract.abi().functions();
             let full_block = decode_post_block_calldata(
@@ -266,14 +264,9 @@ impl RollupContract {
             liquidity_address,
             contribution_address,
         );
-        let tx_hash = handle_contract_call(
-            &self.rpc_url,
-            &mut tx,
-            get_address(self.chain_id, signer_private_key),
-            "initialize",
-            "initialize",
-        )
-        .await?;
+        let client =
+            get_client_with_signer(&self.rpc_url, self.chain_id, signer_private_key).await?;
+        let tx_hash = handle_contract_call(&client, &mut tx, "initialize").await?;
         Ok(tx_hash)
     }
 
@@ -308,14 +301,9 @@ impl RollupContract {
                 sender_pubkeys,
             )
             .value(msg_value);
-        let tx_hash = handle_contract_call(
-            &self.rpc_url,
-            &mut tx,
-            get_address(self.chain_id, signer_private_key),
-            "block builder",
-            "post_registration_block",
-        )
-        .await?;
+        let client =
+            get_client_with_signer(&self.rpc_url, self.chain_id, signer_private_key).await?;
+        let tx_hash = handle_contract_call(&client, &mut tx, "post_registration_block").await?;
         Ok(tx_hash)
     }
 
@@ -350,14 +338,9 @@ impl RollupContract {
                 account_ids,
             )
             .value(msg_value);
-        let tx_hash = handle_contract_call(
-            &self.rpc_url,
-            &mut tx,
-            get_address(self.chain_id, signer_private_key),
-            "block builder",
-            "post_non_registration_block",
-        )
-        .await?;
+        let client =
+            get_client_with_signer(&self.rpc_url, self.chain_id, signer_private_key).await?;
+        let tx_hash = handle_contract_call(&client, &mut tx, "post_non_registration_block").await?;
         Ok(tx_hash)
     }
 
@@ -374,14 +357,9 @@ impl RollupContract {
             .map(|e| e.try_into().unwrap())
             .collect();
         let mut tx = contract.process_deposits(last_processed_deposit_id.into(), deposit_hashes);
-        let tx_hash = handle_contract_call(
-            &self.rpc_url,
-            &mut tx,
-            get_address(self.chain_id, signer_private_key),
-            "process_deposits",
-            "process_deposits",
-        )
-        .await?;
+        let client =
+            get_client_with_signer(&self.rpc_url, self.chain_id, signer_private_key).await?;
+        let tx_hash = handle_contract_call(&client, &mut tx, "process_deposits").await?;
         Ok(tx_hash)
     }
 
@@ -391,7 +369,7 @@ impl RollupContract {
             with_retry(|| async { contract.get_latest_block_number().call().await })
                 .await
                 .map_err(|_| {
-                    BlockchainError::NetworkError("failed to get latest block number".to_string())
+                    BlockchainError::RPCError("failed to get latest block number".to_string())
                 })?;
         Ok(latest_block_number)
     }
