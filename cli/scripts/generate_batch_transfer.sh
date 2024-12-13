@@ -1,5 +1,5 @@
 #!/bin/bash
-(
+
 
 # Default values and check for command line arguments
 N=${1:-64}           # Number of keys (default: 64)
@@ -43,4 +43,3 @@ for i in $(seq 1 $N); do
 done
 
 echo "Done! Check $CSV_FILE and $PRIVATE_KEYS_FILE"
-)
