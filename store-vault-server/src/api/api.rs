@@ -8,9 +8,10 @@ use actix_web::{
 use intmax2_interfaces::api::store_vault_server::{
     interface::DataType,
     types::{
-        GetBalanceProofQuery, GetBalanceProofResponse, GetDataAllAfterQuery,
-        GetDataAllAfterResponse, GetDataQuery, GetDataResponse, GetUserDataQuery,
-        GetUserDataResponse, SaveBalanceProofRequest, SaveDataRequest,
+        BatchGetDataQuery, BatchGetDataResponse, BatchSaveDataRequest, GetBalanceProofQuery,
+        GetBalanceProofResponse, GetDataAllAfterQuery, GetDataAllAfterResponse, GetDataQuery,
+        GetDataResponse, GetUserDataQuery, GetUserDataResponse, SaveBalanceProofRequest,
+        SaveDataRequest,
     },
 };
 use serde_qs::actix::QsQuery;
@@ -63,6 +64,36 @@ pub async fn save_data(
     Ok(Json(()))
 }
 
+#[post("/{type}/batch-save")]
+pub async fn batch_save_data(
+    state: Data<State>,
+    path: Path<String>,
+    request: Json<BatchSaveDataRequest>,
+) -> Result<Json<()>, Error> {
+    const MAX_BATCH_SIZE: usize = 1000;
+
+    let data_type = path.into_inner();
+    let data_type = DataType::from_str(data_type.as_str())
+        .map_err(|e| actix_web::error::ErrorInternalServerError(format!("Invalid type: {}", e)))?;
+
+    let requests = request.into_inner().requests;
+
+    if requests.len() > MAX_BATCH_SIZE {
+        return Err(actix_web::error::ErrorBadRequest(format!(
+            "Batch size exceeds maximum limit of {}",
+            MAX_BATCH_SIZE
+        )));
+    }
+
+    state
+        .store_vault_server
+        .batch_save_data(data_type, requests)
+        .await
+        .map_err(|e| actix_web::error::ErrorInternalServerError(e))?;
+
+    Ok(Json(()))
+}
+
 #[get("/{type}/get")]
 pub async fn get_data(
     state: Data<State>,
@@ -79,6 +110,36 @@ pub async fn get_data(
         .await
         .map_err(|e| actix_web::error::ErrorInternalServerError(e))?;
     Ok(Json(GetDataResponse { data }))
+}
+
+#[get("/{type}/batch-get")]
+pub async fn batch_get_data(
+    state: Data<State>,
+    path: Path<String>,
+    query: QsQuery<BatchGetDataQuery>,
+) -> Result<Json<BatchGetDataResponse>, Error> {
+    const MAX_BATCH_SIZE: usize = 1000;
+
+    let data_type = path.into_inner();
+    let data_type = DataType::from_str(data_type.as_str())
+        .map_err(|e| actix_web::error::ErrorInternalServerError(format!("Invalid type: {}", e)))?;
+
+    let uuids = query.uuids.clone();
+
+    if uuids.len() > MAX_BATCH_SIZE {
+        return Err(actix_web::error::ErrorBadRequest(format!(
+            "Batch size exceeds maximum limit of {}",
+            MAX_BATCH_SIZE
+        )));
+    }
+
+    let data = state
+        .store_vault_server
+        .batch_get_data(data_type, &uuids)
+        .await
+        .map_err(|e| actix_web::error::ErrorInternalServerError(e))?;
+
+    Ok(Json(BatchGetDataResponse { data }))
 }
 
 #[get("/{type}/get-all-after")]

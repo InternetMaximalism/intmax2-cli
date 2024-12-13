@@ -70,11 +70,23 @@ pub trait StoreVaultClientInterface {
         encrypted_data: &[u8],
     ) -> Result<(), ServerError>;
 
+    async fn save_data_batch(
+        &self,
+        data_type: DataType,
+        data: Vec<(U256, Vec<u8>)>,
+    ) -> Result<(), ServerError>;
+
     async fn get_data(
         &self,
         data_type: DataType,
         uuid: &str,
     ) -> Result<Option<(MetaData, Vec<u8>)>, ServerError>;
+
+    async fn get_data_batch(
+        &self,
+        data_type: DataType,
+        uuid: &[String],
+    ) -> Result<Vec<Option<(MetaData, Vec<u8>)>>, ServerError>;
 
     async fn get_data_all_after(
         &self,

@@ -1,4 +1,4 @@
-use std::time::Duration;
+use std::{collections::HashMap, time::Duration};
 
 use anyhow::{Ok, Result};
 use intmax2_interfaces::{api::store_vault_server::interface::DataType, data::meta_data::MetaData};
@@ -162,6 +162,48 @@ impl StoreVaultServer {
         Ok(())
     }
 
+    pub async fn batch_save_data(
+        &self,
+        data_type: DataType,
+        requests: Vec<(U256, Vec<u8>)>,
+    ) -> Result<()> {
+        let timestamp = chrono::Utc::now().timestamp() as i64;
+
+        // Prepare values for bulk insert
+        let pubkeys: Vec<String> = requests.iter().map(|(pubkey, _)| pubkey.to_hex()).collect();
+
+        let uuids: Vec<String> = (0..requests.len())
+            .map(|_| Uuid::new_v4().to_string())
+            .collect();
+
+        let timestamps: Vec<i64> = vec![timestamp; requests.len()];
+
+        let encrypted_data: Vec<Vec<u8>> = requests.into_iter().map(|(_, data)| data).collect();
+
+        // Execute the bulk insert
+        sqlx::query!(
+            r#"
+            INSERT INTO encrypted_data 
+            (data_type, pubkey, uuid, timestamp, encrypted_data)
+            SELECT 
+                $1,
+                UNNEST($2::text[]),
+                UNNEST($3::text[]),
+                UNNEST($4::bigint[]),
+                UNNEST($5::bytea[])
+            "#,
+            data_type as i32,
+            &pubkeys,
+            &uuids,
+            &timestamps,
+            &encrypted_data,
+        )
+        .execute(&self.pool)
+        .await?;
+
+        Ok(())
+    }
+
     pub async fn get_data_all_after(
         &self,
         data_type: DataType,
@@ -224,5 +266,48 @@ impl StoreVaultServer {
             };
             (meta_data, r.encrypted_data)
         }))
+    }
+
+    pub async fn batch_get_data(
+        &self,
+        data_type: DataType,
+        uuids: &[String],
+    ) -> Result<Vec<Option<(MetaData, Vec<u8>)>>> {
+        let records = sqlx::query!(
+            r#"
+            SELECT uuid, timestamp, block_number, encrypted_data
+            FROM encrypted_data
+            WHERE data_type = $1 AND uuid = ANY($2)
+            "#,
+            data_type as i32,
+            uuids as &[String],
+        )
+        .fetch_all(&self.pool)
+        .await?;
+
+        // Create a HashMap for O(1) lookup
+        let result_map: HashMap<String, (i64, Option<i32>, Vec<u8>)> = records
+            .into_iter()
+            .map(|r| (r.uuid, (r.timestamp, r.block_number, r.encrypted_data)))
+            .collect();
+
+        // Preserve the order of requested UUIDs
+        let results = uuids
+            .iter()
+            .map(|uuid| {
+                result_map
+                    .get(uuid)
+                    .map(|(timestamp, block_number, encrypted_data)| {
+                        let meta_data = MetaData {
+                            uuid: uuid.to_string(),
+                            timestamp: *timestamp as u64,
+                            block_number: block_number.map(|n| n as u32),
+                        };
+                        (meta_data, encrypted_data.clone())
+                    })
+            })
+            .collect();
+
+        Ok(results)
     }
 }

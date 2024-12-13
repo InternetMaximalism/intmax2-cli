@@ -41,6 +41,12 @@ pub struct SaveDataRequest {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+pub struct BatchSaveDataRequest {
+    pub requests: Vec<(U256, Vec<u8>)>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct GetUserDataQuery {
     pub pubkey: U256,
 }
@@ -59,8 +65,20 @@ pub struct GetDataResponse {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+pub struct BatchGetDataResponse {
+    pub data: Vec<Option<(MetaData, Vec<u8>)>>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct GetDataQuery {
     pub uuid: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct BatchGetDataQuery {
+    pub uuids: Vec<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

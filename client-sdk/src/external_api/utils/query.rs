@@ -99,3 +99,15 @@ async fn handle_response<R: DeserializeOwned>(
         .await
         .map_err(|e| ServerError::DeserializationError(e.to_string()))
 }
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn test_initialize_client() {
+        let now = std::time::Instant::now();
+        for _ in 0..10000 {
+            let _client = reqwest::Client::new();
+        }
+        println!("Time: {:?}", now.elapsed());
+    }
+}

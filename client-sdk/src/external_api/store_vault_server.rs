@@ -5,6 +5,7 @@ use intmax2_interfaces::{
         store_vault_server::{
             interface::{DataType, StoreVaultClientInterface},
             types::{
+                BatchGetDataQuery, BatchGetDataResponse, BatchSaveDataRequest,
                 GetBalanceProofQuery, GetBalanceProofResponse, GetDataAllAfterQuery,
                 GetDataAllAfterResponse, GetDataQuery, GetDataResponse, GetUserDataQuery,
                 GetUserDataResponse, SaveBalanceProofRequest, SaveDataRequest,
@@ -95,6 +96,20 @@ impl StoreVaultClientInterface for StoreVaultServerClient {
         .await
     }
 
+    async fn save_data_batch(
+        &self,
+        data_type: DataType,
+        data: Vec<(U256, Vec<u8>)>,
+    ) -> Result<(), ServerError> {
+        let request = BatchSaveDataRequest { requests: data };
+        post_request::<_, ()>(
+            &self.base_url,
+            &format!("/store-vault-server/{}/batch-save", data_type.to_string()),
+            &request,
+        )
+        .await
+    }
+
     async fn get_data(
         &self,
         data_type: DataType,
@@ -106,6 +121,23 @@ impl StoreVaultClientInterface for StoreVaultServerClient {
         let response: GetDataResponse = get_request(
             &self.base_url,
             &format!("/store-vault-server/{}/get", data_type.to_string()),
+            Some(query),
+        )
+        .await?;
+        Ok(response.data)
+    }
+
+    async fn get_data_batch(
+        &self,
+        data_type: DataType,
+        uuids: &[String],
+    ) -> Result<Vec<Option<(MetaData, Vec<u8>)>>, ServerError> {
+        let query = BatchGetDataQuery {
+            uuids: uuids.to_vec(),
+        };
+        let response: BatchGetDataResponse = get_request(
+            &self.base_url,
+            &format!("/store-vault-server/{}/batch-get", data_type.to_string()),
             Some(query),
         )
         .await?;
