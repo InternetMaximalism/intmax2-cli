@@ -42,11 +42,20 @@ pub struct Config {
     /// If this time is exceeded, the tx request will be ignored
     pub tx_timeout: u64,
 
-    /// Maximum number of retries for tx requests
-    pub max_tx_request_retries: u64,
+    /// Interval between retries for tx requests
+    pub block_builder_request_interval: u64,
 
-    /// Interval between tx request retries
-    pub tx_request_retry_interval: u64,
+    /// Maximum number of retries for tx requests,
+    pub block_builder_request_limit: u64,
+
+    /// Initial wait time for tx query
+    pub block_builder_query_wait_time: u64,
+
+    /// Interval between retries for tx queries
+    pub block_builder_query_interval: u64,
+
+    /// Maximum number of retries for tx queries
+    pub block_builder_query_limit: u64,
 
     /// URL of the Ethereum RPC
     pub l1_rpc_url: String,
@@ -80,8 +89,12 @@ impl Config {
         withdrawal_server_url: String,
         deposit_timeout: u64,
         tx_timeout: u64,
-        max_tx_request_retries: u64,
-        tx_request_retry_interval: u64,
+
+        block_builder_request_interval: u64,
+        block_builder_request_limit: u64,
+        block_builder_query_wait_time: u64,
+        block_builder_query_interval: u64,
+        block_builder_query_limit: u64,
 
         l1_rpc_url: String,
         l1_chain_id: u64,
@@ -98,8 +111,11 @@ impl Config {
             withdrawal_server_url,
             deposit_timeout,
             tx_timeout,
-            max_tx_request_retries,
-            tx_request_retry_interval,
+            block_builder_request_interval,
+            block_builder_request_limit,
+            block_builder_query_wait_time,
+            block_builder_query_interval,
+            block_builder_query_limit,
             l1_rpc_url,
             l1_chain_id,
             liquidity_contract_address,
@@ -121,8 +137,8 @@ pub fn get_client(config: &Config) -> Client<BB, S, V, B, W> {
     let client_config = ClientConfig {
         deposit_timeout: config.deposit_timeout,
         tx_timeout: config.tx_timeout,
-        max_tx_request_retries: config.max_tx_request_retries,
-        tx_request_retry_interval: config.tx_request_retry_interval,
+        max_tx_request_retries: config.block_builder_request_limit,
+        tx_request_retry_interval: config.block_builder_request_interval,
     };
 
     let liquidity_contract = LiquidityContract::new(

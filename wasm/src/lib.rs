@@ -1,6 +1,9 @@
 use crate::js_types::common::JsTx;
 use client::{get_client, Config};
-use intmax2_client_sdk::client::account::generate_intmax_account_from_eth_key as inner_generate_intmax_account_from_eth_key;
+use intmax2_client_sdk::{
+    client::account::generate_intmax_account_from_eth_key as inner_generate_intmax_account_from_eth_key,
+    external_api::utils::time::sleep_for,
+};
 use intmax2_interfaces::data::{
     deposit_data::{DepositData, TokenType},
     transfer_data::TransferData,
@@ -145,6 +148,39 @@ pub async fn finalize_tx(
     let client = get_client(config);
     let tx_tree_root = client
         .finalize_tx(block_builder_url, key, &tx_request_memo, &proposal)
+        .await?;
+    Ok(tx_tree_root.to_string())
+}
+
+/// Batch function of query_proposal and finalize_tx.
+#[wasm_bindgen]
+pub async fn query_and_finalize(
+    config: &Config,
+    block_builder_url: &str,
+    private_key: &str,
+    tx_request_memo: &JsTxRequestMemo,
+) -> Result<String, JsError> {
+    let key = str_privkey_to_keyset(private_key)?;
+    let client = get_client(config);
+    let tx_request_memo = tx_request_memo.to_tx_request_memo()?;
+    let is_registration_block = tx_request_memo.is_registration_block;
+    let tx = tx_request_memo.tx.clone();
+    let mut tries = 0;
+    let proposal = loop {
+        let proposal = client
+            .query_proposal(&block_builder_url, key, is_registration_block, tx)
+            .await?;
+        if proposal.is_some() {
+            break proposal.unwrap();
+        }
+        if tries > config.block_builder_query_limit {
+            return Err(JsError::new("Failed to get proposal"));
+        }
+        tries += 1;
+        sleep_for(config.block_builder_query_interval).await;
+    };
+    let tx_tree_root = client
+        .finalize_tx(&block_builder_url, key, &tx_request_memo, &proposal)
         .await?;
     Ok(tx_tree_root.to_string())
 }
