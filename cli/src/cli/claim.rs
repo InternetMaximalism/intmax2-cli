@@ -31,6 +31,10 @@ pub async fn claim_withdrawals(key: KeySet, eth_private_key: H256) -> Result<(),
             }
         }
     }
+    if claim_withdrawals.is_empty() {
+        println!("No withdrawals to claim");
+        return Ok(());
+    }
     let liquidity_contract = client.liquidity_contract.clone();
     liquidity_contract
         .claim_withdrawals(eth_private_key, &claim_withdrawals)

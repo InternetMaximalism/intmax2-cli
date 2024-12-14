@@ -1,7 +1,5 @@
 import axios from 'axios';
 import { hexToBigInt } from './utils';
-import { sign } from 'crypto';
-
 
 export type Address = string; // Ethereum address
 export type U256 = string; // Big number as string
@@ -18,12 +16,12 @@ export interface Withdrawal {
     recipient: Address;
     tokenIndex: number;
     amount: U256;
+    nullifier: string;
 }
 
 export interface WithdrawalInfo {
     status: WithdrawalStatus;
     withdrawal: Withdrawal;
-    withdrawalId?: number;
 }
 
 export interface ContractWithdrawal {

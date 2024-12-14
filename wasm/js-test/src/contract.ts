@@ -3,6 +3,37 @@
 import { ethers } from 'ethers';
 import * as RollupArtifact from '../abi/Rollup.json';
 import * as LiquidityArtifact from '../abi/Liquidity.json';
+import { Withdrawal } from './withdrawal-status';
+
+export async function claimWithdrawals(privateKey: string, l1RpcUrl: string, liquidityContractAddress: string, contractWithdrawals: Withdrawal[]) {
+    const { liquidityContract } = await getContract(privateKey, l1RpcUrl, liquidityContractAddress, "", "");
+    const claimableWithdrawals = [];
+    for (const w of contractWithdrawals) {
+        const isClaimable = await checkIfClaimable(liquidityContract, w);
+        if (isClaimable) {
+            claimableWithdrawals.push(w);
+        }
+    }
+    if (claimableWithdrawals.length === 0) {
+        console.log("No claimable withdrawals");
+        return;
+    }
+    const tx = await liquidityContract.claimWithdrawals(claimableWithdrawals);
+    console.log("Claimed withdrawals with tx hash: ", tx.hash);
+}
+
+async function checkIfClaimable(liquidityContract: ethers.Contract, w: Withdrawal): Promise<boolean> {
+    const withdrawalHash = getWithdrawHash(w);
+    const blockNumber: bigint = await liquidityContract.claimableWithdrawals(withdrawalHash);
+    return blockNumber !== 0n;
+}
+
+function getWithdrawHash(w: Withdrawal): string {
+    return ethers.solidityPackedKeccak256(
+        ['bytes32', 'uint32', 'uint256', 'bytes32'],
+        [w.recipient, w.tokenIndex, w.amount, w.nullifier]
+    );
+}
 
 export async function deposit(privateKey: string, l1RpcUrl: string, liquidityContractAddress: string, l2RpcUrl: string, rollupContractAddress: string, amount: bigint, tokenType: number, tokenAddress: string, tokenId: string, pubkeySaltHash: string,) {
     const { liquidityContract, rollupContract } = await getContract(privateKey, l1RpcUrl, liquidityContractAddress, l2RpcUrl, rollupContractAddress);
