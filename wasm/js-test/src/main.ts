@@ -1,5 +1,5 @@
 import { cleanEnv, num, str, url } from 'envalid';
-import { Config, finalize_tx, generate_intmax_account_from_eth_key, get_user_data, JsBlockProposal, JsGenericAddress, JsTransfer, JsTxRequestMemo, prepare_deposit, query_proposal, send_tx_request, sync, sync_withdrawals, } from '../pkg';
+import { Config, generate_intmax_account_from_eth_key, get_user_data, JsGenericAddress, JsTransfer, JsTxRequestMemo, prepare_deposit, query_and_finalize, send_tx_request, sync, sync_withdrawals, } from '../pkg';
 import { generateRandomHex } from './utils';
 import { printHistory } from './history';
 import { deposit, getEthBalance } from './contract';
@@ -50,8 +50,11 @@ async function main() {
     env.WITHDRAWAL_SERVER_BASE_URL,
     BigInt(env.DEPOSIT_TIMEOUT),
     BigInt(env.TX_TIMEOUT),
+    BigInt(env.BLOCK_BUILDER_REQUEST_INTERVAL),
     BigInt(env.BLOCK_BUILDER_REQUEST_LIMIT),
+    BigInt(env.BLOCK_BUILDER_QUERY_WAIT_TIME),
     BigInt(env.BLOCK_BUILDER_QUERY_INTERVAL),
+    BigInt(env.BLOCK_BUILDER_QUERY_LIMIT),
     env.L1_RPC_URL,
     BigInt(env.L1_CHAIN_ID),
     env.LIQUIDITY_CONTRACT_ADDRESS,
@@ -81,17 +84,17 @@ async function main() {
   const balance = await getEthBalance(ethKey, env.L1_RPC_URL);
   console.log("balance: ", balance);
 
-  const pubkeySaltHash = await prepare_deposit(config, publicKey, amount, tokenType, tokenAddress, tokenId);
-  console.log("pubkeySaltHash: ", pubkeySaltHash);
+  // const pubkeySaltHash = await prepare_deposit(config, publicKey, amount, tokenType, tokenAddress, tokenId);
+  // console.log("pubkeySaltHash: ", pubkeySaltHash);
 
-  await deposit(ethKey, env.L1_RPC_URL, env.LIQUIDITY_CONTRACT_ADDRESS, env.L2_RPC_URL, env.ROLLUP_CONTRACT_ADDRESS, BigInt(amount), tokenType, tokenAddress, tokenId, pubkeySaltHash);
+  // await deposit(ethKey, env.L1_RPC_URL, env.LIQUIDITY_CONTRACT_ADDRESS, env.L2_RPC_URL, env.ROLLUP_CONTRACT_ADDRESS, BigInt(amount), tokenType, tokenAddress, tokenId, pubkeySaltHash);
 
-  console.log("Deposit done. Sleeping for 1200s...");
-  await sleep(1200);
+  // console.log("Deposit done. Sleeping for 1200s...");
+  // await sleep(1200);
 
-  // wait for the validity prover syncs
-  console.log("Waiting for the validity prover to sync...");
-  await sleep(40);
+  // // wait for the validity prover syncs
+  // console.log("Waiting for the validity prover to sync...");
+  // await sleep(40);
 
   // sync the account's balance proof 
   await syncBalanceProof(config, privateKey);
@@ -168,29 +171,12 @@ async function syncBalanceProof(config: Config, privateKey: string) {
 async function sendTx(config: Config, block_builder_base_url: string, privateKey: string, transfers: JsTransfer[]) {
   console.log("Sending tx...");
   let memo: JsTxRequestMemo = await send_tx_request(config, block_builder_base_url, privateKey, transfers);
-  const tx = memo.tx();
-  const isRegistrationBlock = memo.is_registration_block();
+  console.log("Transfer root of tx: ", memo.tx().transfer_tree_root);
 
   // wait for the block builder to propose the block
   await sleep(env.BLOCK_BUILDER_QUERY_WAIT_TIME);
 
-  // query the block proposal
-  console.log("Querying proposal...");
-  let proposal: JsBlockProposal | undefined = undefined;
-  for (let i = 0; i < env.BLOCK_BUILDER_QUERY_LIMIT; i++) {
-    proposal = await query_proposal(config, block_builder_base_url, privateKey, isRegistrationBlock, tx);
-    if (proposal !== undefined) {
-      break;
-    }
-    console.log("No proposal found, retrying...");
-    await sleep(env.BLOCK_BUILDER_QUERY_INTERVAL);
-  }
-  if (proposal === undefined) {
-    throw new Error("No proposal found");
-  }
-  // finalize the tx
-  console.log("Finalizing tx...");
-  await finalize_tx(config, env.BLOCK_BUILDER_BASE_URL, privateKey, memo, proposal);
+  await query_and_finalize(config, env.BLOCK_BUILDER_BASE_URL, privateKey, memo);
   console.log("Tx finalized");
 }
 
