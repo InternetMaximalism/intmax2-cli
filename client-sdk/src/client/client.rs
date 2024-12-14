@@ -45,8 +45,9 @@ use crate::{
         balance_logic::{process_common_tx, process_transfer},
         utils::generate_salt,
     },
-    external_api::contract::{
-        liquidity_contract::LiquidityContract, rollup_contract::RollupContract,
+    external_api::{
+        contract::{liquidity_contract::LiquidityContract, rollup_contract::RollupContract},
+        utils::time::sleep_for,
     },
 };
 
@@ -242,7 +243,7 @@ where
             match result {
                 Ok(_) => break,
                 Err(e) => {
-                    if retries >= self.config.max_tx_request_retries {
+                    if retries >= self.config.block_builder_request_limit {
                         return Err(ClientError::SendTxRequestError(format!(
                             "failed to send tx request: {}",
                             e
@@ -251,13 +252,10 @@ where
                     retries += 1;
                     log::info!(
                         "Failed to send tx request, retrying in {} seconds. error: {}",
-                        self.config.tx_request_retry_interval,
+                        self.config.block_builder_request_interval,
                         e
                     );
-                    tokio::time::sleep(tokio::time::Duration::from_secs(
-                        self.config.tx_request_retry_interval,
-                    ))
-                    .await;
+                    sleep_for(self.config.block_builder_request_interval).await;
                 }
             }
         }
