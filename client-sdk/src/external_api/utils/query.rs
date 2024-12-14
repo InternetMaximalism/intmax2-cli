@@ -1,8 +1,13 @@
+use std::time::Duration;
+
 use intmax2_interfaces::api::error::ServerError;
 use reqwest::Response;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 
 use super::{debug::is_debug_mode, retry::with_retry};
+
+const CONNECT_TIMEOUT: Duration = Duration::from_secs(10);
+const TIMEOUT: Duration = Duration::from_secs(90);
 
 #[derive(Debug, Deserialize)]
 struct ErrorResponse {
@@ -17,7 +22,11 @@ pub async fn post_request<B: Serialize, R: DeserializeOwned>(
     body: &B,
 ) -> Result<R, ServerError> {
     let url = format!("{}{}", base_url, endpoint);
-    let client = reqwest::Client::new();
+    let client = reqwest::ClientBuilder::new()
+        .connect_timeout(CONNECT_TIMEOUT)
+        .timeout(TIMEOUT)
+        .build()
+        .unwrap();
     let response = with_retry(|| async { client.post(&url).json(body).send().await })
         .await
         .map_err(|e| ServerError::NetworkError(e.to_string()))?;
@@ -52,7 +61,11 @@ where
     if query_str.is_some() {
         url = format!("{}?{}", url, query_str.as_ref().unwrap());
     }
-    let client = reqwest::Client::new();
+    let client = reqwest::ClientBuilder::new()
+        .connect_timeout(CONNECT_TIMEOUT)
+        .timeout(TIMEOUT)
+        .build()
+        .unwrap();
     let response = with_retry(|| async { client.get(&url).send().await })
         .await
         .map_err(|e| ServerError::NetworkError(e.to_string()))?;
@@ -98,16 +111,4 @@ async fn handle_response<R: DeserializeOwned>(
         .json::<R>()
         .await
         .map_err(|e| ServerError::DeserializationError(e.to_string()))
-}
-
-#[cfg(test)]
-mod tests {
-    #[test]
-    fn test_initialize_client() {
-        let now = std::time::Instant::now();
-        for _ in 0..10000 {
-            let _client = reqwest::Client::new();
-        }
-        println!("Time: {:?}", now.elapsed());
-    }
 }
