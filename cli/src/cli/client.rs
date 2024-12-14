@@ -44,8 +44,8 @@ pub fn get_client() -> Result<Client<BB, S, V, B, W>, CliError> {
     let config = ClientConfig {
         deposit_timeout: env.deposit_timeout,
         tx_timeout: env.tx_timeout,
-        max_tx_request_retries: env.block_builder_request_interval,
-        tx_request_retry_interval: env.block_builder_request_limit,
+        block_builder_request_interval: env.block_builder_request_interval,
+        block_builder_request_limit: env.block_builder_request_limit,
     };
 
     let client = Client {

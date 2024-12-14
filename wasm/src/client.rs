@@ -137,8 +137,8 @@ pub fn get_client(config: &Config) -> Client<BB, S, V, B, W> {
     let client_config = ClientConfig {
         deposit_timeout: config.deposit_timeout,
         tx_timeout: config.tx_timeout,
-        max_tx_request_retries: config.block_builder_request_limit,
-        tx_request_retry_interval: config.block_builder_request_interval,
+        block_builder_request_interval: config.block_builder_request_interval,
+        block_builder_request_limit: config.block_builder_request_limit,
     };
 
     let liquidity_contract = LiquidityContract::new(
