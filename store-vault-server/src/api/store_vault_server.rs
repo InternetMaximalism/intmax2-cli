@@ -55,8 +55,13 @@ impl StoreVaultServer {
 
         sqlx::query!(
             r#"
-            INSERT INTO balance_proofs (pubkey, block_number, private_commitment, proof_data)
+            INSERT INTO balance_proofs 
+                (pubkey, block_number, private_commitment, proof_data)
             VALUES ($1, $2, $3, $4)
+            ON CONFLICT (pubkey, block_number, private_commitment) 
+            DO UPDATE SET 
+                proof_data = EXCLUDED.proof_data,
+                created_at = CURRENT_TIMESTAMP
             "#,
             pubkey_hex,
             balance_pis.public_state.block_number as i32,

@@ -1,0 +1,17 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            INSERT INTO balance_proofs \n                (pubkey, block_number, private_commitment, proof_data)\n            VALUES ($1, $2, $3, $4)\n            ON CONFLICT (pubkey, block_number, private_commitment) \n            DO UPDATE SET \n                proof_data = EXCLUDED.proof_data,\n                created_at = CURRENT_TIMESTAMP\n            ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Varchar",
+        "Int4",
+        "Varchar",
+        "Bytea"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "c2841e9c59cc4c0ae230b156ccb7f3c65cf4cde1e086c8958e70e0f1f646eab5"
+}
