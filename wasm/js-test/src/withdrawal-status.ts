@@ -91,13 +91,3 @@ export class WithdrawalServerClient {
         }
     }
 }
-
-
-// async function main() {
-//     const pubkey = "0x2c68039b638cccf19d3696fd7e0837eaa25b32cc684821becfb76e52de2618ed";
-//     const client = new WithdrawalServerClient("http://localhost:9003");
-//     const withdrawalInfo = await client.getWithdrawalInfo(pubkey);
-//     console.log("Withdrawal info: ", withdrawalInfo);
-// }
-
-// main().catch(console.error);

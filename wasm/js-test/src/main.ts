@@ -1,6 +1,5 @@
 import { cleanEnv, num, str, url } from 'envalid';
 import { Config, finalize_tx, generate_intmax_account_from_eth_key, get_user_data, JsBlockProposal, JsGenericAddress, JsTransfer, JsTxRequestMemo, prepare_deposit, query_proposal, send_tx_request, sync, sync_withdrawals, } from '../pkg';
-import { postEmptyBlock, } from './state-manager';
 import { generateRandomHex } from './utils';
 import { printHistory } from './history';
 import { deposit, getEthBalance } from './contract';
@@ -89,8 +88,6 @@ async function main() {
 
   console.log("Deposit done. Sleeping for 1200s...");
   await sleep(1200);
-
-  await postEmptyBlock(env.BLOCK_BUILDER_BASE_URL); // block builder post empty block (this is not used in production)
 
   // wait for the validity prover syncs
   console.log("Waiting for the validity prover to sync...");

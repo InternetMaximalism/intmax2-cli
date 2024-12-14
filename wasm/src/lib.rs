@@ -208,22 +208,3 @@ pub async fn decrypt_tx_data(private_key: &str, data: &[u8]) -> Result<JsTxData,
     let tx_data = TxData::decrypt(data, key).map_err(|e| JsError::new(&format!("{}", e)))?;
     Ok(JsTxData::from_tx_data(&tx_data))
 }
-
-// Function to mimic the deposit call of the contract. For development purposes only.
-// #[wasm_bindgen]
-// pub async fn mimic_deposit(
-//     contract_server_url: &str,
-//     pubkey_salt_hash: &str,
-//     token_index: u32,
-//     amount: &str,
-// ) -> Result<(), JsError> {
-//     let pubkey_salt_hash = parse_h256(pubkey_salt_hash)?;
-//     let pubkey_salt_hash = h256_to_bytes32(pubkey_salt_hash);
-//     let amount = parse_u256(amount)?;
-
-//     let contract = get_mock_contract(contract_server_url);
-//     contract
-//         .deposit(H256::default(), pubkey_salt_hash, token_index, amount)
-//         .await?;
-//     Ok(())
-// }

@@ -1,5 +1,4 @@
 import axios, { AxiosInstance } from 'axios';
-import { cleanEnv, url } from 'envalid';
 import { hexToBigInt } from './utils';
 
 export interface MetaData {
