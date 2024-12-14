@@ -18,8 +18,8 @@ use intmax2_zkp::ethereum_types::{
 use crate::external_api::utils::retry::with_retry;
 
 use super::{
-    handlers::handle_contract_call,
     error::BlockchainError,
+    handlers::handle_contract_call,
     proxy_contract::ProxyContract,
     utils::{get_client, get_client_with_signer},
 };
@@ -127,6 +127,21 @@ impl LiquidityContract {
         } else {
             return Ok(Some(token_index));
         }
+    }
+
+    pub async fn check_if_claimable(
+        &self,
+        withdrawal_hash: Bytes32,
+    ) -> Result<bool, BlockchainError> {
+        let contract: Liquidity<Provider<Http>> = self.get_contract().await?;
+        let withdrawal_hash: [u8; 32] = withdrawal_hash.to_bytes_be().try_into().unwrap();
+        let block_number: ethers::types::U256 =
+            with_retry(|| async { contract.claimable_withdrawals(withdrawal_hash).call().await })
+                .await
+                .map_err(|e| {
+                    BlockchainError::RPCError(format!("Error checking if claimed: {:?}", e))
+                })?;
+        Ok(block_number != ethers::types::U256::zero())
     }
 
     pub async fn deposit_native(

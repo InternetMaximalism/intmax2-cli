@@ -13,14 +13,22 @@ pub async fn claim_withdrawals(key: KeySet, eth_private_key: H256) -> Result<(),
     for withdrawal_info in withdrawal_info.iter() {
         let withdrawal = withdrawal_info.contract_withdrawal.clone();
         if withdrawal_info.status == WithdrawalStatus::NeedClaim {
-            log::info!(
-                "Withdrawal to claim #{}: recipient: {}, token_index: {}, amount: {}",
-                claim_withdrawals.len(),
-                withdrawal.recipient,
-                withdrawal.token_index,
-                withdrawal.amount
-            );
-            claim_withdrawals.push(withdrawal);
+            let withdrawal_hash = withdrawal.withdrawal_hash();
+            if client
+                .liquidity_contract
+                .check_if_claimable(withdrawal_hash)
+                .await?
+            {
+                log::info!(
+                    "Withdrawal to claim #{}: recipient: {}, token_index: {}, amount: {}, withdrawal_hash: {}",
+                    claim_withdrawals.len(),
+                    withdrawal.recipient,
+                    withdrawal.token_index,
+                    withdrawal.amount,
+                    withdrawal_hash
+                );
+                claim_withdrawals.push(withdrawal);
+            }
         }
     }
     let liquidity_contract = client.liquidity_contract.clone();
