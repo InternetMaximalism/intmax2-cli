@@ -129,6 +129,27 @@ impl LiquidityContract {
         }
     }
 
+    pub async fn get_token_info(
+        &self,
+        token_index: u32,
+    ) -> Result<(TokenType, Address, U256), BlockchainError> {
+        let contract = self.get_contract().await?;
+        let token_info = with_retry(|| async { contract.get_token_info(token_index).call().await })
+            .await
+            .map_err(|e| BlockchainError::RPCError(format!("Error getting token info: {:?}", e)))?;
+
+        let token_type: u8 = token_info.token_type.into();
+        let token_type = TokenType::try_from(token_type)
+            .map_err(|e| BlockchainError::ParseError(format!("Invalid token type: {:?}", e)))?;
+        let token_address = Address::from_bytes_be(token_info.token_address.as_bytes());
+        let token_id = {
+            let mut buf = [0u8; 32];
+            token_info.token_id.to_big_endian(&mut buf);
+            U256::from_bytes_be(&buf)
+        };
+        Ok((token_type, token_address, token_id))
+    }
+
     pub async fn check_if_claimable(
         &self,
         withdrawal_hash: Bytes32,

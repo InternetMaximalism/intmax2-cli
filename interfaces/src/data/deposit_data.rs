@@ -53,6 +53,17 @@ impl FromStr for TokenType {
     }
 }
 
+impl ToString for TokenType {
+    fn to_string(&self) -> String {
+        match self {
+            Self::NATIVE => "NATIVE".to_string(),
+            Self::ERC20 => "ERC20".to_string(),
+            Self::ERC721 => "ERC721".to_string(),
+            Self::ERC1155 => "ERC1155".to_string(),
+        }
+    }
+}
+
 impl TryFrom<u8> for TokenType {
     type Error = String;
 
