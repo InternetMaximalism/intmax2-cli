@@ -34,6 +34,9 @@ pub struct Env {
 
     // optional block builder base url
     pub block_builder_base_url: Option<String>,
+
+    // optional token mapping base url
+    pub token_mapping_base_url: Option<String>,
 }
 
 #[derive(Clone, Debug, Copy, PartialEq, Serialize, Deserialize)]
