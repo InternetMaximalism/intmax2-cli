@@ -5,7 +5,7 @@ DEFAULT_PUBLIC_KEY="0x$(printf '0%.0s' {1..64})"  # 0x0...0 (64 zeros)
 DEFAULT_AMOUNT=1
 DEFAULT_TOKEN_INDEX=0
 DEFAULT_PARALLEL_JOBS=4
-DEFAULT_NUM_KEYS="4"
+DEFAULT_NUM_KEYS="8"
 
 # Parse command line arguments
 public_key=$DEFAULT_PUBLIC_KEY
