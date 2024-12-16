@@ -111,6 +111,10 @@ impl LiquidityContract {
         token_address: Address,
         token_id: U256,
     ) -> Result<Option<u32>, BlockchainError> {
+        if token_type != TokenType::NATIVE && token_address == Address::zero() {
+            // The contract will revert in this invalid case so we just return None before calling the contract
+            return Ok(None);
+        }
         let contract = self.get_contract().await?;
         let token_id = ethers::types::U256::from_big_endian(&token_id.to_bytes_be());
         let token_address = EthAddress::from_slice(&token_address.to_bytes_be());
