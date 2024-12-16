@@ -2,7 +2,7 @@
 
 
 # Default values and check for command line arguments
-N=${1:-64}           # Number of keys (default: 64)
+N=${1:-5}           # Number of keys (default: 5)
 AMOUNT=${2:-10}      # Amount for each transfer (default: 10)
 TOKEN_INDEX=${3:-0}  # Token index (default: 0)
 

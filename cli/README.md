@@ -136,7 +136,7 @@ recipient,amount,tokenIndex
 0x789...,300,3
 ```
 
-Note: The batch transfer is limited to a maximum of 64 transfers per transaction. If you need to process more transfers, please split them into multiple CSV files or transactions.
+Note: The batch transfer is limited to a maximum of 5 transfers per transaction. If you need to process more transfers, please split them into multiple CSV files or transactions.
 
 ### 4. Account Management
 

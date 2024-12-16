@@ -16,6 +16,8 @@ use intmax2_zkp::{
 };
 use num_bigint::BigUint;
 
+const MAX_BATCH_TRANSFER: usize = 5;
+
 #[derive(Parser)]
 #[clap(name = "intmax2_cli")]
 #[clap(about = "Intmax2 CLI tool")]
@@ -122,6 +124,12 @@ async fn main() -> anyhow::Result<()> {
             for result in reader.deserialize() {
                 let transfer_input: TransferInput = result?;
                 transfers.push(transfer_input);
+            }
+            if transfers.len() > MAX_BATCH_TRANSFER {
+                anyhow::bail!(
+                    "The number of transfers should be less than or equal to {}",
+                    MAX_BATCH_TRANSFER
+                );
             }
             transfer(key, &transfers).await?;
         }
