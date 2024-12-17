@@ -17,7 +17,7 @@ const D: usize = 2;
 #[derive(Debug, Clone)]
 pub struct TransferInfo {
     pub settled: Vec<(MetaData, TransferData<F, C, D>)>,
-    pub pending: Vec<MetaData>,
+    pub pending: Vec<(MetaData, TransferData<F, C, D>)>,
     pub rejected: Vec<MetaData>,
 }
 
@@ -55,13 +55,12 @@ pub async fn fetch_transfer_info<S: StoreVaultClientInterface, V: ValidityProver
                     } else {
                         // pending
                         log::info!("Transfer {} is pending", meta.uuid);
-                        pending.push(meta);
+                        pending.push((meta, transfer_data));
                     }
                 }
             }
             Err(e) => {
                 log::error!("failed to decrypt transfer data: {}", e);
-                rejected.push(meta);
             }
         };
     }

@@ -14,7 +14,7 @@ use crate::{
 #[derive(Debug, Clone)]
 pub struct DepositInfo {
     pub settled: Vec<(MetaData, DepositData)>,
-    pub pending: Vec<MetaData>,
+    pub pending: Vec<(MetaData, DepositData)>,
     pub rejected: Vec<MetaData>,
 }
 
@@ -69,7 +69,7 @@ pub async fn fetch_deposit_info<S: StoreVaultClientInterface, V: ValidityProverC
                     } else {
                         // pending
                         log::info!("Deposit {} is pending", meta.uuid);
-                        pending.push(meta);
+                        pending.push((meta, deposit_data));
                     }
                 }
             }

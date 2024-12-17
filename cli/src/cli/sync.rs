@@ -11,10 +11,10 @@ pub async fn sync(key: KeySet) -> Result<bool, CliError> {
             log::info!("Synced successfully");
         }
         Err(e) => match e {
-            ClientError::PendingError(_) => {
+            ClientError::PendingTxError(_) => {
                 println!(
                     "{}",
-                    "There are pending actions. Please try again later.".red()
+                    "There are pending sent tx. Please try again later.".red()
                 );
                 return Ok(false);
             }

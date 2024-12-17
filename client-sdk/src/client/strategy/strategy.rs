@@ -32,11 +32,10 @@ pub enum Action {
     None,
 }
 
-#[derive(Debug, Clone)]
-pub struct ActionWithPendingInfo {
-    pub action: Action,
-    pub pending_deposits: Vec<MetaData>,
-    pub pending_transfers: Vec<MetaData>,
+#[derive(Debug, Clone, Default)]
+pub struct PendingInfo {
+    pub pending_deposits: Vec<(MetaData, DepositData)>,
+    pub pending_transfers: Vec<(MetaData, TransferData<F, C, D>)>,
 }
 
 // generate strategy of the balance proof update process
@@ -50,7 +49,7 @@ pub async fn determine_next_action<
     key: KeySet,
     deposit_timeout: u64,
     tx_timeout: u64,
-) -> Result<ActionWithPendingInfo, ClientError> {
+) -> Result<(Action, PendingInfo), ClientError> {
     // get user data from the data store server
     let user_data = store_vault_server
         .get_user_data(key.pubkey)
@@ -73,22 +72,20 @@ pub async fn determine_next_action<
     // Check if there is a settled tx with the same prev_private_commitment
     for (meta, tx_data) in tx_info.settled.iter() {
         if tx_data.spent_witness.prev_private_state.commitment() == prev_private_commitment {
-            return Ok(ActionWithPendingInfo {
-                action: Action::Tx(meta.clone(), tx_data.clone()),
-                pending_deposits: vec![],
-                pending_transfers: vec![],
-            });
+            return Ok((
+                Action::Tx(meta.clone(), tx_data.clone()),
+                PendingInfo::default(),
+            ));
         }
     }
 
     // Check if there is a pending tx with the same prev_private_commitment
     for (meta, tx_data) in tx_info.pending.iter() {
         if tx_data.spent_witness.prev_private_state.commitment() == prev_private_commitment {
-            return Ok(ActionWithPendingInfo {
-                action: Action::PendingTx(meta.clone(), tx_data.clone()),
-                pending_deposits: vec![],
-                pending_transfers: vec![],
-            });
+            return Ok((
+                Action::PendingTx(meta.clone(), tx_data.clone()),
+                PendingInfo::default(),
+            ));
         }
     }
 
@@ -111,30 +108,20 @@ pub async fn determine_next_action<
     )
     .await?;
 
-    let pending_deposits = deposit_info.pending;
-    let pending_transfers = transfer_info.pending;
+    let pending_info = PendingInfo {
+        pending_deposits: deposit_info.pending,
+        pending_transfers: transfer_info.pending,
+    };
 
     if transfer_info.settled.len() > 0 {
         // process from the latest transfer to reduce the number of updates
         let (meta, transfer_data) = transfer_info.settled.last().unwrap().clone();
-        return Ok(ActionWithPendingInfo {
-            action: Action::Transfer(meta, transfer_data),
-            pending_deposits,
-            pending_transfers,
-        });
+        return Ok((Action::Transfer(meta, transfer_data), pending_info));
     } else if deposit_info.settled.len() > 0 {
         // process from the latest transfer to reduce the number of updates
         let (meta, deposit_data) = deposit_info.settled.last().unwrap().clone();
-        return Ok(ActionWithPendingInfo {
-            action: Action::Deposit(meta, deposit_data),
-            pending_deposits,
-            pending_transfers,
-        });
+        return Ok((Action::Deposit(meta, deposit_data), pending_info));
     } else {
-        return Ok(ActionWithPendingInfo {
-            action: Action::None,
-            pending_deposits,
-            pending_transfers,
-        });
+        return Ok((Action::None, pending_info));
     }
 }

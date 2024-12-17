@@ -34,8 +34,11 @@ pub enum ClientError {
     #[error("Invalid block proposal: {0}")]
     InvalidBlockProposal(String),
 
-    #[error("Pending error: {0}")]
-    PendingError(String),
+    #[error("Pending tx error: {0}")]
+    PendingTxError(String),
+
+    #[error("Pending withdrawal error: {0}")]
+    PendingWithdrawalError(String),
 
     #[error("Unexpected error: {0}")]
     UnexpectedError(String),

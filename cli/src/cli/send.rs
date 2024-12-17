@@ -30,7 +30,7 @@ pub struct TransferInput {
 pub async fn transfer(key: KeySet, transfer_inputs: &[TransferInput]) -> Result<(), CliError> {
     let mut rng = rand::thread_rng();
     if transfer_inputs.len() > NUM_TRANSFERS_IN_TX {
-        return Err(CliError::TooManyTransfer);
+        return Err(CliError::TooManyTransfer(transfer_inputs.len()));
     }
 
     let transfers = transfer_inputs

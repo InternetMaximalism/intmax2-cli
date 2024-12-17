@@ -4,6 +4,8 @@ use intmax2_client_sdk::{
 };
 use intmax2_interfaces::api::error::ServerError;
 
+use crate::format::FormatTokenInfoError;
+
 #[derive(Debug, thiserror::Error)]
 pub enum CliError {
     #[error("Env error:{0}")]
@@ -11,6 +13,15 @@ pub enum CliError {
 
     #[error("Client error: {0}")]
     ClientError(#[from] ClientError),
+
+    #[error("CSV deserialize error: {0}")]
+    CSVDeserializeError(#[from] csv::Error),
+
+    #[error("Too many transfer: {0}")]
+    TooManyTransfer(usize),
+
+    #[error("{0}")]
+    FormatTokenInfoError(#[from] FormatTokenInfoError),
 
     #[error("Blockchain error: {0}")]
     BlockchainError(#[from] BlockchainError),
@@ -33,6 +44,6 @@ pub enum CliError {
     #[error("Parse error: {0}")]
     ParseError(String),
 
-    #[error("Too many transfer")]
-    TooManyTransfer,
+    #[error("Pending tx error")]
+    PendingTxError,
 }

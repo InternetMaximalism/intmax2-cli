@@ -57,7 +57,7 @@ use super::{
     error::ClientError,
     history::{fetch_history, HistoryEntry},
     strategy::{
-        strategy::{determine_next_action, Action},
+        strategy::{determine_next_action, Action, PendingInfo},
         withdrawal::fetch_withdrawal_info,
     },
     utils::generate_transfer_tree,
@@ -86,11 +86,11 @@ pub struct Client<
     pub rollup_contract: RollupContract,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone)]
 pub enum SyncStatus {
-    Continue, // continue syncing
-    Complete, // sync completed
-    Pending,  // there are pending actions
+    Continue,                             // continue syncing
+    Complete(PendingInfo),                // sync completed but there are possibly pending actions
+    PendingTx(MetaData, TxData<F, C, D>), // there are pending txs
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -371,21 +371,24 @@ where
     }
 
     /// Sync the client's balance proof with the latest block
-    pub async fn sync(&self, key: KeySet) -> Result<(), ClientError> {
+    pub async fn sync(&self, key: KeySet) -> Result<PendingInfo, ClientError> {
         let mut sync_status = SyncStatus::Continue;
-        while sync_status == SyncStatus::Continue {
+        while matches!(sync_status, SyncStatus::Continue) {
             sync_status = self.sync_single(key).await?;
         }
-        if sync_status == SyncStatus::Pending {
-            return Err(ClientError::PendingError(
-                "there is pending actions".to_string(),
-            ));
+
+        match sync_status {
+            SyncStatus::Complete(pending_info) => Ok(pending_info),
+            SyncStatus::PendingTx(meta, _tx_data) => Err(ClientError::PendingTxError(format!(
+                "pending tx: {:?}",
+                meta.uuid
+            ))),
+            SyncStatus::Continue => unreachable!(),
         }
-        Ok(())
     }
 
     pub async fn sync_single(&self, key: KeySet) -> Result<SyncStatus, ClientError> {
-        let next_action = determine_next_action(
+        let (next_action, pending_info) = determine_next_action(
             &self.store_vault_server,
             &self.validity_prover,
             &self.liquidity_contract,
@@ -395,9 +398,9 @@ where
         )
         .await?;
 
-        match next_action.action {
-            Action::PendingTx(_, _) => return Ok(SyncStatus::Pending),
-            Action::None => return Ok(SyncStatus::Complete),
+        match next_action {
+            Action::PendingTx(meta, tx_data) => return Ok(SyncStatus::PendingTx(meta, tx_data)),
+            Action::None => return Ok(SyncStatus::Complete(pending_info)),
             Action::Deposit(meta, deposit_data) => {
                 self.sync_deposit(key, &meta, &deposit_data).await?;
             }
@@ -424,7 +427,10 @@ where
         )
         .await?;
         if withdrawal_info.pending.len() > 0 {
-            return Err(ClientError::PendingError("pending withdrawals".to_string()));
+            return Err(ClientError::PendingWithdrawalError(format!(
+                "pending withdrawal: {:?}",
+                withdrawal_info.pending.len()
+            )));
         }
         for (meta, data) in &withdrawal_info.settled {
             self.sync_withdrawal(key, meta, data).await?;
