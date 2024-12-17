@@ -36,20 +36,23 @@ pub enum HistoryEntry {
         token_id: U256,
         token_index: Option<u32>,
         amount: U256,
+        is_included: bool,
         is_rejected: bool,
-        timestamp: Option<u64>, // timestamp of the block where the deposit was included
+        timestamp: u64, // timestamp of the block where the deposit was saved to db
     },
     Receive {
         amount: U256,
         token_index: u32,
         from: U256,
+        is_included: bool,
         is_rejected: bool,
-        timestamp: Option<u64>, // timestamp of the block where the receive was included
+        timestamp: u64, // timestamp of the block where the receive was saved to db
     },
     Send {
         transfers: Vec<GenericTransfer>,
+        is_included: bool,
         is_rejected: bool,
-        timestamp: Option<u64>, // timestamp of the block where the send was included
+        timestamp: u64, // timestamp of the block where the send was saved to db
     },
 }
 
@@ -62,37 +65,40 @@ impl Display for HistoryEntry {
                 token_id,
                 token_index,
                 amount,
+                is_included,
                 is_rejected,
                 timestamp,
             } => {
                 write!(
                     f,
-                    "Deposit: token_type: {:?}, token_address: {:?}, token_id: {:?}, token_index: {:?}, amount: {:?}, is_rejected: {:?}, timestamp: {:?}",
-                    token_type, token_address, token_id, token_index, amount, is_rejected, timestamp
+                    "Deposit: token_type: {:?}, token_address: {:?}, token_id: {:?}, token_index: {:?}, amount: {:?}, is_included: {:?}, is_rejected: {:?}, timestamp: {:?}",
+                    token_type, token_address, token_id, token_index, amount, is_included, is_rejected, timestamp
                 )
             }
             HistoryEntry::Receive {
                 amount,
                 token_index,
                 from,
+                is_included,
                 is_rejected,
                 timestamp,
             } => {
                 write!(
                     f,
-                    "Receive: amount: {:?}, token_index: {:?}, from: {:?}, is_rejected: {:?}, timestamp: {:?}",
-                    amount, token_index, from, is_rejected, timestamp
+                    "Receive: amount: {:?}, token_index: {:?}, from: {:?}, is_included: {:?}, is_rejected: {:?}, timestamp: {:?}",
+                    amount, token_index, from, is_included, is_rejected, timestamp
                 )
             }
             HistoryEntry::Send {
                 transfers,
+                is_included,
                 is_rejected,
                 timestamp,
             } => {
                 write!(
                     f,
-                    "Send: transfers: {:?}, is_rejected: {:?}, timestamp: {:?}",
-                    transfers, is_rejected, timestamp
+                    "Send: transfers: {:?}, is_included: {:?}, is_rejected: {:?}, timestamp: {:?}",
+                    transfers, is_included, is_rejected, timestamp
                 )
             }
         }
@@ -158,8 +164,9 @@ pub async fn fetch_history<
                     token_id: decrypted.token_id,
                     token_index,
                     amount: decrypted.amount,
+                    is_included: true,
                     is_rejected: false,
-                    timestamp: Some(meta.timestamp),
+                    timestamp: meta.timestamp,
                 });
             } else {
                 history.push(HistoryEntry::Deposit {
@@ -168,8 +175,9 @@ pub async fn fetch_history<
                     token_id: decrypted.token_id,
                     token_index,
                     amount: decrypted.amount,
+                    is_included: false,
                     is_rejected: true,
-                    timestamp: None,
+                    timestamp: meta.timestamp,
                 });
             }
         } else {
@@ -179,8 +187,9 @@ pub async fn fetch_history<
                 token_id: decrypted.token_id,
                 token_index,
                 amount: decrypted.amount,
+                is_included: false,
                 is_rejected: false,
-                timestamp: None,
+                timestamp: meta.timestamp,
             });
         }
     }
@@ -203,16 +212,18 @@ pub async fn fetch_history<
                     amount: decrypted.transfer.amount,
                     token_index: decrypted.transfer.token_index,
                     from: decrypted.sender,
+                    is_included: true,
                     is_rejected: false,
-                    timestamp: Some(meta.timestamp),
+                    timestamp: meta.timestamp,
                 });
             } else {
                 history.push(HistoryEntry::Receive {
                     amount: decrypted.transfer.amount,
                     token_index: decrypted.transfer.token_index,
                     from: decrypted.sender,
+                    is_included: false,
                     is_rejected: true,
-                    timestamp: None,
+                    timestamp: meta.timestamp,
                 });
             }
         } else {
@@ -220,8 +231,9 @@ pub async fn fetch_history<
                 amount: decrypted.transfer.amount,
                 token_index: decrypted.transfer.token_index,
                 from: decrypted.sender,
+                is_included: false,
                 is_rejected: false,
-                timestamp: None,
+                timestamp: meta.timestamp,
             });
         }
     }
@@ -266,21 +278,24 @@ pub async fn fetch_history<
             if user_data.processed_tx_uuids.contains(&meta.uuid) {
                 history.push(HistoryEntry::Send {
                     transfers,
+                    is_included: true,
                     is_rejected: false,
-                    timestamp: Some(meta.timestamp),
+                    timestamp: meta.timestamp,
                 });
             } else {
                 history.push(HistoryEntry::Send {
                     transfers,
+                    is_included: false,
                     is_rejected: true,
-                    timestamp: None,
+                    timestamp: meta.timestamp,
                 });
             }
         } else {
             history.push(HistoryEntry::Send {
                 transfers,
+                is_included: false,
                 is_rejected: false,
-                timestamp: None,
+                timestamp: meta.timestamp,
             });
         }
     }

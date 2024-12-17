@@ -444,6 +444,7 @@ where
         meta: &MetaData,
         deposit_data: &DepositData,
     ) -> Result<(), ClientError> {
+        log::info!("sync_deposit: {:?}", meta);
         let mut user_data = self.get_user_data(key).await?;
 
         // user's balance proof before applying the tx
