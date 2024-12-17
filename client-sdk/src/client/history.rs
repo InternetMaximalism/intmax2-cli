@@ -1,5 +1,3 @@
-use std::fmt::Display;
-
 use intmax2_interfaces::{
     api::{
         balance_prover::interface::BalanceProverClientInterface,
@@ -16,7 +14,7 @@ use intmax2_interfaces::{
 };
 use intmax2_zkp::{
     common::signature::key_set::KeySet,
-    ethereum_types::{address::Address, u256::U256},
+    ethereum_types::{address::Address, u256::U256, u32limb_trait::U32LimbTrait},
 };
 use plonky2::{field::goldilocks_field::GoldilocksField, plonk::config::PoseidonGoldilocksConfig};
 use serde::{Deserialize, Serialize};
@@ -56,55 +54,6 @@ pub enum HistoryEntry {
     },
 }
 
-impl Display for HistoryEntry {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            HistoryEntry::Deposit {
-                token_type,
-                token_address,
-                token_id,
-                token_index,
-                amount,
-                is_included,
-                is_rejected,
-                timestamp,
-            } => {
-                write!(
-                    f,
-                    "Deposit: token_type: {:?}, token_address: {:?}, token_id: {:?}, token_index: {:?}, amount: {:?}, is_included: {:?}, is_rejected: {:?}, timestamp: {:?}",
-                    token_type, token_address, token_id, token_index, amount, is_included, is_rejected, timestamp
-                )
-            }
-            HistoryEntry::Receive {
-                amount,
-                token_index,
-                from,
-                is_included,
-                is_rejected,
-                timestamp,
-            } => {
-                write!(
-                    f,
-                    "Receive: amount: {:?}, token_index: {:?}, from: {:?}, is_included: {:?}, is_rejected: {:?}, timestamp: {:?}",
-                    amount, token_index, from, is_included, is_rejected, timestamp
-                )
-            }
-            HistoryEntry::Send {
-                transfers,
-                is_included,
-                is_rejected,
-                timestamp,
-            } => {
-                write!(
-                    f,
-                    "Send: transfers: {:?}, is_included: {:?}, is_rejected: {:?}, timestamp: {:?}",
-                    transfers, is_included, is_rejected, timestamp
-                )
-            }
-        }
-    }
-}
-
 /// Transfer without salt
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -119,6 +68,35 @@ pub enum GenericTransfer {
         token_index: u32,
         amount: U256,
     },
+}
+
+impl std::fmt::Display for GenericTransfer {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            GenericTransfer::Transfer {
+                recipient,
+                token_index,
+                amount,
+            } => write!(
+                f,
+                "Transfer(recipient: {}, token_index: {}, amount: {})",
+                recipient.to_hex(),
+                token_index,
+                amount
+            ),
+            GenericTransfer::Withdrawal {
+                recipient,
+                token_index,
+                amount,
+            } => write!(
+                f,
+                "Withdrawal(recipient: {}, token_index: {}, amount: {})",
+                recipient.to_hex(),
+                token_index,
+                amount
+            ),
+        }
+    }
 }
 
 pub async fn fetch_history<
