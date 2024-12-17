@@ -42,10 +42,6 @@ pub enum Commands {
         #[clap(long)]
         token_id: Option<u128>,
     },
-    Sync {
-        #[clap(long)]
-        private_key: H256,
-    },
     PostEmptyBlock,
     SyncWithdrawals {
         #[clap(long)]

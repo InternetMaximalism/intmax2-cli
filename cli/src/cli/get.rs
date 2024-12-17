@@ -1,15 +1,24 @@
 use intmax2_interfaces::data::deposit_data::TokenType;
 use intmax2_zkp::common::{signature::key_set::KeySet, trees::asset_tree::AssetLeaf};
 
-use crate::cli::{client::get_client, sync::sync};
+use crate::cli::client::get_client;
 
 use super::error::CliError;
 
 pub async fn balance(key: KeySet) -> Result<(), CliError> {
     let client = get_client()?;
-    if !sync(key.clone()).await? {
-        return Ok(());
-    }
+
+    client.sync(key.clone()).await?;
+    let pending_info = client.sync(key.clone()).await?;
+    log::info!(
+        "Pending deposits: {:?}",
+        pending_info.pending_deposits.len()
+    );
+    log::info!(
+        "Pending transfers: {:?}",
+        pending_info.pending_transfers.len()
+    );
+
     let user_data = client.get_user_data(key).await?;
     let mut balances: Vec<(u64, AssetLeaf)> = user_data.balances().into_iter().collect();
     balances.sort_by_key(|(i, _leaf)| *i);

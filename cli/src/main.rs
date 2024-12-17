@@ -8,7 +8,7 @@ use intmax2_cli::{
         error::CliError,
         get::{balance, history, withdrawal_status},
         send::{transfer, TransferInput},
-        sync::{sync, sync_withdrawals},
+        sync::sync_withdrawals,
         utils::post_empty_block,
     },
     format::{format_token_info, h256_to_keyset},
@@ -100,10 +100,6 @@ async fn main_process(command: Commands) -> Result<(), CliError> {
                 token_id,
             )
             .await?;
-        }
-        Commands::Sync { private_key } => {
-            let key = h256_to_keyset(private_key);
-            sync(key).await?;
         }
         Commands::SyncWithdrawals { private_key } => {
             let key = h256_to_keyset(private_key);

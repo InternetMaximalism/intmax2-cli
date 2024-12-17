@@ -7,7 +7,6 @@ This CLI tool allows you to interact with the Intmax2 network. It includes funct
 - Transferring assets (single and batch transfers)
 - Checking balances and transaction history
 - Managing withdrawals (including syncing and claiming)
-- Network synchronization
 
 ## Prerequisites
 
@@ -51,7 +50,6 @@ Available Commands:
 - `history`: View transaction history
 - `withdrawal-status`: Check withdrawal status
 - `claim-withdrawals`: Claim processed withdrawals
-- `sync`: Synchronize balance proof
 - `sync-withdrawals`: Synchronize withdrawal data
 
 ## Examples
@@ -167,13 +165,6 @@ Claim withdrawals:
 cargo run -r -- claim-withdrawals \
   --eth-private-key 0x... \
   --private-key 0x...
-```
-
-### 6. Network Operations
-
-Sync balance proof:
-```bash
-cargo run -r -- sync --private-key 0x...
 ```
 
 Note: For all commands that require private keys, ensure you're using the correct format (0x-prefixed hexadecimal).
