@@ -8,6 +8,7 @@ use intmax2_interfaces::{
     },
     data::{
         deposit_data::{DepositData, TokenType},
+        meta_data::MetaData,
         transfer_data::TransferData,
         tx_data::TxData,
     },
@@ -36,7 +37,7 @@ pub enum HistoryEntry {
         amount: U256,
         is_included: bool,
         is_rejected: bool,
-        timestamp: u64, // timestamp of the block where the deposit was saved to db
+        meta: MetaData,
     },
     Receive {
         amount: U256,
@@ -44,13 +45,13 @@ pub enum HistoryEntry {
         from: U256,
         is_included: bool,
         is_rejected: bool,
-        timestamp: u64, // timestamp of the block where the receive was saved to db
+        meta: MetaData,
     },
     Send {
         transfers: Vec<GenericTransfer>,
         is_included: bool,
         is_rejected: bool,
-        timestamp: u64, // timestamp of the block where the send was saved to db
+        meta: MetaData,
     },
 }
 
@@ -144,7 +145,7 @@ pub async fn fetch_history<
                     amount: decrypted.amount,
                     is_included: true,
                     is_rejected: false,
-                    timestamp: meta.timestamp,
+                    meta,
                 });
             } else {
                 history.push(HistoryEntry::Deposit {
@@ -155,7 +156,7 @@ pub async fn fetch_history<
                     amount: decrypted.amount,
                     is_included: false,
                     is_rejected: true,
-                    timestamp: meta.timestamp,
+                    meta,
                 });
             }
         } else {
@@ -167,7 +168,7 @@ pub async fn fetch_history<
                 amount: decrypted.amount,
                 is_included: false,
                 is_rejected: false,
-                timestamp: meta.timestamp,
+                meta,
             });
         }
     }
@@ -192,7 +193,7 @@ pub async fn fetch_history<
                     from: decrypted.sender,
                     is_included: true,
                     is_rejected: false,
-                    timestamp: meta.timestamp,
+                    meta,
                 });
             } else {
                 history.push(HistoryEntry::Receive {
@@ -201,7 +202,7 @@ pub async fn fetch_history<
                     from: decrypted.sender,
                     is_included: false,
                     is_rejected: true,
-                    timestamp: meta.timestamp,
+                    meta,
                 });
             }
         } else {
@@ -211,7 +212,7 @@ pub async fn fetch_history<
                 from: decrypted.sender,
                 is_included: false,
                 is_rejected: false,
-                timestamp: meta.timestamp,
+                meta,
             });
         }
     }
@@ -258,14 +259,14 @@ pub async fn fetch_history<
                     transfers,
                     is_included: true,
                     is_rejected: false,
-                    timestamp: meta.timestamp,
+                    meta,
                 });
             } else {
                 history.push(HistoryEntry::Send {
                     transfers,
                     is_included: false,
                     is_rejected: true,
-                    timestamp: meta.timestamp,
+                    meta,
                 });
             }
         } else {
@@ -273,16 +274,16 @@ pub async fn fetch_history<
                 transfers,
                 is_included: false,
                 is_rejected: false,
-                timestamp: meta.timestamp,
+                meta,
             });
         }
     }
 
     // sort history
     history.sort_by_key(|entry| match entry {
-        HistoryEntry::Deposit { timestamp, .. } => *timestamp,
-        HistoryEntry::Receive { timestamp, .. } => *timestamp,
-        HistoryEntry::Send { timestamp, .. } => *timestamp,
+        HistoryEntry::Deposit { meta, .. } => meta.timestamp,
+        HistoryEntry::Receive { meta, .. } => meta.timestamp,
+        HistoryEntry::Send { meta, .. } => meta.timestamp,
     });
 
     Ok(history)

@@ -108,15 +108,16 @@ fn print_history_entry(entry: &HistoryEntry) -> Result<(), CliError> {
             amount,
             is_included,
             is_rejected,
-            timestamp,
+            meta,
         } => {
             let status = get_status_string(*is_included, *is_rejected);
-            let time = format_timestamp(*timestamp);
+            let time = format_timestamp(meta.timestamp);
 
             println!(
-                "{} [{}]",
+                "{} [{}] uuid: {}",
                 "DEPOSIT".bright_green().bold(),
-                time.bright_blue()
+                time.bright_blue(),
+                meta.uuid
             );
             println!(
                 "  Token: {} ({:?})",
@@ -140,15 +141,16 @@ fn print_history_entry(entry: &HistoryEntry) -> Result<(), CliError> {
             from,
             is_included,
             is_rejected,
-            timestamp,
+            meta,
         } => {
             let status = get_status_string(*is_included, *is_rejected);
-            let time = format_timestamp(*timestamp);
+            let time = format_timestamp(meta.timestamp);
 
             println!(
-                "{} [{}]",
+                "{} [{}] uuid: {}",
                 "RECEIVE".bright_purple().bold(),
-                time.bright_blue()
+                time.bright_blue(),
+                meta.uuid
             );
             println!("  From: {}", from.to_hex().yellow());
             println!("  Token Index: {}", token_index.to_string().white());
@@ -159,12 +161,17 @@ fn print_history_entry(entry: &HistoryEntry) -> Result<(), CliError> {
             transfers,
             is_included,
             is_rejected,
-            timestamp,
+            meta,
         } => {
             let status = get_status_string(*is_included, *is_rejected);
-            let time = format_timestamp(*timestamp);
+            let time = format_timestamp(meta.timestamp);
 
-            println!("{} [{}]", "SEND".bright_red().bold(), time.bright_blue());
+            println!(
+                "{} [{}] uuid: {}",
+                "SEND".bright_red().bold(),
+                time.bright_blue(),
+                meta.uuid
+            );
             println!("  Transfers:");
             for (i, t) in transfers.iter().enumerate() {
                 println!("    {}: {}", i + 1, t.to_string().white());
