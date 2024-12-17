@@ -15,7 +15,7 @@ use crate::{
 pub struct DepositInfo {
     pub settled: Vec<(MetaData, DepositData)>,
     pub pending: Vec<(MetaData, DepositData)>,
-    pub rejected: Vec<MetaData>,
+    pub timeout: Vec<(MetaData, DepositData)>,
 }
 
 pub async fn fetch_deposit_info<S: StoreVaultClientInterface, V: ValidityProverClientInterface>(
@@ -28,7 +28,7 @@ pub async fn fetch_deposit_info<S: StoreVaultClientInterface, V: ValidityProverC
 ) -> Result<DepositInfo, ClientError> {
     let mut settled = Vec::new();
     let mut pending = Vec::new();
-    let mut rejected = Vec::new();
+    let mut timeout = Vec::new();
 
     let encrypted_data = store_vault_server
         .get_data_all_after(DataType::Deposit, key.pubkey, deposit_lpt)
@@ -45,7 +45,7 @@ pub async fn fetch_deposit_info<S: StoreVaultClientInterface, V: ValidityProverC
                     .await?;
                 if token_index.is_none() {
                     log::error!("Token not found: {:?}", deposit_data);
-                    rejected.push(meta); // reject here because deposit function is not called
+                    // ignore this deposit
                     continue;
                 }
                 let mut deposit_data = deposit_data;
@@ -65,7 +65,7 @@ pub async fn fetch_deposit_info<S: StoreVaultClientInterface, V: ValidityProverC
                             meta.uuid,
                             deposit_hash
                         );
-                        rejected.push(meta);
+                        timeout.push((meta, deposit_data));
                     } else {
                         // pending
                         log::info!("Deposit {} is pending", meta.uuid);
@@ -75,7 +75,7 @@ pub async fn fetch_deposit_info<S: StoreVaultClientInterface, V: ValidityProverC
             }
             Err(e) => {
                 log::error!("failed to decrypt deposit data: {}", e);
-                rejected.push(meta);
+                // ignore this deposit
             }
         };
     }
@@ -86,6 +86,6 @@ pub async fn fetch_deposit_info<S: StoreVaultClientInterface, V: ValidityProverC
     Ok(DepositInfo {
         settled,
         pending,
-        rejected,
+        timeout,
     })
 }

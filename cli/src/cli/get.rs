@@ -119,11 +119,11 @@ fn print_history_entry(entry: &HistoryEntry) -> Result<(), CliError> {
                 time.bright_blue(),
             );
             println!("  UUID: {}", meta.uuid);
-            // println!(
-            //     "  Block: {}",
-            //     meta.block_number
-            //         .map_or("N/A".to_string(), |b| b.to_string())
-            // );
+            println!(
+                "  Block: {}",
+                meta.block_number
+                    .map_or("N/A".to_string(), |b| b.to_string())
+            );
             println!(
                 "  Token: {} ({:?})",
                 token_type.to_string().yellow(),
@@ -157,11 +157,11 @@ fn print_history_entry(entry: &HistoryEntry) -> Result<(), CliError> {
                 time.bright_blue(),
             );
             println!("  UUID: {}", meta.uuid);
-            // println!(
-            //     "  Block: {}",
-            //     meta.block_number
-            //         .map_or("N/A".to_string(), |b| b.to_string())
-            // );
+            println!(
+                "  Block: {}",
+                meta.block_number
+                    .map_or("N/A".to_string(), |b| b.to_string())
+            );
             println!("  From: {}", from.to_hex().yellow());
             println!("  Token Index: {}", token_index.to_string().white());
             println!("  Amount: {}", amount.to_string().bright_green());
@@ -178,11 +178,11 @@ fn print_history_entry(entry: &HistoryEntry) -> Result<(), CliError> {
 
             println!("{} [{}]", "SEND".bright_red().bold(), time.bright_blue(),);
             println!("  UUID: {}", meta.uuid);
-            // println!(
-            //     "  Block: {}",
-            //     meta.block_number
-            //         .map_or("N/A".to_string(), |b| b.to_string())
-            // );
+            println!(
+                "  Block: {}",
+                meta.block_number
+                    .map_or("N/A".to_string(), |b| b.to_string())
+            );
             println!("  Transfers:");
             for (i, t) in transfers.iter().enumerate() {
                 println!("    {}: {}", i + 1, t.to_string().white());
