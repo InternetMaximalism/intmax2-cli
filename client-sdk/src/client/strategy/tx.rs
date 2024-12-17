@@ -24,8 +24,8 @@ where
     C: GenericConfig<D, F = F>,
 {
     pub settled: Vec<(MetaData, TxData<F, C, D>)>,
-    pub pending: Vec<MetaData>,
-    pub rejected: Vec<MetaData>,
+    pub pending: Vec<(MetaData, TxData<F, C, D>)>,
+    pub rejected: Vec<(MetaData, TxData<F, C, D>)>,
 }
 
 pub async fn fetch_tx_info<S: StoreVaultClientInterface, V: ValidityProverClientInterface>(
@@ -57,18 +57,18 @@ pub async fn fetch_tx_info<S: StoreVaultClientInterface, V: ValidityProverClient
                 } else {
                     if meta.timestamp + tx_timeout < chrono::Utc::now().timestamp() as u64 {
                         // timeout
-                        log::error!("Tx {} is timeouted", meta.uuid);
-                        rejected.push(meta);
+                        log::error!("Tx {} is timeout", meta.uuid);
+                        rejected.push((meta, tx_data));
                     } else {
                         // pending
                         log::info!("Tx {} is pending", meta.uuid);
-                        pending.push(meta);
+                        pending.push((meta, tx_data));
                     }
                 }
             }
             Err(e) => {
+                // just ignore the invalid data
                 log::error!("failed to decrypt tx data: {}", e);
-                rejected.push(meta);
             }
         };
     }

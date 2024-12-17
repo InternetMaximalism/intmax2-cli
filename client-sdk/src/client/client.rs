@@ -395,20 +395,9 @@ where
         )
         .await?;
 
-        // if there are pending actions, return pending
-        // todo: process non-pending actions if possible
-        if next_action.pending_deposits.len() > 0
-            || next_action.pending_transfers.len() > 0
-            || next_action.pending_txs.len() > 0
-        {
-            return Ok(SyncStatus::Pending);
-        }
-
-        if next_action.action.is_none() {
-            return Ok(SyncStatus::Complete);
-        }
-
-        match next_action.action.unwrap() {
+        match next_action.action {
+            Action::PendingTx(_, _) => return Ok(SyncStatus::Pending),
+            Action::None => return Ok(SyncStatus::Complete),
             Action::Deposit(meta, deposit_data) => {
                 self.sync_deposit(key, &meta, &deposit_data).await?;
             }
@@ -417,7 +406,6 @@ where
             }
             Action::Tx(meta, tx_data) => self.sync_tx(key, &meta, &tx_data).await?,
         }
-
         Ok(SyncStatus::Continue)
     }
 
