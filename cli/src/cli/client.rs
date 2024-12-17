@@ -10,7 +10,7 @@ use intmax2_client_sdk::{
     },
 };
 
-use crate::Env;
+use crate::env_var::EnvVar;
 
 use super::error::CliError;
 
@@ -21,7 +21,7 @@ type B = BalanceProverClient;
 type W = WithdrawalServerClient;
 
 pub fn get_client() -> Result<Client<BB, S, V, B, W>, CliError> {
-    let env = envy::from_env::<Env>()?;
+    let env = envy::from_env::<EnvVar>()?;
     let block_builder = BB::new();
     let store_vault_server = S::new(&env.store_vault_server_base_url);
 

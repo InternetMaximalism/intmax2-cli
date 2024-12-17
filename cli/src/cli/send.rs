@@ -14,7 +14,7 @@ use serde::Deserialize;
 
 use crate::{
     cli::{client::get_client, sync::sync, utils::convert_u256},
-    Env,
+    env_var::EnvVar,
 };
 
 use super::error::CliError;
@@ -50,7 +50,7 @@ pub async fn transfer(key: KeySet, transfer_inputs: &[TransferInput]) -> Result<
         })
         .collect::<Result<Vec<_>, CliError>>()?;
 
-    let env = envy::from_env::<Env>()?;
+    let env = envy::from_env::<EnvVar>()?;
     let client = get_client()?;
 
     if !sync(key.clone()).await? {

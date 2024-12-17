@@ -1,7 +1,7 @@
 use ethers::types::{Address, U256};
 use intmax2_zkp::ethereum_types::u32limb_trait::U32LimbTrait as _;
 
-use crate::{Env, EnvType};
+use crate::env_var::{EnvType, EnvVar};
 
 use super::error::CliError;
 
@@ -18,8 +18,8 @@ pub fn convert_address(input: Address) -> intmax2_zkp::ethereum_types::address::
     address
 }
 
-pub fn load_env() -> Result<Env, CliError> {
-    let env = envy::from_env::<Env>()?;
+pub fn load_env() -> Result<EnvVar, CliError> {
+    let env = envy::from_env::<EnvVar>()?;
     Ok(env)
 }
 
@@ -28,7 +28,7 @@ pub fn is_local() -> Result<bool, CliError> {
 }
 
 pub async fn post_empty_block() -> Result<(), CliError> {
-    let env = envy::from_env::<Env>()?;
+    let env = envy::from_env::<EnvVar>()?;
     let block_builder_base_url = env.block_builder_base_url.ok_or(CliError::UnexpectedError(
         "BLOCK_BUILDER_BASE_URL".to_string(),
     ))?;
