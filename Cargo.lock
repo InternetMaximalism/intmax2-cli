@@ -5515,6 +5515,7 @@ dependencies = [
  "intmax2-interfaces",
  "intmax2-zkp",
  "log",
+ "num-bigint 0.4.6",
  "plonky2",
  "rand",
  "reqwest 0.12.9",

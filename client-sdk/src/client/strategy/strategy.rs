@@ -113,15 +113,20 @@ pub async fn determine_next_action<
         pending_transfers: transfer_info.pending,
     };
 
-    if transfer_info.settled.len() > 0 {
-        // process from the latest transfer to reduce the number of updates
-        let (meta, transfer_data) = transfer_info.settled.last().unwrap().clone();
-        return Ok((Action::Transfer(meta, transfer_data), pending_info));
-    } else if deposit_info.settled.len() > 0 {
-        // process from the latest transfer to reduce the number of updates
-        let (meta, deposit_data) = deposit_info.settled.last().unwrap().clone();
-        return Ok((Action::Deposit(meta, deposit_data), pending_info));
-    } else {
-        return Ok((Action::None, pending_info));
+    let mut all_actions: Vec<(u32, u8, Action)> = Vec::new();
+    // Add deposit data with priority 1
+    for (meta, data) in deposit_info.settled.into_iter() {
+        all_actions.push((meta.block_number.unwrap(), 1, Action::Deposit(meta, data)));
     }
+    // Add transfer data with priority 2
+    for (meta, data) in transfer_info.settled.into_iter() {
+        all_actions.push((meta.block_number.unwrap(), 2, Action::Transfer(meta, data)));
+    }
+
+    // Sort by block number first, then by priority
+    all_actions.sort_by_key(|(block_num, priority, _)| (*block_num, *priority));
+
+    // Get the next action
+    let next_action = all_actions.first().map(|(_, _, action)| action.clone());
+    Ok((next_action.unwrap_or(Action::None), pending_info))
 }

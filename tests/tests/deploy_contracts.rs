@@ -7,7 +7,7 @@ use intmax2_client_sdk::external_api::contract::{
 use serde::Deserialize;
 
 #[derive(Deserialize)]
-struct Config {
+struct EnvVar {
     pub rpc_url: String,
     pub chain_id: u64,
     pub deployer_private_key: H256,
@@ -17,7 +17,7 @@ struct Config {
 #[tokio::test]
 async fn deploy_contracts() -> anyhow::Result<()> {
     dotenv::dotenv().ok();
-    let config = envy::from_env::<Config>().unwrap();
+    let config = envy::from_env::<EnvVar>().unwrap();
 
     let rollup_contract = RollupContract::deploy(
         &config.rpc_url,
