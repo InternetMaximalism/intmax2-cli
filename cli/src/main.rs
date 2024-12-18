@@ -18,13 +18,14 @@ use intmax2_zkp::{
     ethereum_types::{u256::U256 as IU256, u32limb_trait::U32LimbTrait},
 };
 use num_bigint::BigUint;
-use server_common::logger::init_logger;
 
 const MAX_BATCH_TRANSFER: usize = 5;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    init_logger()?;
+    env_logger::builder()
+        .filter_level(log::LevelFilter::Info)
+        .init();
     let args = Args::parse();
 
     dotenv::dotenv().ok();

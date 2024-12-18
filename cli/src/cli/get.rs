@@ -16,12 +16,10 @@ pub async fn balance(key: KeySet) -> Result<(), CliError> {
 
     client.sync(key.clone()).await?;
     let pending_info = client.sync(key.clone()).await?;
-    log::info!(
-        "Pending deposits: {:?}",
-        pending_info.pending_deposits.len()
-    );
-    log::info!(
-        "Pending transfers: {:?}",
+
+    println!("Pending deposits: {}", pending_info.pending_deposits.len());
+    println!(
+        "Pending transfers: {}",
         pending_info.pending_transfers.len()
     );
 
