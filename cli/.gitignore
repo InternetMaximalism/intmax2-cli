@@ -1,6 +1,6 @@
 .env
 
-log.txt
+logs
 
 # For testing purposes
 transfers.csv
