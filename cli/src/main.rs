@@ -13,18 +13,18 @@ use intmax2_cli::{
     },
     format::{format_token_info, h256_to_keyset},
 };
-use intmax2_client_sdk::utils::logger::init_logger;
 use intmax2_zkp::{
     common::signature::key_set::KeySet,
     ethereum_types::{u256::U256 as IU256, u32limb_trait::U32LimbTrait},
 };
 use num_bigint::BigUint;
+use server_common::logger::init_logger;
 
 const MAX_BATCH_TRANSFER: usize = 5;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    init_logger();
+    init_logger()?;
     let args = Args::parse();
 
     dotenv::dotenv().ok();

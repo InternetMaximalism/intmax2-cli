@@ -1,10 +1,10 @@
 use ethers::types::H256;
-use intmax2_client_sdk::{
-    external_api::contract::{rollup_contract::RollupContract, utils::get_latest_block_number},
-    utils::logger::init_logger,
+use intmax2_client_sdk::external_api::contract::{
+    rollup_contract::RollupContract, utils::get_latest_block_number,
 };
 use intmax2_zkp::common::signature::SignatureContent;
 use serde::Deserialize;
+use server_common::logger::init_logger;
 use validity_prover::Env;
 
 #[derive(Deserialize)]
@@ -14,7 +14,8 @@ struct PrivKeyEnv {
 
 #[tokio::test]
 async fn post_blocks() -> anyhow::Result<()> {
-    init_logger();
+    init_logger()?;
+
     dotenv::dotenv().ok();
     let env = envy::from_env::<Env>().unwrap();
     let priv_key_env = envy::from_env::<PrivKeyEnv>().unwrap();

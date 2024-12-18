@@ -24,13 +24,13 @@ pub async fn health_check() -> Result<Json<HealthCheckResponse>, Error> {
 static PACKAGE_INFO: OnceLock<PackageInfo> = OnceLock::new();
 
 #[derive(Clone)]
-struct PackageInfo {
-    name: String,
-    version: String,
+pub struct PackageInfo {
+    pub name: String,
+    pub version: String,
 }
 
 #[derive(Error, Debug)]
-enum PackageInfoError {
+pub enum PackageInfoError {
     #[error("Failed to execute cargo metadata: {0}")]
     MetadataError(#[from] cargo_metadata::Error),
 
@@ -42,7 +42,7 @@ enum PackageInfoError {
 }
 
 // Get package information from Cargo.toml
-fn get_package_info() -> Result<&'static PackageInfo, PackageInfoError> {
+pub fn get_package_info() -> Result<&'static PackageInfo, PackageInfoError> {
     PACKAGE_INFO.get_or_try_init(|| {
         let metadata = MetadataCommand::new().no_deps().exec()?;
         let current_dir = std::env::current_dir()?;
