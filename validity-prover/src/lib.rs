@@ -2,7 +2,6 @@ use ethers::types::Address;
 use serde::Deserialize;
 
 pub mod api;
-pub mod health_check;
 pub mod utils;
 
 #[derive(Deserialize)]

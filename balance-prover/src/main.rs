@@ -2,10 +2,9 @@ use actix_cors::Cors;
 use actix_web::{middleware::Logger, web::Data, App, HttpServer};
 use balance_prover::{
     api::{api::balance_prover_scope, balance_prover::BalanceProver},
-    health_check::health_check,
     Env,
 };
-use server_common::logger::init_logger;
+use server_common::{health_check::health_check, logger::init_logger};
 use std::io::{self};
 
 #[actix_web::main]

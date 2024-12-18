@@ -1,17 +1,13 @@
-use std::{env, io};
+use std::io;
 
 use actix_cors::Cors;
 use actix_web::{middleware::Logger, web::Data, App, HttpServer};
 use block_builder::{
     api::{api::block_builder_scope, block_builder::BlockBuilder, state::State},
-    health_check::health_check,
     Env,
 };
-use env_logger::fmt::Formatter;
 use intmax2_client_sdk::external_api::contract::utils::get_address;
-use log::{LevelFilter, Record};
-use server_common::logger::init_logger;
-use std::{fs::File, io::Write};
+use server_common::{health_check::health_check, logger::init_logger};
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {

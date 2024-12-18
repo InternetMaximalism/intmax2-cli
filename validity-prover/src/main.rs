@@ -1,12 +1,8 @@
 use actix_cors::Cors;
 use actix_web::{middleware::Logger, web::Data, App, HttpServer};
-use env_logger::fmt::Formatter;
-use log::{LevelFilter, Record};
-use server_common::logger::init_logger;
+use server_common::{health_check::health_check, logger::init_logger};
 use std::{
-    env,
-    fs::File,
-    io::{self, Write},
+    io::{self},
     sync::{
         atomic::{AtomicBool, Ordering},
         Arc,
@@ -16,7 +12,6 @@ use std::{
 use tokio::time::interval;
 use validity_prover::{
     api::{api::validity_prover_scope, state::State, validity_prover::ValidityProver},
-    health_check::health_check,
     Env,
 };
 

@@ -1,14 +1,10 @@
-use std::{env, fs::File, io};
+use std::io;
 
 use actix_cors::Cors;
 use actix_web::{middleware::Logger, web::Data, App, HttpServer};
-use env_logger::fmt::Formatter;
-use log::{LevelFilter, Record};
-use server_common::logger::init_logger;
-use std::io::Write;
+use server_common::{health_check::health_check, logger::init_logger};
 use withdrawal_server::{
     api::{api::withdrawal_server_scope, state::State},
-    health_check::health_check,
     Env,
 };
 

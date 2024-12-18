@@ -4,14 +4,8 @@ use actix_web::{
     web::{Data, JsonConfig},
     App, HttpServer,
 };
-use env_logger::fmt::Formatter;
-use log::{LevelFilter, Record};
 use server_common::{health_check::health_check, logger::init_logger};
-use std::{
-    env,
-    fs::File,
-    io::{self, Write},
-};
+use std::io::{self};
 use store_vault_server::{
     api::{api::store_vault_server_scope, state::State, store_vault_server::StoreVaultServer},
     Env,
