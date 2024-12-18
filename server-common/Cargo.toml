@@ -1,9 +1,12 @@
 [package]
 name = "server-common"
-edition = "2021"
 version.workspace = true
+edition = "2021"
+
 
 [dependencies]
 actix-web = { workspace = true }
 actix-cors = { workspace = true }
 serde = { workspace = true }
+thiserror = { workspace = true }
+cargo_metadata = "0.19.1"

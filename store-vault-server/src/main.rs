@@ -6,7 +6,7 @@ use actix_web::{
 };
 use env_logger::fmt::Formatter;
 use log::{LevelFilter, Record};
-use server_common::health_check::{health_check, set_health_check_env_vars};
+use server_common::health_check::health_check;
 use std::{
     env,
     fs::File,
@@ -56,7 +56,6 @@ async fn main() -> std::io::Result<()> {
     })?;
     let state = Data::new(State::new(store_vault_server));
 
-    set_health_check_env_vars(env!("CARGO_PKG_NAME"), env!("CARGO_PKG_VERSION"));
     HttpServer::new(move || {
         let cors = Cors::permissive();
         App::new()

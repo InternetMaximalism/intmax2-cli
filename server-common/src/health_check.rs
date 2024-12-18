@@ -1,5 +1,53 @@
-use actix_web::{get, web::Json, Error};
+use std::{path::PathBuf, sync::OnceLock};
+
+use actix_web::{error::ErrorInternalServerError, get, web::Json, Error};
+use cargo_metadata::MetadataCommand;
 use serde::Serialize;
+use thiserror::Error;
+
+static PACKAGE_INFO: OnceLock<PackageInfo> = OnceLock::new();
+
+#[derive(Clone)]
+struct PackageInfo {
+    name: String,
+    version: String,
+}
+
+#[derive(Error, Debug)]
+enum PackageInfoError {
+    #[error("Failed to execute cargo metadata: {0}")]
+    MetadataError(#[from] cargo_metadata::Error),
+
+    #[error("Failed to get current directory: {0}")]
+    CurrentDirError(#[from] std::io::Error),
+
+    #[error("Package not found in metadata")]
+    PackageNotFound,
+}
+
+// Get package information from Cargo.toml
+fn get_package_info() -> Result<&'static PackageInfo, PackageInfoError> {
+    PACKAGE_INFO.get_or_try_init(|| {
+        let metadata = MetadataCommand::new().no_deps().exec()?;
+        let current_dir = std::env::current_dir()?;
+        let manifest_path = current_dir.join("Cargo.toml");
+        let canonical_manifest_path = manifest_path.canonicalize()?;
+
+        let package = metadata
+            .packages
+            .iter()
+            .find(|p| {
+                PathBuf::from(&p.manifest_path).canonicalize().ok()
+                    == Some(canonical_manifest_path.clone())
+            })
+            .ok_or(PackageInfoError::PackageNotFound)?;
+
+        Ok(PackageInfo {
+            name: package.name.clone(),
+            version: package.version.to_string(),
+        })
+    })
+}
 
 #[derive(Serialize)]
 pub struct HealthCheckResponse {
@@ -7,22 +55,11 @@ pub struct HealthCheckResponse {
     pub version: String,
 }
 
-/// Because the health check endpoint is used by all services, we need to set the environment variables
-pub fn set_health_check_env_vars(name: &str, version: &str) {
-    std::env::set_var("HEALTH_CHECK_NAME", name);
-    std::env::set_var("HEALTH_CHECK_VERSION", version);
-}
-
 #[get("/health-check")]
 pub async fn health_check() -> Result<Json<HealthCheckResponse>, Error> {
-    let name = std::env::var("HEALTH_CHECK_NAME").map_err(|e| {
-        actix_web::error::ErrorInternalServerError(format!("HEALTH_CHECK_NAME is not set: {}", e))
-    })?;
-    let version = std::env::var("HEALTH_CHECK_VERSION").map_err(|e| {
-        actix_web::error::ErrorInternalServerError(format!(
-            "HEALTH_CHECK_VERSION is not set: {}",
-            e
-        ))
-    })?;
-    Ok(Json(HealthCheckResponse { name, version }))
+    let info = get_package_info().map_err(ErrorInternalServerError)?;
+    Ok(Json(HealthCheckResponse {
+        name: info.name.clone(),
+        version: info.version.clone(),
+    }))
 }

@@ -15,6 +15,7 @@ resolver = "2"
 
 [workspace.package]
 version = "0.1.0"
+edition = "2021"
 
 [workspace.dependencies]
 plonky2 = { git = "https://github.com/InternetMaximalism/polygon-plonky2.git", branch = "intmax2-dev" }
