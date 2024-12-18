@@ -1,9 +1,13 @@
 use std::{collections::HashMap, time::Duration};
 
 use anyhow::{Ok, Result};
-use intmax2_interfaces::{api::store_vault_server::interface::DataType, data::meta_data::MetaData};
+use intmax2_interfaces::{
+    api::store_vault_server::interface::DataType,
+    data::{meta_data::MetaData, user_data::UserData},
+};
 use intmax2_zkp::{
     circuits::balance::balance_pis::BalancePublicInputs,
+    common::signature::key_set::KeySet,
     ethereum_types::{u256::U256, u32limb_trait::U32LimbTrait},
     utils::poseidon_hash_out::PoseidonHashOut,
 };
@@ -107,6 +111,20 @@ impl StoreVaultServer {
     pub async fn save_user_data(&self, pubkey: U256, encrypted_data: Vec<u8>) -> Result<()> {
         let pubkey_hex = pubkey.to_hex();
 
+        // logging this will not work in production with real encrypted data
+        {
+            log::info!("save_user_data: pubkey_hex: {}", pubkey_hex);
+            match UserData::decrypt(&encrypted_data, KeySet::dummy()) {
+                std::result::Result::Ok(user_data) => {
+                    let private_commitment = user_data.private_commitment();
+                    log::info!("save_user_data: private_commitment: {}", private_commitment);
+                    log::info!("save_user_data: user_data: {:?}", user_data);
+                }
+                Err(e) => {
+                    log::error!("save_user_data: failed to decrypt user_data: {:?}", e);
+                }
+            }
+        }
         sqlx::query!(
             r#"
             INSERT INTO encrypted_user_data (pubkey, encrypted_data)
