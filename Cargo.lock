@@ -4858,6 +4858,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "server-common"
+version = "0.1.0"
+dependencies = [
+ "actix-cors",
+ "actix-web",
+ "serde",
+]
+
+[[package]]
 name = "sha1"
 version = "0.10.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5286,6 +5295,7 @@ dependencies = [
  "serde",
  "serde_json",
  "serde_qs",
+ "server-common",
  "sqlx",
  "thiserror 1.0.69",
  "tokio",

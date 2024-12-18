@@ -9,7 +9,7 @@ members = [
     "validity-prover",
     "block-builder",
     "withdrawal-server",
-    "tests",
+    "tests", "server-common",
 ]
 resolver = "2"
 
