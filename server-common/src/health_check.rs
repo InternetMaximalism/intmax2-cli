@@ -5,6 +5,22 @@ use cargo_metadata::MetadataCommand;
 use serde::Serialize;
 use thiserror::Error;
 
+#[derive(Serialize)]
+pub struct HealthCheckResponse {
+    pub name: String,
+    pub version: String,
+}
+
+#[get("/health-check")]
+pub async fn health_check() -> Result<Json<HealthCheckResponse>, Error> {
+    let info = get_package_info().map_err(ErrorInternalServerError)?;
+    Ok(Json(HealthCheckResponse {
+        name: info.name.clone(),
+        version: info.version.clone(),
+    }))
+}
+
+/// Cached package information
 static PACKAGE_INFO: OnceLock<PackageInfo> = OnceLock::new();
 
 #[derive(Clone)]
@@ -47,19 +63,4 @@ fn get_package_info() -> Result<&'static PackageInfo, PackageInfoError> {
             version: package.version.to_string(),
         })
     })
-}
-
-#[derive(Serialize)]
-pub struct HealthCheckResponse {
-    pub name: String,
-    pub version: String,
-}
-
-#[get("/health-check")]
-pub async fn health_check() -> Result<Json<HealthCheckResponse>, Error> {
-    let info = get_package_info().map_err(ErrorInternalServerError)?;
-    Ok(Json(HealthCheckResponse {
-        name: info.name.clone(),
-        version: info.version.clone(),
-    }))
 }
