@@ -4,7 +4,10 @@ use actix_web::{
     web::{Data, JsonConfig},
     App, HttpServer,
 };
-use server_common::{health_check::health_check, logger::init_logger};
+use server_common::{
+    health_check::{health_check, set_name_and_version},
+    logger::init_logger,
+};
 use std::io::{self};
 use store_vault_server::{
     api::{api::store_vault_server_scope, state::State, store_vault_server::StoreVaultServer},
@@ -13,6 +16,7 @@ use store_vault_server::{
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
+    set_name_and_version(env!("CARGO_PKG_NAME"), env!("CARGO_PKG_VERSION"));
     init_logger().map_err(|e| io::Error::new(io::ErrorKind::Other, e))?;
 
     dotenv::dotenv().ok();

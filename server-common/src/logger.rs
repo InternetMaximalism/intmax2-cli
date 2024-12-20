@@ -8,16 +8,13 @@ use tracing_subscriber::{
     Layer as _,
 };
 
-use crate::health_check::{get_package_info, PackageInfoError};
+use crate::health_check::load_name_and_version;
 
 const LOG_DIR: &str = "logs";
 const MAX_LOG_FILES: usize = 14;
 
 #[derive(Error, Debug)]
 pub enum InitLoggerError {
-    #[error("Failed to get package info: {0}")]
-    PackageInfoError(#[from] PackageInfoError),
-
     #[error("Failed to initialize logger: {0}")]
     SetGlobalSubscriberError(#[from] tracing::subscriber::SetGlobalDefaultError),
 
@@ -30,8 +27,8 @@ pub enum InitLoggerError {
 
 pub fn init_logger() -> Result<(), InitLoggerError> {
     // Get package info for log file naming
-    let package_info = get_package_info()?;
-    let log_file_name = format!("{}.log", package_info.name);
+    let (name, _version) = load_name_and_version();
+    let log_file_name = format!("{}.log", name);
 
     let file_appender = RollingFileAppender::builder()
         .rotation(Rotation::DAILY)
