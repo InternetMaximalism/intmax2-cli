@@ -105,6 +105,13 @@ pub struct TxRequestMemo {
     pub prev_private_commitment: PoseidonHashOut,
 }
 
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TxResult {
+    pub tx_tree_root: Bytes32,
+    pub transfer_data_vec: Vec<TransferData<F, C, D>>,
+}
+
 impl<BB, S, V, B, W> Client<BB, S, V, B, W>
 where
     BB: BlockBuilderClientInterface,
@@ -293,7 +300,7 @@ where
         key: KeySet,
         memo: &TxRequestMemo,
         proposal: &BlockProposal,
-    ) -> Result<Bytes32, ClientError> {
+    ) -> Result<TxResult, ClientError> {
         // verify proposal
         proposal
             .verify(memo.tx)
@@ -324,8 +331,7 @@ where
             transfer_tree.push(transfer.clone());
         }
 
-        let mut save_transfers = Vec::new();
-        let mut save_withdrawals = Vec::new();
+        let mut transfer_data_vec = Vec::new();
         for (i, transfer) in memo.transfers.iter().enumerate() {
             let transfer_merkle_proof = transfer_tree.prove(i as u64);
             let transfer_data = TransferData {
@@ -337,22 +343,32 @@ where
                 transfer_index: i as u32,
                 transfer_merkle_proof,
             };
-            if transfer.recipient.is_pubkey {
-                let recipient = transfer.recipient.to_pubkey().unwrap();
-                save_transfers.push((
-                    transfer.recipient.to_pubkey().unwrap(),
-                    transfer_data.encrypt(recipient),
-                ));
-            } else {
-                save_withdrawals.push((key.pubkey, transfer_data.encrypt(key.pubkey)));
-            }
+            transfer_data_vec.push(transfer_data);
         }
 
+        let encrypted_transfer_data_vec = transfer_data_vec
+            .iter()
+            // filter out eth-address recipients (withdrawal)
+            .filter(|data| data.transfer.recipient.is_pubkey)
+            .map(|data| {
+                (
+                    data.transfer.recipient.to_pubkey().unwrap(),
+                    data.encrypt(key.pubkey),
+                )
+            })
+            .collect::<Vec<_>>();
+        let encrypted_withdrawal_data_vec = transfer_data_vec
+            .iter()
+            // filter out pubkey recipients (transfer)
+            .filter(|data| !data.transfer.recipient.is_pubkey)
+            .map(|data| (key.pubkey, data.encrypt(key.pubkey)))
+            .collect::<Vec<_>>();
+
         self.store_vault_server
-            .save_data_batch(DataType::Transfer, save_transfers)
+            .save_data_batch(DataType::Transfer, encrypted_transfer_data_vec)
             .await?;
         self.store_vault_server
-            .save_data_batch(DataType::Withdrawal, save_withdrawals)
+            .save_data_batch(DataType::Withdrawal, encrypted_withdrawal_data_vec)
             .await?;
 
         // sign and post signature
@@ -367,7 +383,12 @@ where
             )
             .await?;
 
-        Ok(proposal.tx_tree_root)
+        let result = TxResult {
+            tx_tree_root: proposal.tx_tree_root,
+            transfer_data_vec,
+        };
+
+        Ok(result)
     }
 
     /// Sync the client's balance proof with the latest block

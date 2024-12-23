@@ -16,7 +16,7 @@ use intmax2_zkp::{
 };
 use js_types::{
     common::JsTransfer,
-    data::{JsDepositData, JsTransferData, JsTxData, JsUserData},
+    data::{JsDepositData, JsTransferData, JsTxData, JsTxResult, JsUserData},
     utils::{parse_address, parse_u256},
     wrapper::{JsBlockProposal, JsTxRequestMemo},
 };
@@ -129,11 +129,9 @@ pub async fn query_proposal(
     Ok(proposal)
 }
 
-/// In this function, query block proposal from the block builder,
-/// and then send the signed tx tree root to the block builder.
-/// A backup of the tx is also taken.
+/// Send the signed tx tree root to the block builder during taking a backup of the tx.
 /// You need to call send_tx_request before calling this function.
-/// The return value is the tx tree root.
+/// The return value is the tx result, which contains the tx tree root and transfer data.
 #[wasm_bindgen]
 pub async fn finalize_tx(
     config: &Config,
@@ -141,15 +139,15 @@ pub async fn finalize_tx(
     private_key: &str,
     tx_request_memo: &JsTxRequestMemo,
     proposal: &JsBlockProposal,
-) -> Result<String, JsError> {
+) -> Result<JsTxResult, JsError> {
     let key = str_privkey_to_keyset(private_key)?;
     let tx_request_memo = tx_request_memo.to_tx_request_memo()?;
     let proposal = proposal.to_block_proposal()?;
     let client = get_client(config);
-    let tx_tree_root = client
+    let tx_result = client
         .finalize_tx(block_builder_url, key, &tx_request_memo, &proposal)
         .await?;
-    Ok(tx_tree_root.to_string())
+    Ok(JsTxResult::from_tx_result(&tx_result))
 }
 
 /// Batch function of query_proposal and finalize_tx.
@@ -159,7 +157,7 @@ pub async fn query_and_finalize(
     block_builder_url: &str,
     private_key: &str,
     tx_request_memo: &JsTxRequestMemo,
-) -> Result<String, JsError> {
+) -> Result<JsTxResult, JsError> {
     let key = str_privkey_to_keyset(private_key)?;
     let client = get_client(config);
     let tx_request_memo = tx_request_memo.to_tx_request_memo()?;
@@ -179,10 +177,10 @@ pub async fn query_and_finalize(
         tries += 1;
         sleep_for(config.block_builder_query_interval).await;
     };
-    let tx_tree_root = client
+    let tx_result = client
         .finalize_tx(&block_builder_url, key, &tx_request_memo, &proposal)
         .await?;
-    Ok(tx_tree_root.to_string())
+    Ok(JsTxResult::from_tx_result(&tx_result))
 }
 
 /// Synchronize the user's balance proof. It may take a long time to generate ZKP.
