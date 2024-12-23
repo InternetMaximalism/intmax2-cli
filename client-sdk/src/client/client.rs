@@ -351,10 +351,8 @@ where
             // filter out eth-address recipients (withdrawal)
             .filter(|data| data.transfer.recipient.is_pubkey)
             .map(|data| {
-                (
-                    data.transfer.recipient.to_pubkey().unwrap(),
-                    data.encrypt(key.pubkey),
-                )
+                let recipient = data.transfer.recipient.to_pubkey().unwrap();
+                (recipient, data.encrypt(recipient))
             })
             .collect::<Vec<_>>();
         let encrypted_withdrawal_data_vec = transfer_data_vec
