@@ -1,0 +1,29 @@
+use tracing::level_filters::LevelFilter;
+use tracing_subscriber::{
+    layer::SubscriberExt as _, util::SubscriberInitExt as _, EnvFilter, Layer as _,
+};
+
+pub mod account_tree;
+pub mod bit_path;
+pub mod block_tree;
+pub mod deposit_hash_tree;
+pub mod error;
+pub mod incremental_merkle_tree;
+pub mod indexed_merkle_tree;
+pub mod merkle_tree;
+pub mod node;
+pub mod utils;
+
+pub fn setup_test() -> String {
+    dotenv::dotenv().ok();
+    tracing_subscriber::registry()
+        .with(
+            tracing_subscriber::fmt::layer()
+                .pretty()
+                .with_filter(EnvFilter::from_default_env().add_directive(LevelFilter::INFO.into())),
+        )
+        .try_init()
+        .unwrap();
+    let database_url = std::env::var("DATABASE_URL").unwrap();
+    database_url
+}
