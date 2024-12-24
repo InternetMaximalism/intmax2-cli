@@ -19,6 +19,10 @@ type V = IndexedMerkleLeaf;
 pub type HistoricalAccountTree<DB> = HistoricalIndexedMerkleTree<DB>;
 
 impl<DB: NodeDB<V>> HistoricalAccountTree<DB> {
+    pub fn node_db(&self) -> &DB {
+        self.0.node_db()
+    }
+
     pub async fn initialize(node_db: DB) -> HIMTResult<Self> {
         let tree = HistoricalIndexedMerkleTree::new(node_db, ACCOUNT_TREE_HEIGHT as u32).await?;
         if tree.len().await? == 1 {

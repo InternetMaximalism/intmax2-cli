@@ -70,6 +70,11 @@ pub enum ValidityProverError {
     #[error("Account tree not found for block number {0}")]
     AccountTreeNotFound(u32),
 
+    #[error("Deposit tree not found for block number {0}")]
+    DepositTreeRootNotFound(u32),
+
+    
+
     #[error("Input error {0}")]
     InputError(String),
 }

@@ -29,21 +29,6 @@ CREATE TABLE validity_proofs (
     proof JSONB NOT NULL
 );
 
-CREATE TABLE account_trees (
-    block_number INTEGER PRIMARY KEY,
-    tree_data JSONB NOT NULL
-);
-
-CREATE TABLE block_hash_trees (
-    block_number INTEGER PRIMARY KEY,
-    tree_data JSONB NOT NULL
-);
-
-CREATE TABLE deposit_hash_trees (
-    block_number INTEGER PRIMARY KEY,
-    tree_data JSONB NOT NULL
-);
-
 CREATE TABLE tx_tree_roots (
     tx_tree_root BYTEA PRIMARY KEY,
     block_number INTEGER NOT NULL

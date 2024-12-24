@@ -28,7 +28,7 @@ impl<V: Leafable + Serialize + DeserializeOwned, DB: NodeDB<V>>
         self.0.height()
     }
 
-    fn node_db(&self) -> &DB {
+    pub fn node_db(&self) -> &DB {
         self.0.node_db()
     }
 

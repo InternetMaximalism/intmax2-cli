@@ -7,16 +7,17 @@ use intmax2_zkp::{
     common::{
         block::Block,
         trees::{
-            account_tree::{AccountMembershipProof, AccountTree},
-            block_hash_tree::{BlockHashMerkleProof, BlockHashTree},
-            deposit_tree::DepositMerkleProof,
-            sender_tree::SenderLeaf,
+            account_tree::AccountMembershipProof, block_hash_tree::BlockHashMerkleProof,
+            deposit_tree::DepositMerkleProof, sender_tree::SenderLeaf,
         },
         witness::update_witness::UpdateWitness,
     },
     constants::{ACCOUNT_TREE_HEIGHT, BLOCK_HASH_TREE_HEIGHT, DEPOSIT_TREE_HEIGHT},
     ethereum_types::{bytes32::Bytes32, u256::U256, u32limb_trait::U32LimbTrait as _},
-    utils::trees::indexed_merkle_tree::leaf::IndexedMerkleLeaf,
+    utils::trees::{
+        incremental_merkle_tree::IncrementalMerkleProof,
+        indexed_merkle_tree::leaf::IndexedMerkleLeaf, merkle_tree::MerkleProof,
+    },
 };
 
 use plonky2::{
@@ -32,7 +33,7 @@ use crate::{
         account_tree::HistoricalAccountTree,
         block_tree::HistoricalBlockHashTree,
         deposit_hash_tree::{DepositHash, HistoricalDepositHashTree},
-        node::SqlNodeDB,
+        node::{NodeDB, SqlNodeDB},
         utils::{to_block_witness, update_trees},
     },
     Env,
@@ -90,7 +91,7 @@ impl ValidityProver {
         let block_tree =
             HistoricalBlockHashTree::new(block_db, BLOCK_HASH_TREE_HEIGHT as u32).await?;
         if block_tree.len().await? == 0 {
-            block_tree.push(Block::genesis().hash());
+            block_tree.push(Block::genesis().hash()).await?;
         }
         let deposit_db = SqlNodeDB::new(&env.database_url, DEPOSIT_DB_TAG).await?;
         let deposit_hash_tree =
@@ -114,8 +115,25 @@ impl ValidityProver {
             )
             .execute(&mut *tx)
             .await?;
-
             tx.commit().await?;
+
+            // save roots
+            let block_number = 0u32;
+            let account_tree_root = account_tree.get_current_root().await?;
+            account_tree
+                .node_db()
+                .save_root(block_number as u64, account_tree_root)
+                .await?;
+            let block_tree_root = block_tree.get_current_root().await?;
+            block_tree
+                .node_db()
+                .save_root(block_number as u64, block_tree_root)
+                .await?;
+            let deposit_tree_root = deposit_hash_tree.get_current_root().await?;
+            deposit_hash_tree
+                .node_db()
+                .save_root(block_number as u64, deposit_tree_root)
+                .await?;
         }
 
         Ok(Self {
@@ -197,7 +215,9 @@ impl ValidityProver {
                 .await?;
 
             for event in deposit_events {
-                self.deposit_hash_tree.push(DepositHash(event.deposit_hash));
+                self.deposit_hash_tree
+                    .push(DepositHash(event.deposit_hash))
+                    .await?;
             }
 
             let deposit_tree_root = self.deposit_hash_tree.get_current_root().await?;
@@ -207,6 +227,22 @@ impl ValidityProver {
                     deposit_tree_root,
                 ));
             }
+
+            // Record tree roots
+            let account_tree_root = self.account_tree.get_current_root().await?;
+            self.account_tree
+                .node_db()
+                .save_root(block_number as u64, account_tree_root)
+                .await?;
+            let block_tree_root = self.block_tree.get_current_root().await?;
+            self.block_tree
+                .node_db()
+                .save_root(block_number as u64, block_tree_root)
+                .await?;
+            self.deposit_hash_tree
+                .node_db()
+                .save_root(block_number as u64, deposit_tree_root)
+                .await?;
 
             // Update database state
             let mut tx = self.pool.begin().await?;
@@ -288,34 +324,15 @@ impl ValidityProver {
     }
 
     pub async fn get_account_id(&self, pubkey: U256) -> Result<Option<u64>, ValidityProverError> {
-        let last_block_number = self.get_block_number().await?;
-
-        let record = sqlx::query!(
-            "SELECT tree_data FROM account_trees WHERE block_number = $1",
-            last_block_number as i32
-        )
-        .fetch_one(&self.pool)
-        .await?;
-
-        let account_tree: AccountTree = serde_json::from_value(record.tree_data)?;
-
-        Ok(account_tree.index(pubkey))
+        let leaves = self.account_tree.get_current_leaves().await?;
+        let index = self.account_tree.index(&leaves, pubkey).await?;
+        Ok(index)
     }
 
     pub async fn get_account_info(&self, pubkey: U256) -> Result<AccountInfo, ValidityProverError> {
         let block_number = self.get_block_number().await?;
-
-        let record = sqlx::query!(
-            "SELECT tree_data FROM account_trees WHERE block_number = $1",
-            block_number as i32
-        )
-        .fetch_one(&self.pool)
-        .await?;
-
-        let account_tree: AccountTree = serde_json::from_value(record.tree_data)?;
-
-        let account_id = account_tree.index(pubkey);
-
+        let leaves = self.account_tree.get_current_leaves().await?;
+        let account_id = self.account_tree.index(&leaves, pubkey).await?;
         Ok(AccountInfo {
             block_number,
             account_id,
@@ -383,16 +400,19 @@ impl ValidityProver {
             ));
         }
 
-        let record = sqlx::query!(
-            "SELECT tree_data FROM block_hash_trees WHERE block_number = $1",
-            root_block_number as i32
-        )
-        .fetch_one(&self.pool)
-        .await?;
+        let block_tree_root = self
+            .block_tree
+            .node_db()
+            .get_root(root_block_number as u64)
+            .await?
+            .ok_or(ValidityProverError::BlockTreeNotFound(root_block_number))?;
 
-        let block_tree: BlockHashTree = serde_json::from_value(record.tree_data)?;
+        let proof = self
+            .block_tree
+            .prove_by_root(block_tree_root, leaf_block_number as u64)
+            .await?;
 
-        Ok(block_tree.prove(leaf_block_number as u64))
+        Ok(proof)
     }
 
     async fn get_account_membership_proof(
@@ -400,16 +420,17 @@ impl ValidityProver {
         block_number: u32,
         pubkey: U256,
     ) -> Result<AccountMembershipProof, ValidityProverError> {
-        let record = sqlx::query!(
-            "SELECT tree_data FROM account_trees WHERE block_number = $1",
-            block_number as i32
-        )
-        .fetch_one(&self.pool)
-        .await?;
-
-        let account_tree: AccountTree = serde_json::from_value(record.tree_data)?;
-
-        Ok(account_tree.prove_membership(pubkey))
+        let account_tree_root = self
+            .account_tree
+            .node_db()
+            .get_root(block_number as u64)
+            .await?
+            .ok_or(ValidityProverError::AccountTreeNotFound(block_number))?;
+        let proof = self
+            .account_tree
+            .prove_membership_by_root(account_tree_root, pubkey)
+            .await?;
+        Ok(proof)
     }
 
     pub async fn get_block_number(&self) -> Result<u32, ValidityProverError> {
@@ -430,62 +451,20 @@ impl ValidityProver {
         block_number: u32,
         deposit_index: u32,
     ) -> Result<DepositMerkleProof, ValidityProverError> {
-        let record = sqlx::query!(
-            "SELECT tree_data FROM deposit_hash_trees WHERE block_number = $1",
-            block_number as i32
-        )
-        .fetch_one(&self.pool)
-        .await?;
-
-        let deposit_hash_tree: DepositHashTree = serde_json::from_value(record.tree_data)?;
-
-        Ok(deposit_hash_tree.prove(deposit_index))
+        let deposit_tree_root = self
+            .deposit_hash_tree
+            .node_db()
+            .get_root(block_number as u64)
+            .await?
+            .ok_or(ValidityProverError::DepositTreeRootNotFound(block_number))?;
+        let proof = self
+            .deposit_hash_tree
+            .prove_by_root(deposit_tree_root, deposit_index as u64)
+            .await?;
+        Ok(IncrementalMerkleProof(MerkleProof {
+            siblings: proof.0.siblings,
+        }))
     }
-
-    // pub async fn get_account_tree(
-    //     &self,
-    //     block_number: u32,
-    // ) -> Result<AccountTree, ValidityProverError> {
-    //     let record = sqlx::query!(
-    //         "SELECT tree_data FROM account_trees WHERE block_number = $1",
-    //         block_number as i32
-    //     )
-    //     .fetch_one(&self.pool)
-    //     .await?;
-
-    //     let account_tree: AccountTree = serde_json::from_value(record.tree_data)?;
-    //     Ok(account_tree)
-    // }
-
-    // pub async fn get_block_hash_tree(
-    //     &self,
-    //     block_number: u32,
-    // ) -> Result<BlockHashTree, ValidityProverError> {
-    //     let record = sqlx::query!(
-    //         "SELECT tree_data FROM block_hash_trees WHERE block_number = $1",
-    //         block_number as i32
-    //     )
-    //     .fetch_one(&self.pool)
-    //     .await?;
-
-    //     let block_tree: BlockHashTree = serde_json::from_value(record.tree_data)?;
-    //     Ok(block_tree)
-    // }
-
-    // pub async fn get_deposit_hash_tree(
-    //     &self,
-    //     block_number: u32,
-    // ) -> Result<DepositHashTree, ValidityProverError> {
-    //     let record = sqlx::query!(
-    //         "SELECT tree_data FROM deposit_hash_trees WHERE block_number = $1",
-    //         block_number as i32
-    //     )
-    //     .fetch_one(&self.pool)
-    //     .await?;
-
-    //     let deposit_hash_tree: DepositHashTree = serde_json::from_value(record.tree_data)?;
-    //     Ok(deposit_hash_tree)
-    // }
 
     pub fn validity_processor(&self) -> &ValidityProcessor<F, C, D> {
         self.validity_processor
