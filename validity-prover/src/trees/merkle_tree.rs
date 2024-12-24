@@ -23,11 +23,17 @@ pub struct HistoricalMerkleTree<V: Leafable + Serialize + DeserializeOwned, DB: 
 impl<V: Leafable + Serialize + DeserializeOwned, DB: NodeDB<V>> HistoricalMerkleTree<V, DB> {
     pub async fn new(node_db: DB, height: u32) -> HMTResult<Self> {
         let zero_hashes = Self::init_zero_hashes(height, &node_db).await?;
-        Ok(Self {
+        let s = Self {
             height,
             zero_hashes,
-            node_db,
-        })
+            node_db: node_db.clone(),
+        };
+        let leaf_hashes = node_db.get_all_leaf_hashes().await?;
+        for (i, leaf_hash) in leaf_hashes {
+            s.update_leaf(i as u64, leaf_hash).await?;
+        }
+        node_db.load_leaf_hashes().await?;
+        Ok(s)
     }
 
     async fn init_zero_hashes(height: u32, node_db: &DB) -> HMTResult<Vec<HashOut<V>>> {
