@@ -1,5 +1,3 @@
-use std::collections::HashMap;
-
 use intmax2_zkp::{
     common::{deposit::Deposit, trees::deposit_tree::DepositMerkleProof},
     constants::DEPOSIT_TREE_HEIGHT,
