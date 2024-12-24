@@ -256,12 +256,11 @@ impl ValidityProver {
                 .await?;
 
             // Update database state
-            let mut tx = self.pool.begin().await?;
             sqlx::query!(
                 "UPDATE validity_state SET last_block_number = $1 WHERE id = 1",
                 block_number as i32
             )
-            .execute(&mut *tx)
+            .execute(&self.pool)
             .await?;
 
             sqlx::query!(
@@ -269,7 +268,7 @@ impl ValidityProver {
                 block_number as i32,
                 serde_json::to_value(&validity_proof)?
             )
-            .execute(&mut *tx)
+            .execute(&self.pool)
             .await?;
 
             sqlx::query!(
@@ -277,7 +276,7 @@ impl ValidityProver {
                 block_number as i32,
                 serde_json::to_value(&block_witness.get_sender_tree().leaves())?
             )
-            .execute(&mut *tx)
+            .execute(&self.pool)
             .await?;
 
             let tx_tree_root = full_block.signature.tx_tree_root;
@@ -290,11 +289,9 @@ impl ValidityProver {
                     tx_tree_root.to_bytes_be(),
                     block_number as i32
                 )
-                .execute(&mut *tx)
+                .execute(&self.pool)
                 .await?;
             }
-
-            tx.commit().await?;
         }
 
         log::info!("End of sync validity prover");

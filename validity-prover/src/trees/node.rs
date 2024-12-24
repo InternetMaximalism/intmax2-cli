@@ -425,13 +425,14 @@ impl<V: Leafable + Serialize + DeserializeOwned> NodeDB<V> for SqlNodeDB<V> {
         //     }
         //     leaf_hashes.sort_by_key(|(position, _)| *position);
         //     tracing::debug!("get_all_leaf_hashes took {:?}", time.elapsed());
-        let leaf_hashes = self
+        let mut leaf_hashes: Vec<(u64, HashOut<V>)> = self
             .current_leaf_hashes
             .read()
             .await
             .iter()
             .map(|(position, hash)| (*position, *hash))
             .collect();
+        leaf_hashes.sort_by_key(|(position, _)| *position);
         Ok(leaf_hashes)
     }
 
