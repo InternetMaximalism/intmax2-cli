@@ -34,6 +34,9 @@ pub trait NodeDB<V: Leafable + Serialize + DeserializeOwned>: std::fmt::Debug + 
     async fn get_leaf_hash(&self, position: u64) -> NodeDBResult<Option<HashOut<V>>>;
     async fn get_leaf_by_hash(&self, hash: HashOut<V>) -> NodeDBResult<Option<V>>;
     async fn get_all_leaf_hashes(&self) -> NodeDBResult<Vec<(u64, HashOut<V>)>>;
+
+    async fn save_root(&self, marker: u64, root: HashOut<V>) -> NodeDBResult<()>;
+    async fn get_root(&self, marker: u64) -> NodeDBResult<Option<HashOut<V>>>;
     async fn reset(&self) -> NodeDBResult<()>;
 }
 
@@ -43,6 +46,7 @@ pub struct MockNodeDB<V: Leafable> {
     nodes: Arc<RwLock<HashMap<HashOut<V>, Node<V>>>>,
     leaf_hashes: Arc<RwLock<HashMap<u64, HashOut<V>>>>,
     leaves: Arc<RwLock<HashMap<HashOut<V>, V>>>,
+    root_history: Arc<RwLock<HashMap<u64, HashOut<V>>>>,
 }
 
 impl<V: Leafable> MockNodeDB<V> {
@@ -52,6 +56,7 @@ impl<V: Leafable> MockNodeDB<V> {
             nodes: Arc::new(RwLock::new(HashMap::new())),
             leaf_hashes: Arc::new(RwLock::new(HashMap::new())),
             leaves: Arc::new(RwLock::new(HashMap::new())),
+            root_history: Arc::new(RwLock::new(HashMap::new())),
         }
     }
 }
@@ -120,6 +125,15 @@ impl<V: Leafable + Serialize + DeserializeOwned> NodeDB<V> for MockNodeDB<V> {
             .collect();
         leaves.sort_by_key(|(position, _)| *position);
         Ok(leaves)
+    }
+
+    async fn save_root(&self, marker: u64, root: HashOut<V>) -> NodeDBResult<()> {
+        self.root_history.write().await.insert(marker, root);
+        Ok(())
+    }
+
+    async fn get_root(&self, marker: u64) -> NodeDBResult<Option<HashOut<V>>> {
+        Ok(self.root_history.read().await.get(&marker).cloned())
     }
 
     async fn reset(&self) -> NodeDBResult<()> {
@@ -372,6 +386,46 @@ impl<V: Leafable + Serialize + DeserializeOwned> NodeDB<V> for SqlNodeDB<V> {
         leaf_hashes.sort_by_key(|(position, _)| *position);
         tracing::info!("get_all_leaf_hashes took {:?}", time.elapsed());
         Ok(leaf_hashes)
+    }
+
+    async fn save_root(&self, marker: u64, root: HashOut<V>) -> NodeDBResult<()> {
+        let serialized_root = bincode::serialize(&root)?;
+        sqlx::query!(
+            r#"
+            INSERT INTO root_history (tag, marker, root)
+            VALUES ($1, $2, $3)
+            ON CONFLICT (tag, marker) DO UPDATE
+            SET root = EXCLUDED.root
+            "#,
+            self.tag as i32,
+            marker as i64,
+            serialized_root as _
+        )
+        .execute(&self.pool)
+        .await?;
+        Ok(())
+    }
+
+    async fn get_root(&self, marker: u64) -> NodeDBResult<Option<HashOut<V>>> {
+        let row = sqlx::query!(
+            r#"
+            SELECT root
+            FROM root_history
+            WHERE marker = $1 AND tag = $2
+            "#,
+            marker as i64,
+            self.tag as i32
+        )
+        .fetch_optional(&self.pool)
+        .await?;
+
+        match row {
+            Some(row) => {
+                let root = bincode::deserialize(&row.root)?;
+                Ok(Some(root))
+            }
+            None => Ok(None),
+        }
     }
 
     async fn reset(&self) -> NodeDBResult<()> {

@@ -18,7 +18,7 @@ use crate::trees::{
 };
 
 pub async fn to_block_witness<ADB: NodeDB<IndexedMerkleLeaf>, BDB: NodeDB<Bytes32>>(
-    full_block: FullBlock,
+    full_block: &FullBlock,
     account_tree: &HistoricalAccountTree<ADB>,
     block_tree: &HistoricalBlockHashTree<BDB>,
 ) -> anyhow::Result<BlockWitness> {

@@ -14,8 +14,9 @@ use intmax2_zkp::{
         },
         witness::update_witness::UpdateWitness,
     },
-    constants::BLOCK_HASH_TREE_HEIGHT,
+    constants::{ACCOUNT_TREE_HEIGHT, BLOCK_HASH_TREE_HEIGHT, DEPOSIT_TREE_HEIGHT},
     ethereum_types::{bytes32::Bytes32, u256::U256, u32limb_trait::U32LimbTrait as _},
+    utils::trees::indexed_merkle_tree::leaf::IndexedMerkleLeaf,
 };
 
 use plonky2::{
@@ -26,14 +27,35 @@ use sqlx::{postgres::PgPoolOptions, PgPool};
 use std::{sync::OnceLock, time::Duration};
 
 use super::{error::ValidityProverError, observer::Observer};
-use crate::{utils::deposit_hash_tree::DepositHashTree, Env};
+use crate::{
+    trees::{
+        account_tree::HistoricalAccountTree,
+        block_tree::HistoricalBlockHashTree,
+        deposit_hash_tree::{DepositHash, HistoricalDepositHashTree},
+        node::SqlNodeDB,
+        utils::{to_block_witness, update_trees},
+    },
+    Env,
+};
 
 type F = GoldilocksField;
 type C = PoseidonGoldilocksConfig;
 const D: usize = 2;
+
+type ADB = SqlNodeDB<IndexedMerkleLeaf>;
+type BDB = SqlNodeDB<Bytes32>;
+type DDB = SqlNodeDB<DepositHash>;
+
+const ACCOUNT_DB_TAG: u32 = 1;
+const BLOCK_DB_TAG: u32 = 2;
+const DEPOSIT_DB_TAG: u32 = 3;
+
 pub struct ValidityProver {
     validity_processor: OnceLock<ValidityProcessor<F, C, D>>,
     observer: Observer,
+    account_tree: HistoricalAccountTree<ADB>,
+    block_tree: HistoricalBlockHashTree<BDB>,
+    deposit_hash_tree: HistoricalDepositHashTree<DDB>,
     pool: PgPool,
 }
 
@@ -60,6 +82,20 @@ impl ValidityProver {
             .connect(&env.database_url)
             .await?;
 
+        let account_db = SqlNodeDB::new(&env.database_url, ACCOUNT_DB_TAG).await?;
+        let account_tree =
+            HistoricalAccountTree::new(account_db, ACCOUNT_TREE_HEIGHT as u32).await?;
+
+        let block_db = SqlNodeDB::new(&env.database_url, BLOCK_DB_TAG).await?;
+        let block_tree =
+            HistoricalBlockHashTree::new(block_db, BLOCK_HASH_TREE_HEIGHT as u32).await?;
+        if block_tree.len().await? == 0 {
+            block_tree.push(Block::genesis().hash());
+        }
+        let deposit_db = SqlNodeDB::new(&env.database_url, DEPOSIT_DB_TAG).await?;
+        let deposit_hash_tree =
+            HistoricalDepositHashTree::new(deposit_db, DEPOSIT_TREE_HEIGHT as u32).await?;
+
         // Initialize state if empty
         let count = sqlx::query!("SELECT COUNT(*) as count FROM validity_state")
             .fetch_one(&pool)
@@ -69,39 +105,9 @@ impl ValidityProver {
 
         if count == 0 {
             let mut tx = pool.begin().await?;
-
-            // Initialize validity state
             sqlx::query!("INSERT INTO validity_state (id, last_block_number) VALUES (1, 0)")
                 .execute(&mut *tx)
                 .await?;
-
-            // Initialize genesis state
-            let account_tree = AccountTree::initialize();
-            let mut block_tree = BlockHashTree::new(BLOCK_HASH_TREE_HEIGHT);
-            block_tree.push(Block::genesis().hash());
-            let deposit_hash_tree = DepositHashTree::new();
-
-            sqlx::query!(
-                "INSERT INTO account_trees (block_number, tree_data) VALUES (0, $1)",
-                serde_json::to_value(&account_tree)?
-            )
-            .execute(&mut *tx)
-            .await?;
-
-            sqlx::query!(
-                "INSERT INTO block_hash_trees (block_number, tree_data) VALUES (0, $1)",
-                serde_json::to_value(&block_tree)?
-            )
-            .execute(&mut *tx)
-            .await?;
-
-            sqlx::query!(
-                "INSERT INTO deposit_hash_trees (block_number, tree_data) VALUES (0, $1)",
-                serde_json::to_value(&deposit_hash_tree)?
-            )
-            .execute(&mut *tx)
-            .await?;
-
             sqlx::query!(
                 "INSERT INTO sender_leaves (block_number, leaves) VALUES (0, $1)",
                 serde_json::to_value::<Vec<SenderLeaf>>(vec![])?
@@ -116,6 +122,9 @@ impl ValidityProver {
             validity_processor,
             observer,
             pool,
+            account_tree,
+            block_tree,
+            deposit_hash_tree,
         })
     }
 
@@ -134,7 +143,6 @@ impl ValidityProver {
         )
         .fetch_optional(&self.pool)
         .await?;
-
         match record {
             Some(r) => {
                 let proof: ProofWithPublicInputs<F, C, D> = serde_json::from_value(r.proof)?;
@@ -149,39 +157,6 @@ impl ValidityProver {
         self.sync_observer().await?;
 
         let last_block_number = self.get_block_number().await?;
-        // Load current state
-        let mut account_tree: AccountTree = {
-            let record = sqlx::query!(
-                "SELECT tree_data FROM account_trees WHERE block_number = $1",
-                last_block_number as i32
-            )
-            .fetch_one(&self.pool)
-            .await?;
-            serde_json::from_value(record.tree_data)?
-        };
-
-        let mut block_tree: BlockHashTree = {
-            let record = sqlx::query!(
-                "SELECT tree_data FROM block_hash_trees WHERE block_number = $1",
-                last_block_number as i32
-            )
-            .fetch_one(&self.pool)
-            .await?;
-
-            serde_json::from_value(record.tree_data)?
-        };
-
-        let mut deposit_hash_tree: DepositHashTree = {
-            let record = sqlx::query!(
-                "SELECT tree_data FROM deposit_hash_trees WHERE block_number = $1",
-                last_block_number as i32
-            )
-            .fetch_one(&self.pool)
-            .await?;
-
-            serde_json::from_value(record.tree_data)?
-        };
-
         let next_block_number = self.observer.get_next_block_number().await?;
 
         for block_number in (last_block_number + 1)..next_block_number {
@@ -190,8 +165,6 @@ impl ValidityProver {
                 block_number
             );
 
-            let mut tx = self.pool.begin().await?;
-
             let prev_validity_proof = self.get_validity_proof(block_number - 1).await?;
             assert!(
                 prev_validity_proof.is_some() || block_number == 1,
@@ -199,13 +172,14 @@ impl ValidityProver {
             );
 
             let full_block = self.observer.get_full_block(block_number).await?;
-            let block_witness = full_block
-                .to_block_witness(&account_tree, &block_tree)
+            let block_witness = to_block_witness(&full_block, &self.account_tree, &self.block_tree)
+                .await
                 .map_err(|e| ValidityProverError::BlockWitnessGenerationError(e.to_string()))?;
 
-            let validity_witness = block_witness
-                .update_trees(&mut account_tree, &mut block_tree)
-                .map_err(|e| ValidityProverError::FailedToUpdateTrees(e.to_string()))?;
+            let validity_witness =
+                update_trees(&block_witness, &self.account_tree, &self.block_tree)
+                    .await
+                    .map_err(|e| ValidityProverError::FailedToUpdateTrees(e.to_string()))?;
 
             let validity_proof = self
                 .validity_processor()
@@ -223,44 +197,22 @@ impl ValidityProver {
                 .await?;
 
             for event in deposit_events {
-                deposit_hash_tree.push(event.deposit_hash);
+                self.deposit_hash_tree.push(DepositHash(event.deposit_hash));
             }
 
-            if full_block.block.deposit_tree_root != deposit_hash_tree.get_root() {
+            let deposit_tree_root = self.deposit_hash_tree.get_current_root().await?;
+            if full_block.block.deposit_tree_root != deposit_tree_root {
                 return Err(ValidityProverError::DepositTreeRootMismatch(
                     full_block.block.deposit_tree_root,
-                    deposit_hash_tree.get_root(),
+                    deposit_tree_root,
                 ));
             }
 
             // Update database state
+            let mut tx = self.pool.begin().await?;
             sqlx::query!(
                 "UPDATE validity_state SET last_block_number = $1 WHERE id = 1",
                 block_number as i32
-            )
-            .execute(&mut *tx)
-            .await?;
-
-            sqlx::query!(
-                "INSERT INTO account_trees (block_number, tree_data) VALUES ($1, $2)",
-                block_number as i32,
-                serde_json::to_value(&account_tree)?
-            )
-            .execute(&mut *tx)
-            .await?;
-
-            sqlx::query!(
-                "INSERT INTO block_hash_trees (block_number, tree_data) VALUES ($1, $2)",
-                block_number as i32,
-                serde_json::to_value(&block_tree)?
-            )
-            .execute(&mut *tx)
-            .await?;
-
-            sqlx::query!(
-                "INSERT INTO deposit_hash_trees (block_number, tree_data) VALUES ($1, $2)",
-                block_number as i32,
-                serde_json::to_value(&deposit_hash_tree)?
             )
             .execute(&mut *tx)
             .await?;
@@ -490,50 +442,50 @@ impl ValidityProver {
         Ok(deposit_hash_tree.prove(deposit_index))
     }
 
-    pub async fn get_account_tree(
-        &self,
-        block_number: u32,
-    ) -> Result<AccountTree, ValidityProverError> {
-        let record = sqlx::query!(
-            "SELECT tree_data FROM account_trees WHERE block_number = $1",
-            block_number as i32
-        )
-        .fetch_one(&self.pool)
-        .await?;
+    // pub async fn get_account_tree(
+    //     &self,
+    //     block_number: u32,
+    // ) -> Result<AccountTree, ValidityProverError> {
+    //     let record = sqlx::query!(
+    //         "SELECT tree_data FROM account_trees WHERE block_number = $1",
+    //         block_number as i32
+    //     )
+    //     .fetch_one(&self.pool)
+    //     .await?;
 
-        let account_tree: AccountTree = serde_json::from_value(record.tree_data)?;
-        Ok(account_tree)
-    }
+    //     let account_tree: AccountTree = serde_json::from_value(record.tree_data)?;
+    //     Ok(account_tree)
+    // }
 
-    pub async fn get_block_hash_tree(
-        &self,
-        block_number: u32,
-    ) -> Result<BlockHashTree, ValidityProverError> {
-        let record = sqlx::query!(
-            "SELECT tree_data FROM block_hash_trees WHERE block_number = $1",
-            block_number as i32
-        )
-        .fetch_one(&self.pool)
-        .await?;
+    // pub async fn get_block_hash_tree(
+    //     &self,
+    //     block_number: u32,
+    // ) -> Result<BlockHashTree, ValidityProverError> {
+    //     let record = sqlx::query!(
+    //         "SELECT tree_data FROM block_hash_trees WHERE block_number = $1",
+    //         block_number as i32
+    //     )
+    //     .fetch_one(&self.pool)
+    //     .await?;
 
-        let block_tree: BlockHashTree = serde_json::from_value(record.tree_data)?;
-        Ok(block_tree)
-    }
+    //     let block_tree: BlockHashTree = serde_json::from_value(record.tree_data)?;
+    //     Ok(block_tree)
+    // }
 
-    pub async fn get_deposit_hash_tree(
-        &self,
-        block_number: u32,
-    ) -> Result<DepositHashTree, ValidityProverError> {
-        let record = sqlx::query!(
-            "SELECT tree_data FROM deposit_hash_trees WHERE block_number = $1",
-            block_number as i32
-        )
-        .fetch_one(&self.pool)
-        .await?;
+    // pub async fn get_deposit_hash_tree(
+    //     &self,
+    //     block_number: u32,
+    // ) -> Result<DepositHashTree, ValidityProverError> {
+    //     let record = sqlx::query!(
+    //         "SELECT tree_data FROM deposit_hash_trees WHERE block_number = $1",
+    //         block_number as i32
+    //     )
+    //     .fetch_one(&self.pool)
+    //     .await?;
 
-        let deposit_hash_tree: DepositHashTree = serde_json::from_value(record.tree_data)?;
-        Ok(deposit_hash_tree)
-    }
+    //     let deposit_hash_tree: DepositHashTree = serde_json::from_value(record.tree_data)?;
+    //     Ok(deposit_hash_tree)
+    // }
 
     pub fn validity_processor(&self) -> &ValidityProcessor<F, C, D> {
         self.validity_processor

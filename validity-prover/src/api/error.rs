@@ -1,6 +1,10 @@
 use intmax2_client_sdk::external_api::contract::error::BlockchainError;
 use intmax2_zkp::ethereum_types::bytes32::Bytes32;
 
+use crate::trees::error::{
+    HistoricalIndexedMerkleTreeError, HistoricalMerkleTreeError, NodeDBError,
+};
+
 #[derive(Debug, thiserror::Error)]
 pub enum ObserverError {
     #[error("Blockchain error: {0}")]
@@ -29,6 +33,15 @@ pub enum ObserverError {
 pub enum ValidityProverError {
     #[error("Observer error: {0}")]
     ObserverError(#[from] ObserverError),
+
+    #[error("NodeDB error: {0}")]
+    NodeDBError(#[from] NodeDBError),
+
+    #[error("HistoricalMerkleTree error: {0}")]
+    MerkleTreeError(#[from] HistoricalMerkleTreeError),
+
+    #[error("HistoricalIndexedMerkleTree error: {0}")]
+    IndexedMerkleTreeError(#[from] HistoricalIndexedMerkleTreeError),
 
     #[error("Block witness generation error: {0}")]
     BlockWitnessGenerationError(String),

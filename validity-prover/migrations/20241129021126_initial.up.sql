@@ -87,9 +87,9 @@ CREATE TABLE IF NOT EXISTS leaves (
 
 CREATE TABLE IF NOT EXISTS root_history (
     tag int NOT NULL,
-    i int NOT NULL,
+    marker bigint NOT NULL,
     root bytea NOT NULL,
-    PRIMARY KEY (tag, i)
+    PRIMARY KEY (tag, marker)
 );
 
 

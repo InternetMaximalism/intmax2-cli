@@ -19,7 +19,9 @@ pub struct HistoricalIndexedMerkleTree<DB: NodeDB<V>>(pub HistoricalIncrementalM
 impl<DB: NodeDB<V>> HistoricalIndexedMerkleTree<DB> {
     pub async fn new(node_db: DB, height: u32) -> HIMTResult<Self> {
         let tree = HistoricalIncrementalMerkleTree::new(node_db, height).await?;
-        tree.push(IndexedMerkleLeaf::default()).await?;
+        if tree.len().await? == 0 {
+            tree.push(IndexedMerkleLeaf::default()).await?;
+        }
         Ok(Self(tree))
     }
 

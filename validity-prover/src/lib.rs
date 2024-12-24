@@ -3,7 +3,6 @@ use serde::Deserialize;
 
 pub mod api;
 pub mod trees;
-pub mod utils;
 
 #[derive(Deserialize)]
 pub struct Env {

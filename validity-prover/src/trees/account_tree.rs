@@ -21,7 +21,9 @@ pub type HistoricalAccountTree<DB> = HistoricalIndexedMerkleTree<DB>;
 impl<DB: NodeDB<V>> HistoricalAccountTree<DB> {
     pub async fn initialize(node_db: DB) -> HIMTResult<Self> {
         let tree = HistoricalIndexedMerkleTree::new(node_db, ACCOUNT_TREE_HEIGHT as u32).await?;
-        tree.insert(U256::dummy_pubkey(), 0).await?; // add default account
+        if tree.len().await? == 1 {
+            tree.insert(U256::dummy_pubkey(), 0).await?; // add default account
+        }
         Ok(tree)
     }
 
