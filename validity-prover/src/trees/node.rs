@@ -384,7 +384,7 @@ impl<V: Leafable + Serialize + DeserializeOwned> NodeDB<V> for SqlNodeDB<V> {
             leaf_hashes.push((row.position as u64, hash));
         }
         leaf_hashes.sort_by_key(|(position, _)| *position);
-        tracing::info!("get_all_leaf_hashes took {:?}", time.elapsed());
+        tracing::debug!("get_all_leaf_hashes took {:?}", time.elapsed());
         Ok(leaf_hashes)
     }
 

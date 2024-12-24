@@ -47,11 +47,6 @@ impl<V: Leafable + Serialize + DeserializeOwned, DB: NodeDB<V>>
     }
 
     pub async fn update(&self, index: u64, leaf: V) -> HMTResult<()> {
-        tracing::info!(
-            "update leaf at index: {} with hash: {:?}",
-            index,
-            leaf.hash()
-        );
         self.0.update_leaf(index, leaf.hash()).await?;
         self.node_db().insert_leaf(leaf).await?;
         Ok(())
