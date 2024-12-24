@@ -12,7 +12,7 @@ use intmax2_zkp::{
         },
         witness::update_witness::UpdateWitness,
     },
-    constants::{ACCOUNT_TREE_HEIGHT, BLOCK_HASH_TREE_HEIGHT, DEPOSIT_TREE_HEIGHT},
+    constants::{BLOCK_HASH_TREE_HEIGHT, DEPOSIT_TREE_HEIGHT},
     ethereum_types::{bytes32::Bytes32, u256::U256, u32limb_trait::U32LimbTrait as _},
     utils::trees::{
         incremental_merkle_tree::IncrementalMerkleProof,
@@ -46,6 +46,10 @@ const D: usize = 2;
 type ADB = SqlNodeDB<IndexedMerkleLeaf>;
 type BDB = SqlNodeDB<Bytes32>;
 type DDB = SqlNodeDB<DepositHash>;
+
+// type ADB = MockNodeDB<IndexedMerkleLeaf>;
+// type BDB = MockNodeDB<Bytes32>;
+// type DDB = MockNodeDB<DepositHash>;
 
 const ACCOUNT_DB_TAG: u32 = 1;
 const BLOCK_DB_TAG: u32 = 2;
@@ -84,18 +88,25 @@ impl ValidityProver {
             .await?;
 
         let account_db = SqlNodeDB::new(&env.database_url, ACCOUNT_DB_TAG).await?;
-        let account_tree =
-            HistoricalAccountTree::new(account_db, ACCOUNT_TREE_HEIGHT as u32).await?;
+        // let account_db = MockNodeDB::new();
+        let account_tree = HistoricalAccountTree::initialize(account_db).await?;
 
         let block_db = SqlNodeDB::new(&env.database_url, BLOCK_DB_TAG).await?;
+        // let block_db = MockNodeDB::new();
         let block_tree =
             HistoricalBlockHashTree::new(block_db, BLOCK_HASH_TREE_HEIGHT as u32).await?;
         if block_tree.len().await? == 0 {
             block_tree.push(Block::genesis().hash()).await?;
         }
+
         let deposit_db = SqlNodeDB::new(&env.database_url, DEPOSIT_DB_TAG).await?;
+        // let deposit_db = MockNodeDB::new();
         let deposit_hash_tree =
             HistoricalDepositHashTree::new(deposit_db, DEPOSIT_TREE_HEIGHT as u32).await?;
+
+        log::info!("block tree len: {}", block_tree.len().await?);
+        log::info!("deposit tree len: {}", deposit_hash_tree.len().await?);
+        log::info!("account tree len: {}", account_tree.len().await?);
 
         // Initialize state if empty
         let count = sqlx::query!("SELECT COUNT(*) as count FROM validity_state")
