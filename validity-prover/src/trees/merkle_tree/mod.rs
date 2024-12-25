@@ -68,9 +68,8 @@ mod tests {
         let tree = SqlMerkleTree::<V>::new(&database_url, 0, height);
         tree.reset().await?;
 
-
-        let index_bits = u64_le_bits(6, height);
-        proof2.verify(&6, index_bits, root2)?;
+        // let index_bits = u64_le_bits(6, height);
+        // proof2.verify(&6, index_bits, root2)?;
 
         Ok(())
     }

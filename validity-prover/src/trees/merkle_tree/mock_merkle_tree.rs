@@ -28,10 +28,10 @@ pub struct Leaf<V: Leafable> {
 #[derive(Debug, Clone)]
 pub struct MockMerkleTree<V: Leafable> {
     height: usize,
-    zero_hashes: Vec<HashOut<V>>,
-    hash_nodes: Arc<RwLock<HashMap<BitPath, Vec<HashNode<V>>>>>, // bit_path -> hash_nodes
-    leaves: Arc<RwLock<HashMap<u64, Vec<Leaf<V>>>>>,             // position -> leaf
-    leaves_len: Arc<RwLock<HashMap<u64, usize>>>,                // timestamp -> num_leaves
+    pub zero_hashes: Vec<HashOut<V>>,
+    pub hash_nodes: Arc<RwLock<HashMap<BitPath, Vec<HashNode<V>>>>>, // bit_path -> hash_nodes
+    pub leaves: Arc<RwLock<HashMap<u64, Vec<Leaf<V>>>>>,             // position -> leaf
+    pub leaves_len: Arc<RwLock<HashMap<u64, usize>>>,                // timestamp -> num_leaves
 }
 
 impl<V: Leafable + Serialize + DeserializeOwned> MockMerkleTree<V> {
@@ -65,12 +65,27 @@ impl<V: Leafable + Serialize + DeserializeOwned> MockMerkleTree<V> {
             bit_path,
             hash,
         };
-        self.hash_nodes
-            .write()
+        let mut hash_nodes = self
+            .hash_nodes
+            .read()
             .await
-            .entry(bit_path)
-            .or_insert_with(Vec::new)
-            .push(node);
+            .get(&bit_path)
+            .cloned()
+            .unwrap_or_default();
+        let conflicting_index = hash_nodes
+            .iter()
+            .enumerate()
+            .find(|(_, hash_node)| {
+                hash_node.timestamp_value == timestamp && hash_node.bit_path == bit_path
+            })
+            .map(|(i, _)| i);
+        if conflicting_index.is_some() {
+            // replace the conflicting node
+            hash_nodes[conflicting_index.unwrap()] = node.clone();
+        } else {
+            hash_nodes.push(node.clone());
+        }
+        self.hash_nodes.write().await.insert(bit_path, hash_nodes);
         Ok(())
     }
 

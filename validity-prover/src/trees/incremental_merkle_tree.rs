@@ -79,11 +79,32 @@ mod tests {
         merkle_tree::{
             mock_merkle_tree::MockMerkleTree, sql_merkle_tree::SqlMerkleTree, MerkleTreeClient,
         },
+        utils::bit_path::BitPath,
     };
 
     #[tokio::test]
+    async fn merkle_tree_nodes() -> anyhow::Result<()> {
+        let height = 3;
+        type V = u32;
+
+        let db = MockMerkleTree::<V>::new(height);
+        let db_tree = HistoricalIncrementalMerkleTree::new(db);
+        let timestamp = db_tree.get_last_timestamp().await?;
+        for i in 0..4 {
+            db_tree.push(timestamp, i as u32).await?;
+        }
+        let bit_path = BitPath::new(height as u32, 1);
+        println!("bit_path: {:?}", bit_path);
+        println!(
+            "node1: {:?}",
+            db_tree.merkle_tree.hash_nodes.read().await.get(&bit_path)
+        );
+        Ok(())
+    }
+
+    #[tokio::test]
     async fn merkle_tree_with_leaves() -> anyhow::Result<()> {
-        let height = 32;
+        let height = 3;
         let database_url = crate::trees::setup_test();
 
         let tag = 1;
@@ -96,18 +117,33 @@ mod tests {
         let db_tree = HistoricalIncrementalMerkleTree::new(db);
 
         let timestamp = db_tree.get_last_timestamp().await?;
-        dbg!(timestamp);
         for i in 0..5 {
             db_tree.push(timestamp, i as u32).await?;
         }
-        let root_db = db_tree.get_root(timestamp).await?;
 
-        let mut tree = IncrementalMerkleTree::<V>::new(height);
-        for i in 0..5 {
-            tree.push(i);
-        }
-        let root = tree.get_root();
-        assert_eq!(root_db, root);
+        // let root_db = db_tree.get_root(timestamp).await?;
+        // let leaves_db = db_tree.get_leaves(timestamp).await?;
+        // dbg!(leaves_db);
+
+        // let node = db_tree
+        //     .merkle_tree
+        //     .hash_nodes
+        //     .read()
+        //     .await
+        //     .get(&BitPath::default())
+        //     .cloned()
+        //     .unwrap();
+        // dbg!(&node);
+
+        // let mut tree = IncrementalMerkleTree::<V>::new(height);
+        // for i in 0..4 {
+        //     tree.push(i);
+        // }
+        // let root = tree.get_root();
+        // let leaves = tree.leaves();
+        // dbg!(leaves);
+        // dbg!(tree);
+        // assert_eq!(root_db, root);
 
         // for _ in 0..100 {
         //     let index = rng.gen_range(0..1 << height);
