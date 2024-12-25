@@ -7,8 +7,6 @@ DROP TABLE IF EXISTS tx_tree_roots;
 DROP TABLE IF EXISTS sender_leaves;
 
 -- Merkle tree tables
-DROP TABLE IF EXISTS current_node_hashes;
 DROP TABLE IF EXISTS hash_nodes;
-DROP TABLE IF EXISTS current_leaf_hashes;
 DROP TABLE IF EXISTS leaves;
-DROP TABLE IF EXISTS root_history;
+DROP TABLE IF EXISTS leaves_len;

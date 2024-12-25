@@ -14,11 +14,16 @@ use intmax2_zkp::{
 };
 
 use crate::trees::{
-    account_tree::HistoricalAccountTree, block_tree::HistoricalBlockHashTree, node::NodeDB,
+    account_tree::HistoricalAccountTree, block_tree::HistoricalBlockHashTree,
+    merkle_tree::MerkleTreeClient,
 };
 
-pub async fn to_block_witness<ADB: NodeDB<IndexedMerkleLeaf>, BDB: NodeDB<Bytes32>>(
+pub async fn to_block_witness<
+    ADB: MerkleTreeClient<IndexedMerkleLeaf>,
+    BDB: MerkleTreeClient<Bytes32>,
+>(
     full_block: &FullBlock,
+    block_number: u32,
     account_tree: &HistoricalAccountTree<ADB>,
     block_tree: &HistoricalBlockHashTree<BDB>,
 ) -> anyhow::Result<BlockWitness> {
@@ -36,13 +41,17 @@ pub async fn to_block_witness<ADB: NodeDB<IndexedMerkleLeaf>, BDB: NodeDB<Bytes3
             let mut account_membership_proofs = Vec::new();
             for pubkey in pubkeys.iter() {
                 let is_dummy = pubkey.is_dummy_pubkey();
-                let leaves = account_tree.get_current_leaves().await?;
                 ensure!(
-                    account_tree.index(&leaves, *pubkey).await?.is_none() || is_dummy,
+                    account_tree
+                        .index(block_number as u64, *pubkey)
+                        .await?
+                        .is_none()
+                        || is_dummy,
                     "account already exists"
                 );
-                let root = account_tree.get_current_root().await?;
-                let proof = account_tree.prove_membership_by_root(root, *pubkey).await?;
+                let proof = account_tree
+                    .prove_membership(block_number as u64, *pubkey)
+                    .await?;
                 account_membership_proofs.push(proof);
             }
             (pubkeys, None, None, Some(account_membership_proofs))
@@ -56,10 +65,9 @@ pub async fn to_block_witness<ADB: NodeDB<IndexedMerkleLeaf>, BDB: NodeDB<Bytes3
             let mut account_merkle_proofs = Vec::new();
             let mut pubkeys = Vec::new();
             for account_id in account_ids {
-                let root = account_tree.get_current_root().await?;
-                let pubkey = account_tree.key_by_root(root, account_id).await?;
+                let pubkey = account_tree.key(block_number as u64, account_id).await?;
                 let proof = account_tree
-                    .prove_inclusion_by_root(root, account_id)
+                    .prove_inclusion(block_number as u64, account_id)
                     .await?;
                 pubkeys.push(pubkey);
                 account_merkle_proofs.push(proof);
@@ -71,8 +79,8 @@ pub async fn to_block_witness<ADB: NodeDB<IndexedMerkleLeaf>, BDB: NodeDB<Bytes3
                 None,
             )
         };
-    let prev_account_tree_root = account_tree.get_current_root().await?;
-    let prev_block_tree_root = block_tree.get_current_root().await?;
+    let prev_account_tree_root = account_tree.get_root(block_number as u64).await?;
+    let prev_block_tree_root = block_tree.get_root(block_number as u64).await?;
     let block_witness = BlockWitness {
         block: full_block.block.clone(),
         signature: full_block.signature.clone(),
@@ -86,25 +94,31 @@ pub async fn to_block_witness<ADB: NodeDB<IndexedMerkleLeaf>, BDB: NodeDB<Bytes3
     Ok(block_witness)
 }
 
-pub async fn update_trees<ADB: NodeDB<IndexedMerkleLeaf>, BDB: NodeDB<Bytes32>>(
+pub async fn update_trees<
+    ADB: MerkleTreeClient<IndexedMerkleLeaf>,
+    BDB: MerkleTreeClient<Bytes32>,
+>(
     block_witness: &BlockWitness,
+    block_number: u32,
     account_tree: &HistoricalAccountTree<ADB>,
     block_tree: &HistoricalBlockHashTree<BDB>,
 ) -> anyhow::Result<ValidityWitness> {
     let block_pis = block_witness.to_main_validation_pis().map_err(|e| {
         anyhow::anyhow!("failed to convert to main validation public inputs: {}", e)
     })?;
+    let block_tree_len = block_tree.len(block_number as u64).await?;
     ensure!(
-        block_pis.block_number == block_tree.len().await? as u32,
+        block_pis.block_number == block_tree_len as u32,
         "block number mismatch"
     );
 
     // Update block tree
-    let root = block_tree.get_current_root().await?;
     let block_merkle_proof = block_tree
-        .prove_by_root(root, block_witness.block.block_number as u64)
+        .prove(block_number as u64, block_witness.block.block_number as u64)
         .await?;
-    block_tree.push(block_witness.block.hash()).await?;
+    block_tree
+        .push(block_number as u64, block_witness.block.hash())
+        .await?;
 
     // Update account tree
     let sender_leaves =
@@ -123,7 +137,11 @@ pub async fn update_trees<ADB: NodeDB<IndexedMerkleLeaf>, BDB: NodeDB<Bytes32>>(
                     AccountRegistrationProof::dummy(ACCOUNT_TREE_HEIGHT)
                 } else {
                     account_tree
-                        .prove_and_insert(sender_leaf.sender, last_block_number as u64)
+                        .prove_and_insert(
+                            block_number as u64,
+                            sender_leaf.sender,
+                            last_block_number as u64,
+                        )
                         .await
                         .map_err(|e| {
                             anyhow::anyhow!("failed to prove and insert account_tree: {}", e)
@@ -142,12 +160,13 @@ pub async fn update_trees<ADB: NodeDB<IndexedMerkleLeaf>, BDB: NodeDB<Bytes32>>(
             let mut account_update_proofs = Vec::new();
             let block_number = block_pis.block_number;
             for sender_leaf in sender_leaves.iter() {
-                let leaves = account_tree.get_current_leaves().await?;
                 let account_id = account_tree
-                    .index(&leaves, sender_leaf.sender)
+                    .index(block_number as u64, sender_leaf.sender)
                     .await?
-                    .ok_or_else(|| anyhow::anyhow!("failed to get index from account_tree",))?;
-                let prev_leaf = account_tree.get_current_leaf(account_id).await?;
+                    .unwrap();
+                let prev_leaf = account_tree
+                    .get_leaf(block_number as u64, account_id)
+                    .await?;
                 let prev_last_block_number = prev_leaf.value as u32;
                 let last_block_number = if sender_leaf.did_return_sig {
                     block_number
@@ -155,7 +174,11 @@ pub async fn update_trees<ADB: NodeDB<IndexedMerkleLeaf>, BDB: NodeDB<Bytes32>>(
                     prev_last_block_number
                 };
                 let proof = account_tree
-                    .prove_and_update(sender_leaf.sender, last_block_number as u64)
+                    .prove_and_update(
+                        block_number as u64,
+                        sender_leaf.sender,
+                        last_block_number as u64,
+                    )
                     .await?;
                 account_update_proofs.push(proof);
             }

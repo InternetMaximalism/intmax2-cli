@@ -1,9 +1,7 @@
 use intmax2_client_sdk::external_api::contract::error::BlockchainError;
 use intmax2_zkp::ethereum_types::bytes32::Bytes32;
 
-use crate::trees::error::{
-    HistoricalIndexedMerkleTreeError, HistoricalMerkleTreeError, NodeDBError,
-};
+use crate::trees::merkle_tree::error::MerkleTreeError;
 
 #[derive(Debug, thiserror::Error)]
 pub enum ObserverError {
@@ -34,17 +32,14 @@ pub enum ValidityProverError {
     #[error("Observer error: {0}")]
     ObserverError(#[from] ObserverError),
 
-    #[error("NodeDB error: {0}")]
-    NodeDBError(#[from] NodeDBError),
-
-    #[error("HistoricalMerkleTree error: {0}")]
-    MerkleTreeError(#[from] HistoricalMerkleTreeError),
-
-    #[error("HistoricalIndexedMerkleTree error: {0}")]
-    IndexedMerkleTreeError(#[from] HistoricalIndexedMerkleTreeError),
-
     #[error("Block witness generation error: {0}")]
     BlockWitnessGenerationError(String),
+
+    #[error("Merkle tree error: {0}")]
+    MerkleTreeError(#[from] MerkleTreeError),
+
+    #[error("{0}")] // TODO: Add more specific error messages
+    AnyhowError(#[from] anyhow::Error),
 
     #[error("Database error: {0}")]
     DBError(#[from] sqlx::Error),
@@ -72,8 +67,6 @@ pub enum ValidityProverError {
 
     #[error("Deposit tree not found for block number {0}")]
     DepositTreeRootNotFound(u32),
-
-    
 
     #[error("Input error {0}")]
     InputError(String),

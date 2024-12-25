@@ -1,6 +1,10 @@
+use crate::trees::{
+    incremental_merkle_tree::HistoricalIncrementalMerkleTree,
+    indexed_merkle_tree::HistoricalIndexedMerkleTree, merkle_tree::MerkleTreeClient,
+};
+use anyhow::Result;
 use intmax2_zkp::{
     common::trees::account_tree::AccountMerkleProof,
-    constants::ACCOUNT_TREE_HEIGHT,
     ethereum_types::u256::U256,
     utils::trees::indexed_merkle_tree::{
         insertion::IndexedInsertionProof, leaf::IndexedMerkleLeaf, membership::MembershipProof,
@@ -8,81 +12,62 @@ use intmax2_zkp::{
     },
 };
 
-use crate::trees::{
-    error::HistoricalIndexedMerkleTreeError,
-    indexed_merkle_tree::{HIMTResult, HistoricalIndexedMerkleTree},
-    merkle_tree::HashOut,
-    node::NodeDB,
-};
-
 type V = IndexedMerkleLeaf;
 pub type HistoricalAccountTree<DB> = HistoricalIndexedMerkleTree<DB>;
 
-impl<DB: NodeDB<V>> HistoricalAccountTree<DB> {
-    pub fn node_db(&self) -> &DB {
-        self.0.node_db()
-    }
-
-    pub async fn initialize(node_db: DB) -> HIMTResult<Self> {
-        let tree = HistoricalIndexedMerkleTree::new(node_db, ACCOUNT_TREE_HEIGHT as u32).await?;
-        if tree.len().await? == 1 {
-            tree.insert(U256::dummy_pubkey(), 0).await?; // add default account
+impl<DB: MerkleTreeClient<V>> HistoricalAccountTree<DB> {
+    pub async fn initialize(db: DB) -> Result<Self> {
+        let last_timestamp = db.get_last_timestamp().await?;
+        let tree = HistoricalIndexedMerkleTree(HistoricalIncrementalMerkleTree::new(db));
+        if last_timestamp == 0 {
+            if tree.len(last_timestamp).await? == 0 {
+                tree.0
+                    .push(last_timestamp, IndexedMerkleLeaf::default())
+                    .await?;
+            }
+            if tree.len(last_timestamp).await? == 1 {
+                tree.insert(last_timestamp, U256::dummy_pubkey(), 0).await?; // add default account
+            }
         }
+
         Ok(tree)
     }
 
-    pub async fn prove_inclusion_by_root(
-        &self,
-        root: HashOut<V>,
-        account_id: u64,
-    ) -> HIMTResult<AccountMerkleProof> {
-        let leaf = self.get_leaf_by_root(root, account_id).await?;
-        let merkle_proof = self.prove_by_root(root, account_id).await?;
-        Ok(AccountMerkleProof { merkle_proof, leaf })
-    }
-
-    pub async fn prove_membership_by_root(
-        &self,
-        root: HashOut<V>,
-        key: U256,
-    ) -> HIMTResult<MembershipProof> {
-        let leaves = self.get_leaves_by_root(root).await?;
-        if let Some(index) = self.index(&leaves, key).await? {
+    pub async fn prove_membership(&self, timestamp: u64, key: U256) -> Result<MembershipProof> {
+        if let Some(index) = self.index(timestamp, key).await? {
             // inclusion proof
             return Ok(MembershipProof {
                 is_included: true,
                 leaf_index: index,
-                leaf: self.get_leaf_by_root(root, index).await?,
-                leaf_proof: self.prove_by_root(root, index).await?,
+                leaf: self.0.get_leaf(timestamp, index).await?,
+                leaf_proof: self.0.prove(timestamp, index).await?,
             });
         } else {
             // exclusion proof
-            let low_index = self.low_index(&leaves, key).await?;
+            let low_index = self.low_index(timestamp, key).await?; // unwrap is safe here
             return Ok(MembershipProof {
                 is_included: false,
                 leaf_index: low_index,
-                leaf: self.get_leaf_by_root(root, low_index).await?,
-                leaf_proof: self.prove_by_root(root, low_index).await?,
+                leaf: self.0.get_leaf(timestamp, low_index).await?,
+                leaf_proof: self.0.prove(timestamp, low_index).await?,
             });
         }
     }
 
-    pub async fn update(&self, leaves: &[V], key: U256, value: u64) -> HIMTResult<()> {
-        let index = self
-            .index(leaves, key)
-            .await?
-            .ok_or_else(|| HistoricalIndexedMerkleTreeError::KeyDoesNotExist(key))?;
-        let mut leaf = self.get_current_leaf(index).await?;
-        leaf.value = value;
-        self.0.update(index, leaf).await?;
-        Ok(())
+    pub async fn prove_inclusion(
+        &self,
+        timestamp: u64,
+        account_id: u64,
+    ) -> Result<AccountMerkleProof> {
+        let leaf = self.get_leaf(timestamp, account_id).await?;
+        let merkle_proof = self.prove(timestamp, account_id).await?;
+        Ok(AccountMerkleProof { merkle_proof, leaf })
     }
 
-    pub async fn insert(&self, key: U256, value: u64) -> HIMTResult<()> {
-        let leaves = self.0.get_current_leaves().await?;
-        let index = self.len().await? as u64;
-        let low_index = self.low_index(&leaves, key).await?;
-        let prev_low_leaf = self.0.get_current_leaf(low_index).await?;
+    pub async fn insert(&self, timestamp: u64, key: U256, value: u64) -> Result<()> {
+        let index = self.0.len(timestamp).await? as u64;
+        let low_index = self.low_index(timestamp, key).await?;
+        let prev_low_leaf = self.0.get_leaf(timestamp, low_index).await?;
         let new_low_leaf = IndexedMerkleLeaf {
             next_index: index,
             next_key: key,
@@ -94,20 +79,20 @@ impl<DB: NodeDB<V>> HistoricalAccountTree<DB> {
             next_key: prev_low_leaf.next_key,
             value,
         };
-        self.0.update(low_index, new_low_leaf).await?;
-        self.0.push(leaf).await?;
+        self.0.update(timestamp, low_index, new_low_leaf).await?;
+        self.0.push(timestamp, leaf).await?;
         Ok(())
     }
 
     pub async fn prove_and_insert(
         &self,
+        timestamp: u64,
         key: U256,
         value: u64,
-    ) -> HIMTResult<IndexedInsertionProof> {
-        let leaves = self.0.get_current_leaves().await?;
-        let index = self.len().await? as u64;
-        let low_index = self.low_index(&leaves, key).await?;
-        let prev_low_leaf = self.0.get_current_leaf(low_index).await?;
+    ) -> Result<IndexedInsertionProof> {
+        let index = self.0.len(timestamp).await? as u64;
+        let low_index = self.low_index(timestamp, key).await?;
+        let prev_low_leaf = self.0.get_leaf(timestamp, low_index).await?;
         let new_low_leaf = IndexedMerkleLeaf {
             next_index: index,
             next_key: key,
@@ -119,14 +104,10 @@ impl<DB: NodeDB<V>> HistoricalAccountTree<DB> {
             next_key: prev_low_leaf.next_key,
             value,
         };
-
-        let root = self.0.get_current_root().await?;
-        let low_leaf_proof = self.0.prove_by_root(root, low_index).await?;
-        self.0.update(low_index, new_low_leaf).await?;
-        self.0.push(leaf).await?;
-
-        let root = self.0.get_current_root().await?;
-        let leaf_proof = self.0.prove_by_root(root, index).await?;
+        let low_leaf_proof = self.0.prove(timestamp, low_index).await?;
+        self.0.update(timestamp, low_index, new_low_leaf).await?;
+        self.0.push(timestamp, leaf).await?;
+        let leaf_proof = self.0.prove(timestamp, index).await?;
         Ok(IndexedInsertionProof {
             index,
             low_leaf_proof,
@@ -136,21 +117,24 @@ impl<DB: NodeDB<V>> HistoricalAccountTree<DB> {
         })
     }
 
-    pub async fn prove_and_update(&self, key: U256, new_value: u64) -> HIMTResult<UpdateProof> {
-        let leaves = self.get_current_leaves().await?;
+    pub async fn prove_and_update(
+        &self,
+        timestamp: u64,
+        key: U256,
+        new_value: u64,
+    ) -> Result<UpdateProof> {
         let index = self
-            .index(&leaves, key)
+            .index(timestamp, key)
             .await?
-            .ok_or_else(|| HistoricalIndexedMerkleTreeError::KeyDoesNotExist(key))?;
-        let prev_leaf = self.get_current_leaf(index).await?;
+            .ok_or_else(|| anyhow::anyhow!("key not found"))?;
+        let prev_leaf = self.0.get_leaf(timestamp, index).await?;
         let new_leaf = IndexedMerkleLeaf {
             value: new_value,
             ..prev_leaf
         };
-        self.0.update(index, new_leaf).await?;
-        let root = self.0.get_current_root().await?;
+        self.0.update(timestamp, index, new_leaf).await?;
         Ok(UpdateProof {
-            leaf_proof: self.prove_by_root(root, index).await?,
+            leaf_proof: self.0.prove(timestamp, index).await?,
             leaf_index: index,
             prev_leaf,
         })
@@ -159,39 +143,39 @@ impl<DB: NodeDB<V>> HistoricalAccountTree<DB> {
 
 #[cfg(test)]
 mod tests {
-    use intmax2_zkp::utils::trees::indexed_merkle_tree::leaf::IndexedMerkleLeaf;
-
     use crate::trees::{
         account_tree::HistoricalAccountTree,
-        node::{NodeDB as _, SqlNodeDB},
+        merkle_tree::{sql_merkle_tree::SqlMerkleTree, MerkleTreeClient},
+    };
+    use intmax2_zkp::{
+        constants::ACCOUNT_TREE_HEIGHT, utils::trees::indexed_merkle_tree::leaf::IndexedMerkleLeaf,
     };
 
     #[tokio::test]
     async fn test_account_tree() -> anyhow::Result<()> {
         let database_url = crate::trees::setup_test();
 
-        let tag = 4;
-        let node_db = SqlNodeDB::<IndexedMerkleLeaf>::new(&database_url, tag).await?;
-        node_db.reset().await?;
-        // let node_db = crate::node::MockNodeDB::new();
+        let tag = 3;
+        let db = SqlMerkleTree::<IndexedMerkleLeaf>::new(&database_url, tag, ACCOUNT_TREE_HEIGHT);
+        db.reset().await?;
+        let tree = HistoricalAccountTree::initialize(db).await?;
 
-        let account_tree = HistoricalAccountTree::initialize(node_db).await?;
-
+        let timestamp0 = 0;
         for i in 2..5 {
-            account_tree.insert(i.into(), i.into()).await?;
+            tree.insert(timestamp0, i.into(), i.into()).await?;
         }
-        let old_root = account_tree.get_current_root().await?;
-        let old_leaves = account_tree.get_current_leaves().await?;
+        let old_root = tree.get_root(timestamp0).await?;
+        let old_leaves = tree.0.get_leaves(timestamp0).await?;
+
+        let timestamp1 = 1;
         for i in 5..8 {
-            account_tree.insert(i.into(), i.into()).await?;
+            tree.insert(timestamp1, i.into(), i.into()).await?;
         }
-        let leaves = account_tree.get_leaves_by_root(old_root).await?;
+        let leaves = tree.0.get_leaves(timestamp0).await?;
         assert_eq!(leaves, old_leaves);
 
         let account_id = 3;
-        let proof = account_tree
-            .prove_inclusion_by_root(old_root, account_id)
-            .await?;
+        let proof = tree.prove_inclusion(timestamp0, account_id).await?;
         let result = proof.verify(old_root, account_id, (account_id as u32).into());
         assert!(result);
 

@@ -3,124 +3,70 @@ use intmax2_zkp::utils::{
 };
 use serde::{de::DeserializeOwned, Serialize};
 
-use crate::trees::{
-    error::HistoricalMerkleTreeError,
-    merkle_tree::{HMTResult, HashOut, HistoricalMerkleTree},
-    node::NodeDB,
-};
+use crate::trees::merkle_tree::{HashOut, MTResult, MerkleTreeClient};
 
 #[derive(Debug, Clone)]
 pub struct HistoricalIncrementalMerkleTree<
     V: Leafable + Serialize + DeserializeOwned,
-    DB: NodeDB<V>,
->(HistoricalMerkleTree<V, DB>);
+    DB: MerkleTreeClient<V>,
+> {
+    merkle_tree: DB,
+    _phantom: std::marker::PhantomData<V>,
+}
 
-impl<V: Leafable + Serialize + DeserializeOwned, DB: NodeDB<V>>
+impl<V: Leafable + Serialize + DeserializeOwned, DB: MerkleTreeClient<V>>
     HistoricalIncrementalMerkleTree<V, DB>
 {
-    pub async fn new(node_db: DB, height: u32) -> HMTResult<Self> {
-        let merkle_tree = HistoricalMerkleTree::new(node_db, height).await?;
-        merkle_tree.node_db().insert_leaf(V::empty_leaf()).await?;
-        Ok(Self(merkle_tree))
+    pub fn new(merkle_tree: DB) -> Self {
+        HistoricalIncrementalMerkleTree {
+            merkle_tree,
+            _phantom: std::marker::PhantomData,
+        }
     }
 
-    pub fn height(&self) -> u32 {
-        self.0.height()
+    pub fn height(&self) -> usize {
+        self.merkle_tree.height()
     }
 
-    pub fn node_db(&self) -> &DB {
-        self.0.node_db()
-    }
-
-    pub async fn get_current_root(&self) -> HMTResult<HashOut<V>> {
-        self.0.get_current_root().await
-    }
-
-    pub async fn len(&self) -> HMTResult<u32> {
-        let len = self.node_db().num_leaf_hashes().await?;
+    pub async fn len(&self, timestamp: u64) -> MTResult<usize> {
+        let len = self.merkle_tree.get_num_leaves(timestamp).await?;
         Ok(len)
     }
 
-    pub async fn is_empty(&self) -> HMTResult<bool> {
-        let len = self.len().await?;
-        Ok(len == 0)
-    }
-
-    pub async fn update(&self, index: u64, leaf: V) -> HMTResult<()> {
-        self.0.update_leaf(index, leaf.hash()).await?;
-        self.node_db().insert_leaf(leaf).await?;
+    pub async fn update(&self, timestamp: u64, index: u64, leaf: V) -> MTResult<()> {
+        self.merkle_tree.update_leaf(timestamp, index, leaf).await?;
         Ok(())
     }
 
-    pub async fn push(&self, leaf: V) -> HMTResult<()> {
-        let index = self.len().await? as u64;
-        self.0.update_leaf(index, leaf.hash()).await?;
-        self.node_db().insert_leaf(leaf).await?;
+    pub async fn push(&self, timestamp: u64, leaf: V) -> MTResult<()> {
+        let index = self.len(timestamp).await? as u64;
+        self.merkle_tree.update_leaf(timestamp, index, leaf).await?;
         Ok(())
     }
 
-    pub async fn get_leaf_by_root(&self, root: HashOut<V>, index: u64) -> HMTResult<V> {
-        let leaf_hash = self.0.get_leaf_hash_by_root(root, index).await?;
-        let leaf = self.node_db().get_leaf_by_hash(leaf_hash).await?.ok_or(
-            HistoricalMerkleTreeError::LeafNotFoundError(format!("{:?}", leaf_hash)),
-        )?;
+    pub async fn get_root(&self, timestamp: u64) -> MTResult<HashOut<V>> {
+        let root = self.merkle_tree.get_root(timestamp).await?;
+        Ok(root)
+    }
+
+    pub async fn get_leaves(&self, timestamp: u64) -> MTResult<Vec<V>> {
+        let leaves = self.merkle_tree.get_leaves(timestamp).await?;
+        Ok(leaves)
+    }
+
+    pub async fn get_leaf(&self, timestamp: u64, index: u64) -> MTResult<V> {
+        let leaf = self.merkle_tree.get_leaf(timestamp, index).await?;
         Ok(leaf)
     }
 
-    /// Collect all leaves till the empty leaf is reached.
-    pub async fn get_leaves_by_root(&self, root: HashOut<V>) -> HMTResult<Vec<V>> {
-        let empty_leaf_hash = V::empty_leaf().hash();
-        let mut index = 0;
-        let mut leaves = vec![];
-        loop {
-            let leaf_hash = self.0.get_leaf_hash_by_root(root, index).await?;
-            if leaf_hash == empty_leaf_hash {
-                break;
-            }
-            let leaf = self.node_db().get_leaf_by_hash(leaf_hash).await?.ok_or(
-                HistoricalMerkleTreeError::LeafNotFoundError(format!("{:?}", leaf_hash)),
-            )?;
-            leaves.push(leaf);
-            index += 1;
-        }
-        Ok(leaves)
-    }
-
-    pub async fn get_current_leaf(&self, index: u64) -> HMTResult<V> {
-        let leaf_hash = self.node_db().get_leaf_hash(index).await?;
-        match leaf_hash {
-            Some(leaf_hash) => {
-                let leaf = self.node_db().get_leaf_by_hash(leaf_hash).await?.ok_or(
-                    HistoricalMerkleTreeError::LeafNotFoundError(format!("{:?}", leaf_hash)),
-                )?;
-                Ok(leaf)
-            }
-            None => Err(HistoricalMerkleTreeError::LeafNotFoundError(format!(
-                "{:?}",
-                index
-            ))),
-        }
-    }
-
-    pub async fn get_current_leaves(&self) -> HMTResult<Vec<V>> {
-        let leaf_hashes = self.node_db().get_all_leaf_hashes().await?;
-        let mut leaves = vec![];
-        for (_, leaf_hash) in leaf_hashes {
-            let leaf = self.node_db().get_leaf_by_hash(leaf_hash).await?.ok_or(
-                HistoricalMerkleTreeError::LeafNotFoundError(format!("{:?}", leaf_hash)),
-            )?;
-            leaves.push(leaf);
-        }
-        Ok(leaves)
-    }
-
-    pub async fn prove_by_root(
-        &self,
-        root: HashOut<V>,
-        index: u64,
-    ) -> HMTResult<IncrementalMerkleProof<V>> {
-        let (proof, _) = self.0.prove_by_root(root, index).await?;
+    pub async fn prove(&self, timestamp: u64, index: u64) -> MTResult<IncrementalMerkleProof<V>> {
+        let proof = self.merkle_tree.prove(timestamp, index).await?;
         Ok(IncrementalMerkleProof(proof))
+    }
+
+    pub async fn get_last_timestamp(&self) -> MTResult<u64> {
+        let timestamp = self.merkle_tree.get_last_timestamp().await?;
+        Ok(timestamp)
     }
 }
 
@@ -128,7 +74,7 @@ impl<V: Leafable + Serialize + DeserializeOwned, DB: NodeDB<V>>
 mod tests {
     use crate::trees::{
         incremental_merkle_tree::HistoricalIncrementalMerkleTree,
-        node::{NodeDB as _, SqlNodeDB},
+        merkle_tree::{sql_merkle_tree::SqlMerkleTree, MerkleTreeClient},
     };
 
     #[tokio::test]
@@ -139,31 +85,32 @@ mod tests {
         let tag = 1;
 
         type V = u32;
-        let node_db = SqlNodeDB::<V>::new(&database_url, tag).await?;
-        node_db.reset().await?;
-        let tree = HistoricalIncrementalMerkleTree::new(node_db, height).await?;
+        let merkle_db = SqlMerkleTree::<V>::new(&database_url, tag, height);
+        merkle_db.reset().await?;
+        let tree = HistoricalIncrementalMerkleTree::new(merkle_db);
 
+        let timestamp = 0;
         for _ in 0..5 {
-            let index = tree.len().await?;
-            tree.push(index).await?;
+            let index = tree.len(timestamp).await?;
+            tree.push(timestamp, index as u32).await?;
         }
-        let root = tree.get_current_root().await?;
+        let _root = tree.get_root(timestamp).await?;
+        let timestamp = 1;
         for _ in 0..5 {
-            let index = tree.len().await?;
-            tree.push(index).await?;
+            let index = tree.len(timestamp).await?;
+            tree.push(timestamp, index as u32).await?;
         }
         println!("start getting all current leaves");
-        // let time = std::time::Instant::now();
-        let leaves = tree.get_current_leaves().await?;
+        let time = std::time::Instant::now();
+        let leaves = tree.get_leaves(timestamp).await?;
         dbg!(&leaves);
-
-        let old_leaves = tree.get_leaves_by_root(root).await?;
+        let old_leaves = tree.get_leaves(0).await?;
         dbg!(&old_leaves);
-        // println!(
-        //     "Time to get all current {} leaves: {:?}",
-        //     leaves.len(),
-        //     time.elapsed()
-        // );
+        println!(
+            "Time to get all current {} leaves: {:?}",
+            leaves.len(),
+            time.elapsed()
+        );
 
         // for _ in 0..100 {
         //     let index = rng.gen_range(0..1 << height);

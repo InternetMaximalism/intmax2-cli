@@ -12,7 +12,7 @@ use intmax2_zkp::{
         },
         witness::update_witness::UpdateWitness,
     },
-    constants::{BLOCK_HASH_TREE_HEIGHT, DEPOSIT_TREE_HEIGHT},
+    constants::{ACCOUNT_TREE_HEIGHT, BLOCK_HASH_TREE_HEIGHT, DEPOSIT_TREE_HEIGHT},
     ethereum_types::{bytes32::Bytes32, u256::U256, u32limb_trait::U32LimbTrait as _},
     utils::trees::{
         incremental_merkle_tree::IncrementalMerkleProof,
@@ -33,8 +33,8 @@ use crate::{
         account_tree::HistoricalAccountTree,
         block_tree::HistoricalBlockHashTree,
         deposit_hash_tree::{DepositHash, HistoricalDepositHashTree},
-        node::{NodeDB, SqlNodeDB},
-        utils::{to_block_witness, update_trees},
+        merkle_tree::sql_merkle_tree::SqlMerkleTree,
+        update::{to_block_witness, update_trees},
     },
     Env,
 };
@@ -43,9 +43,9 @@ type F = GoldilocksField;
 type C = PoseidonGoldilocksConfig;
 const D: usize = 2;
 
-type ADB = SqlNodeDB<IndexedMerkleLeaf>;
-type BDB = SqlNodeDB<Bytes32>;
-type DDB = SqlNodeDB<DepositHash>;
+type ADB = SqlMerkleTree<IndexedMerkleLeaf>;
+type BDB = SqlMerkleTree<Bytes32>;
+type DDB = SqlMerkleTree<DepositHash>;
 
 // type ADB = MockNodeDB<IndexedMerkleLeaf>;
 // type BDB = MockNodeDB<Bytes32>;
@@ -87,26 +87,33 @@ impl ValidityProver {
             .connect(&env.database_url)
             .await?;
 
-        let account_db = SqlNodeDB::new(&env.database_url, ACCOUNT_DB_TAG).await?;
-        // let account_db = MockNodeDB::new();
+        let account_db = SqlMerkleTree::new(&env.database_url, ACCOUNT_DB_TAG, ACCOUNT_TREE_HEIGHT);
         let account_tree = HistoricalAccountTree::initialize(account_db).await?;
 
-        let block_db = SqlNodeDB::new(&env.database_url, BLOCK_DB_TAG).await?;
-        // let block_db = MockNodeDB::new();
-        let block_tree =
-            HistoricalBlockHashTree::new(block_db, BLOCK_HASH_TREE_HEIGHT as u32).await?;
-        if block_tree.len().await? == 0 {
-            block_tree.push(Block::genesis().hash()).await?;
+        let block_db = SqlMerkleTree::new(&env.database_url, BLOCK_DB_TAG, BLOCK_HASH_TREE_HEIGHT);
+        let block_tree = HistoricalBlockHashTree::new(block_db);
+        let last_timestamp = block_tree.get_last_timestamp().await?;
+        if last_timestamp == 0 {
+            let len = block_tree.len(last_timestamp).await?;
+            if len == 0 {
+                block_tree
+                    .push(last_timestamp, Block::genesis().hash())
+                    .await?;
+            }
         }
 
-        let deposit_db = SqlNodeDB::new(&env.database_url, DEPOSIT_DB_TAG).await?;
-        // let deposit_db = MockNodeDB::new();
-        let deposit_hash_tree =
-            HistoricalDepositHashTree::new(deposit_db, DEPOSIT_TREE_HEIGHT as u32).await?;
+        let deposit_db = SqlMerkleTree::new(&env.database_url, DEPOSIT_DB_TAG, DEPOSIT_TREE_HEIGHT);
+        let deposit_hash_tree = HistoricalDepositHashTree::new(deposit_db);
 
-        log::info!("block tree len: {}", block_tree.len().await?);
-        log::info!("deposit tree len: {}", deposit_hash_tree.len().await?);
-        log::info!("account tree len: {}", account_tree.len().await?);
+        log::info!("block tree len: {}", block_tree.len(last_timestamp).await?);
+        log::info!(
+            "deposit tree len: {}",
+            deposit_hash_tree.len(last_timestamp).await?
+        );
+        log::info!(
+            "account tree len: {}",
+            account_tree.len(last_timestamp).await?
+        );
 
         // Initialize state if empty
         let count = sqlx::query!("SELECT COUNT(*) as count FROM validity_state")
@@ -127,24 +134,6 @@ impl ValidityProver {
             .execute(&mut *tx)
             .await?;
             tx.commit().await?;
-
-            // save roots
-            let block_number = 0u32;
-            let account_tree_root = account_tree.get_current_root().await?;
-            account_tree
-                .node_db()
-                .save_root(block_number as u64, account_tree_root)
-                .await?;
-            let block_tree_root = block_tree.get_current_root().await?;
-            block_tree
-                .node_db()
-                .save_root(block_number as u64, block_tree_root)
-                .await?;
-            let deposit_tree_root = deposit_hash_tree.get_current_root().await?;
-            deposit_hash_tree
-                .node_db()
-                .save_root(block_number as u64, deposit_tree_root)
-                .await?;
         }
 
         Ok(Self {
@@ -201,14 +190,23 @@ impl ValidityProver {
             );
 
             let full_block = self.observer.get_full_block(block_number).await?;
-            let block_witness = to_block_witness(&full_block, &self.account_tree, &self.block_tree)
-                .await
-                .map_err(|e| ValidityProverError::BlockWitnessGenerationError(e.to_string()))?;
+            let block_witness = to_block_witness(
+                &full_block,
+                block_number,
+                &self.account_tree,
+                &self.block_tree,
+            )
+            .await
+            .map_err(|e| ValidityProverError::BlockWitnessGenerationError(e.to_string()))?;
 
-            let validity_witness =
-                update_trees(&block_witness, &self.account_tree, &self.block_tree)
-                    .await
-                    .map_err(|e| ValidityProverError::FailedToUpdateTrees(e.to_string()))?;
+            let validity_witness = update_trees(
+                &block_witness,
+                block_number,
+                &self.account_tree,
+                &self.block_tree,
+            )
+            .await
+            .map_err(|e| ValidityProverError::FailedToUpdateTrees(e.to_string()))?;
 
             let validity_proof = self
                 .validity_processor()
@@ -227,33 +225,17 @@ impl ValidityProver {
 
             for event in deposit_events {
                 self.deposit_hash_tree
-                    .push(DepositHash(event.deposit_hash))
+                    .push(block_number as u64, DepositHash(event.deposit_hash))
                     .await?;
             }
 
-            let deposit_tree_root = self.deposit_hash_tree.get_current_root().await?;
+            let deposit_tree_root = self.deposit_hash_tree.get_root(block_number as u64).await?;
             if full_block.block.deposit_tree_root != deposit_tree_root {
                 return Err(ValidityProverError::DepositTreeRootMismatch(
                     full_block.block.deposit_tree_root,
                     deposit_tree_root,
                 ));
             }
-
-            // Record tree roots
-            let account_tree_root = self.account_tree.get_current_root().await?;
-            self.account_tree
-                .node_db()
-                .save_root(block_number as u64, account_tree_root)
-                .await?;
-            let block_tree_root = self.block_tree.get_current_root().await?;
-            self.block_tree
-                .node_db()
-                .save_root(block_number as u64, block_tree_root)
-                .await?;
-            self.deposit_hash_tree
-                .node_db()
-                .save_root(block_number as u64, deposit_tree_root)
-                .await?;
 
             // Update database state
             sqlx::query!(
@@ -332,15 +314,17 @@ impl ValidityProver {
     }
 
     pub async fn get_account_id(&self, pubkey: U256) -> Result<Option<u64>, ValidityProverError> {
-        let leaves = self.account_tree.get_current_leaves().await?;
-        let index = self.account_tree.index(&leaves, pubkey).await?;
+        let last_block_number = self.get_block_number().await?;
+        let index = self
+            .account_tree
+            .index(last_block_number as u64, pubkey)
+            .await?;
         Ok(index)
     }
 
     pub async fn get_account_info(&self, pubkey: U256) -> Result<AccountInfo, ValidityProverError> {
         let block_number = self.get_block_number().await?;
-        let leaves = self.account_tree.get_current_leaves().await?;
-        let account_id = self.account_tree.index(&leaves, pubkey).await?;
+        let account_id = self.account_tree.index(block_number as u64, pubkey).await?;
         Ok(AccountInfo {
             block_number,
             account_id,
@@ -407,19 +391,10 @@ impl ValidityProver {
                 "leaf_block_number should be smaller than root_block_number".to_string(),
             ));
         }
-
-        let block_tree_root = self
-            .block_tree
-            .node_db()
-            .get_root(root_block_number as u64)
-            .await?
-            .ok_or(ValidityProverError::BlockTreeNotFound(root_block_number))?;
-
         let proof = self
             .block_tree
-            .prove_by_root(block_tree_root, leaf_block_number as u64)
+            .prove(root_block_number as u64, leaf_block_number as u64)
             .await?;
-
         Ok(proof)
     }
 
@@ -428,15 +403,9 @@ impl ValidityProver {
         block_number: u32,
         pubkey: U256,
     ) -> Result<AccountMembershipProof, ValidityProverError> {
-        let account_tree_root = self
-            .account_tree
-            .node_db()
-            .get_root(block_number as u64)
-            .await?
-            .ok_or(ValidityProverError::AccountTreeNotFound(block_number))?;
         let proof = self
             .account_tree
-            .prove_membership_by_root(account_tree_root, pubkey)
+            .prove_membership(block_number as u64, pubkey)
             .await?;
         Ok(proof)
     }
@@ -459,15 +428,9 @@ impl ValidityProver {
         block_number: u32,
         deposit_index: u32,
     ) -> Result<DepositMerkleProof, ValidityProverError> {
-        let deposit_tree_root = self
-            .deposit_hash_tree
-            .node_db()
-            .get_root(block_number as u64)
-            .await?
-            .ok_or(ValidityProverError::DepositTreeRootNotFound(block_number))?;
         let proof = self
             .deposit_hash_tree
-            .prove_by_root(deposit_tree_root, deposit_index as u64)
+            .prove(block_number as u64, deposit_index as u64)
             .await?;
         Ok(IncrementalMerkleProof(MerkleProof {
             siblings: proof.0.siblings,

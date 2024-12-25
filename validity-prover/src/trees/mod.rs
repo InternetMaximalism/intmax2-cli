@@ -4,15 +4,14 @@ use tracing_subscriber::{
 };
 
 pub mod account_tree;
-pub mod bit_path;
 pub mod block_tree;
 pub mod deposit_hash_tree;
-pub mod error;
 pub mod incremental_merkle_tree;
-pub mod indexed_merkle_tree;
 pub mod merkle_tree;
-pub mod node;
+pub mod update;
 pub mod utils;
+
+pub mod indexed_merkle_tree;
 
 pub fn setup_test() -> String {
     dotenv::dotenv().ok();
