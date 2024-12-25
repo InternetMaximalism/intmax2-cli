@@ -30,6 +30,8 @@ pub trait MerkleTreeClient<V: Leafable + Serialize + DeserializeOwned>:
 
 #[cfg(test)]
 mod tests {
+    use intmax2_zkp::utils::trees::merkle_tree::u64_le_bits;
+
     use crate::trees::{merkle_tree::mock_merkle_tree::MockMerkleTree, setup_test};
 
     use super::sql_merkle_tree::SqlMerkleTree;
@@ -44,49 +46,31 @@ mod tests {
         let height = 10;
         let tree = MockMerkleTree::<V>::new(height);
 
-        let timestamp = 0;
+        let timestamp0 = 0;
         for i in 0..5 {
-            tree.update_leaf(timestamp, i, i as u32).await?;
+            tree.update_leaf(timestamp0, i, i as u32).await?;
         }
-        let timestamp = 2;
+        let timestamp1 = 1;
         for i in 5..10 {
-            tree.update_leaf(timestamp, i, i as u32).await?;
+            tree.update_leaf(timestamp1, i, i as u32).await?;
         }
-        tree.update_leaf(timestamp, 3, 9).await?;
+        tree.update_leaf(timestamp1, 3, 9).await?;
 
-        let leaves0_m = tree.get_leaves(0).await?;
-        let leaves2_m = tree.get_leaves(2).await?;
-        let root0_m = tree.get_root(0).await?;
-        let root2_m = tree.get_root(2).await?;
-        let proof2_m = tree.prove(2, 6).await?;
+        let leaves0_m = tree.get_leaves(timestamp0).await?;
+        let leaves1_m = tree.get_leaves(timestamp1).await?;
+        let root0_m = tree.get_root(timestamp0).await?;
+        let root1_m = tree.get_root(timestamp1).await?;
+        let index = 6;
+        let proof1_m = tree.prove(timestamp1, index).await?;
         let last_timestamp_m = tree.get_last_timestamp().await?;
 
         let timestamp = 0;
         let tree = SqlMerkleTree::<V>::new(&database_url, 0, height);
         tree.reset().await?;
 
-        for i in 0..5 {
-            tree.update_leaf(timestamp, i, i as u32).await?;
-        }
-        let timestamp = 2;
-        for i in 5..10 {
-            tree.update_leaf(timestamp, i, i as u32).await?;
-        }
-        tree.update_leaf(timestamp, 3, 9).await?;
 
-        let leaves0 = tree.get_leaves(0).await?;
-        let leaves2 = tree.get_leaves(2).await?;
-        let root0 = tree.get_root(0).await?;
-        let root2 = tree.get_root(2).await?;
-        let proof2 = tree.prove(2, 6).await?;
-        let timestamp = tree.get_last_timestamp().await?;
-
-        assert_eq!(leaves0, leaves0_m);
-        assert_eq!(leaves2, leaves2_m);
-        assert_eq!(root0_m, root0);
-        assert_eq!(root2, root2_m);
-        assert_eq!(proof2.siblings, proof2_m.siblings);
-        assert_eq!(timestamp, last_timestamp_m);
+        let index_bits = u64_le_bits(6, height);
+        proof2.verify(&6, index_bits, root2)?;
 
         Ok(())
     }

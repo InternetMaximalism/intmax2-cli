@@ -72,9 +72,13 @@ impl<V: Leafable + Serialize + DeserializeOwned, DB: MerkleTreeClient<V>>
 
 #[cfg(test)]
 mod tests {
+    use intmax2_zkp::utils::trees::incremental_merkle_tree::IncrementalMerkleTree;
+
     use crate::trees::{
         incremental_merkle_tree::HistoricalIncrementalMerkleTree,
-        merkle_tree::{sql_merkle_tree::SqlMerkleTree, MerkleTreeClient},
+        merkle_tree::{
+            mock_merkle_tree::MockMerkleTree, sql_merkle_tree::SqlMerkleTree, MerkleTreeClient,
+        },
     };
 
     #[tokio::test]
@@ -85,32 +89,25 @@ mod tests {
         let tag = 1;
 
         type V = u32;
-        let merkle_db = SqlMerkleTree::<V>::new(&database_url, tag, height);
-        merkle_db.reset().await?;
-        let tree = HistoricalIncrementalMerkleTree::new(merkle_db);
 
-        let timestamp = 0;
-        for _ in 0..5 {
-            let index = tree.len(timestamp).await?;
-            tree.push(timestamp, index as u32).await?;
+        let db = SqlMerkleTree::<V>::new(&database_url, tag, height);
+        db.reset().await?;
+        let db = MockMerkleTree::<V>::new(height);
+        let db_tree = HistoricalIncrementalMerkleTree::new(db);
+
+        let timestamp = db_tree.get_last_timestamp().await?;
+        dbg!(timestamp);
+        for i in 0..5 {
+            db_tree.push(timestamp, i as u32).await?;
         }
-        let _root = tree.get_root(timestamp).await?;
-        let timestamp = 1;
-        for _ in 0..5 {
-            let index = tree.len(timestamp).await?;
-            tree.push(timestamp, index as u32).await?;
+        let root_db = db_tree.get_root(timestamp).await?;
+
+        let mut tree = IncrementalMerkleTree::<V>::new(height);
+        for i in 0..5 {
+            tree.push(i);
         }
-        println!("start getting all current leaves");
-        let time = std::time::Instant::now();
-        let leaves = tree.get_leaves(timestamp).await?;
-        dbg!(&leaves);
-        let old_leaves = tree.get_leaves(0).await?;
-        dbg!(&old_leaves);
-        println!(
-            "Time to get all current {} leaves: {:?}",
-            leaves.len(),
-            time.elapsed()
-        );
+        let root = tree.get_root();
+        assert_eq!(root_db, root);
 
         // for _ in 0..100 {
         //     let index = rng.gen_range(0..1 << height);

@@ -148,7 +148,8 @@ mod tests {
         merkle_tree::{sql_merkle_tree::SqlMerkleTree, MerkleTreeClient},
     };
     use intmax2_zkp::{
-        constants::ACCOUNT_TREE_HEIGHT, utils::trees::indexed_merkle_tree::leaf::IndexedMerkleLeaf,
+        common::trees::account_tree::AccountTree, constants::ACCOUNT_TREE_HEIGHT,
+        utils::trees::indexed_merkle_tree::leaf::IndexedMerkleLeaf,
     };
 
     #[tokio::test]
@@ -178,6 +179,29 @@ mod tests {
         let proof = tree.prove_inclusion(timestamp0, account_id).await?;
         let result = proof.verify(old_root, account_id, (account_id as u32).into());
         assert!(result);
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_comparison_account_tree() -> anyhow::Result<()> {
+        let database_url = crate::trees::setup_test();
+        let tag = 3;
+        let db = SqlMerkleTree::<IndexedMerkleLeaf>::new(&database_url, tag, ACCOUNT_TREE_HEIGHT);
+        db.reset().await?;
+        let db_tree = HistoricalAccountTree::initialize(db).await?;
+        let timestamp = db_tree.0.get_last_timestamp().await?;
+        for i in 2..10 {
+            db_tree.insert(timestamp, i.into(), i.into()).await?;
+        }
+        let db_root = db_tree.get_root(timestamp).await?;
+
+        let mut tree = AccountTree::initialize();
+        for i in 2..10 {
+            tree.insert(i.into(), i.into())?;
+        }
+        let root = tree.get_root();
+        assert_eq!(db_root, root);
 
         Ok(())
     }
