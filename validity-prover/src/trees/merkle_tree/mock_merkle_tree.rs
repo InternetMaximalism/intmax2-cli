@@ -105,7 +105,6 @@ impl<V: Leafable + Serialize + DeserializeOwned> MockMerkleTree<V> {
             leaf,
         };
         let current_len = self.get_num_leaves(timestamp).await?;
-        tracing::log::info!("current_len: {}", current_len);
         let next_len = ((position + 1) as usize).max(current_len);
         self.leaves
             .write()

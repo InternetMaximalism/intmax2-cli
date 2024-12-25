@@ -112,8 +112,8 @@ impl<V: Leafable + Serialize + DeserializeOwned> SqlMerkleTree<V> {
         position: u64,
         leaf: V,
     ) -> super::MTResult<()> {
-        let leaf_hash = bincode::serialize(&leaf.hash()).unwrap();
-        let leaf = bincode::serialize(&leaf).unwrap();
+        let leaf_hash_serialized = bincode::serialize(&leaf.hash()).unwrap();
+        let leaf_serialized = bincode::serialize(&leaf).unwrap();
 
         let current_len = self.get_num_leaves(tx, timestamp).await?;
         let next_len = ((position + 1) as usize).max(current_len);
@@ -128,8 +128,8 @@ impl<V: Leafable + Serialize + DeserializeOwned> SqlMerkleTree<V> {
             timestamp as i64,
             self.tag as i32,
             position as i64,
-            leaf_hash,
-            leaf,
+            leaf_hash_serialized,
+            leaf_serialized,
         )
         .execute(tx.as_mut())
         .await?;
