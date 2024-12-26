@@ -175,7 +175,6 @@ impl<V: Leafable + Serialize + DeserializeOwned> SqlMerkleTree<V> {
 
         match record {
             Some(row) => {
-                log::info!("leaf len: {}", row.leaf.len());
                 let leaf = bincode::deserialize(&row.leaf)?;
                 Ok(leaf)
             }
@@ -218,7 +217,6 @@ impl<V: Leafable + Serialize + DeserializeOwned> SqlMerkleTree<V> {
         let mut leaves = HashMap::new();
         for record in records {
             let position = record.position as u64;
-            log::info!("position: {}, leaf len: {}", position, record.leaf.len());
             let leaf: V = bincode::deserialize(&record.leaf)?;
             leaves.insert(position, leaf);
         }
