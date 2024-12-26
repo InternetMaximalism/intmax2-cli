@@ -291,6 +291,12 @@ impl Observer {
             .await
             .map_err(|e| ObserverError::FullBlockSyncError(e.to_string()))?;
         let next_deposit_index = self.get_next_deposit_index().await?;
+
+        // skip already synced events
+        let deposit_leaf_events = deposit_leaf_events
+            .into_iter()
+            .skip_while(|e| e.deposit_index < next_deposit_index)
+            .collect::<Vec<_>>();
         if let Some(first) = deposit_leaf_events.first() {
             if first.deposit_index != next_deposit_index {
                 return Err(ObserverError::FullBlockSyncError(format!(
@@ -334,6 +340,11 @@ impl Observer {
             .await
             .map_err(|e| ObserverError::FullBlockSyncError(e.to_string()))?;
         let next_block_number = self.get_next_block_number().await?;
+        // skip already synced events
+        let full_blocks = full_blocks
+            .into_iter()
+            .skip_while(|b| b.full_block.block.block_number < next_block_number)
+            .collect::<Vec<_>>();
         if let Some(first) = full_blocks.first() {
             if first.full_block.block.block_number != next_block_number {
                 return Err(ObserverError::FullBlockSyncError(format!(

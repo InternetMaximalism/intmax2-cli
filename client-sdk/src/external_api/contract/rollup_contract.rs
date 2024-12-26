@@ -132,8 +132,17 @@ impl RollupContract {
         );
         let mut events = Vec::new();
         let mut from_block = from_block;
+        let mut is_final = false;
         let final_to_block = loop {
-            let to_block = from_block + EVENT_BLOCK_RANGE - 1;
+            let mut to_block = from_block + EVENT_BLOCK_RANGE - 1;
+            let latest_block_number = get_latest_block_number(&self.rpc_url).await?;
+            if to_block > latest_block_number {
+                to_block = latest_block_number;
+                is_final = true;
+            }
+            if from_block > to_block {
+                break to_block;
+            }
             log::info!(
                 "get_deposit_leaf_inserted_event: from_block={}, to_block={}",
                 from_block,
@@ -154,11 +163,10 @@ impl RollupContract {
                 BlockchainError::RPCError("failed to get deposit leaf inserted event".to_string())
             })?;
             events.extend(new_events);
-            let latest_block_number = get_latest_block_number(&self.rpc_url).await?;
-            from_block += EVENT_BLOCK_RANGE;
-            if from_block > latest_block_number {
-                break latest_block_number;
+            if is_final {
+                break to_block;
             }
+            from_block += EVENT_BLOCK_RANGE;
         };
         let mut deposit_leaf_inserted_events = Vec::new();
         for (event, meta) in events {
@@ -180,8 +188,17 @@ impl RollupContract {
         log::info!("get_blocks_posted_event from_block={}", from_block);
         let mut events = Vec::new();
         let mut from_block = from_block;
+        let mut is_final = false;
         let final_to_block = loop {
-            let to_block = from_block + EVENT_BLOCK_RANGE - 1;
+            let mut to_block = from_block + EVENT_BLOCK_RANGE - 1;
+            let latest_block_number = get_latest_block_number(&self.rpc_url).await?;
+            if to_block > latest_block_number {
+                to_block = latest_block_number;
+                is_final = true;
+            }
+            if from_block > to_block {
+                break to_block;
+            }
             log::info!(
                 "get_blocks_posted_event: from_block={}, to_block={}",
                 from_block,
@@ -202,11 +219,10 @@ impl RollupContract {
                 BlockchainError::RPCError("failed to get blocks posted event".to_string())
             })?;
             events.extend(new_events);
-            let latest_block_number = get_latest_block_number(&self.rpc_url).await?;
-            from_block += EVENT_BLOCK_RANGE;
-            if from_block > latest_block_number {
-                break latest_block_number;
+            if is_final {
+                break to_block;
             }
+            from_block += EVENT_BLOCK_RANGE;
         };
         let mut blocks_posted_events = Vec::new();
         for (event, meta) in events {
