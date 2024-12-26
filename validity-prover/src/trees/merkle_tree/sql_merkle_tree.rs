@@ -196,6 +196,7 @@ impl<V: Leafable + Serialize + DeserializeOwned> SqlMerkleTree<V> {
                     ) as rn
                 FROM leaves
                 WHERE timestamp_value <= $1
+                AND tag = $2
             )
             SELECT 
                 timestamp_value,
@@ -207,7 +208,8 @@ impl<V: Leafable + Serialize + DeserializeOwned> SqlMerkleTree<V> {
             WHERE rn = 1
             ORDER BY position
             "#,
-            timestamp as i64
+            timestamp as i64,
+            self.tag as i32
         )
         .fetch_all(tx.as_mut())
         .await?;
