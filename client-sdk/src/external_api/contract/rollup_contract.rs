@@ -23,8 +23,8 @@ use crate::external_api::{contract::utils::get_latest_block_number, utils::retry
 
 use super::{
     data_decoder::decode_post_block_calldata,
-    handlers::handle_contract_call,
     error::BlockchainError,
+    handlers::handle_contract_call,
     proxy_contract::ProxyContract,
     utils::{get_client, get_client_with_signer, get_transaction},
 };
@@ -124,23 +124,28 @@ impl RollupContract {
 
     pub async fn get_deposit_leaf_inserted_events(
         &self,
-        from_block: Option<u64>,
-    ) -> Result<Vec<DepositLeafInserted>, BlockchainError> {
+        from_block: u64,
+    ) -> Result<(Vec<DepositLeafInserted>, u64), BlockchainError> {
         log::info!(
             "get_deposit_leaf_inserted_event: from_block={:?}",
             from_block
         );
         let mut events = Vec::new();
-        let mut from_block = from_block.unwrap_or(self.deployed_block_number);
-        loop {
-            log::info!("get_deposit_leaf_inserted_event: from_block={}", from_block);
+        let mut from_block = from_block;
+        let final_to_block = loop {
+            let to_block = from_block + EVENT_BLOCK_RANGE - 1;
+            log::info!(
+                "get_deposit_leaf_inserted_event: from_block={}, to_block={}",
+                from_block,
+                to_block
+            );
             let contract = self.get_contract().await?;
             let new_events = with_retry(|| async {
                 contract
                     .deposit_leaf_inserted_filter()
                     .address(self.address.into())
                     .from_block(from_block)
-                    .to_block(from_block + EVENT_BLOCK_RANGE - 1)
+                    .to_block(to_block)
                     .query_with_meta()
                     .await
             })
@@ -152,9 +157,9 @@ impl RollupContract {
             let latest_block_number = get_latest_block_number(&self.rpc_url).await?;
             from_block += EVENT_BLOCK_RANGE;
             if from_block > latest_block_number {
-                break;
+                break latest_block_number;
             }
-        }
+        };
         let mut deposit_leaf_inserted_events = Vec::new();
         for (event, meta) in events {
             deposit_leaf_inserted_events.push(DepositLeafInserted {
@@ -165,25 +170,30 @@ impl RollupContract {
             });
         }
         deposit_leaf_inserted_events.sort_by_key(|event| event.deposit_index);
-        Ok(deposit_leaf_inserted_events)
+        Ok((deposit_leaf_inserted_events, final_to_block))
     }
 
     async fn get_blocks_posted_event(
         &self,
-        from_block: Option<u64>,
-    ) -> Result<Vec<BlockPosted>, BlockchainError> {
-        log::info!("get_blocks_posted_event");
+        from_block: u64,
+    ) -> Result<(Vec<BlockPosted>, u64), BlockchainError> {
+        log::info!("get_blocks_posted_event from_block={}", from_block);
         let mut events = Vec::new();
-        let mut from_block = from_block.unwrap_or(self.deployed_block_number);
-        loop {
-            log::info!("get_blocks_posted_event: from_block={}", from_block);
+        let mut from_block = from_block;
+        let final_to_block = loop {
+            let to_block = from_block + EVENT_BLOCK_RANGE - 1;
+            log::info!(
+                "get_blocks_posted_event: from_block={}, to_block={}",
+                from_block,
+                to_block
+            );
             let contract = self.get_contract().await?;
             let new_events = with_retry(|| async {
                 contract
                     .block_posted_filter()
                     .address(self.address.into())
                     .from_block(from_block)
-                    .to_block(from_block + EVENT_BLOCK_RANGE - 1)
+                    .to_block(to_block)
                     .query_with_meta()
                     .await
             })
@@ -195,9 +205,9 @@ impl RollupContract {
             let latest_block_number = get_latest_block_number(&self.rpc_url).await?;
             from_block += EVENT_BLOCK_RANGE;
             if from_block > latest_block_number {
-                break;
+                break latest_block_number;
             }
-        }
+        };
         let mut blocks_posted_events = Vec::new();
         for (event, meta) in events {
             blocks_posted_events.push(BlockPosted {
@@ -212,14 +222,14 @@ impl RollupContract {
             });
         }
         blocks_posted_events.sort_by_key(|event| event.block_number);
-        Ok(blocks_posted_events)
+        Ok((blocks_posted_events, final_to_block))
     }
 
     pub async fn get_full_block_with_meta(
         &self,
-        from_block: Option<u64>,
-    ) -> Result<Vec<FullBlockWithMeta>, BlockchainError> {
-        let blocks_posted_events = self.get_blocks_posted_event(from_block).await?;
+        from_block: u64,
+    ) -> Result<(Vec<FullBlockWithMeta>, u64), BlockchainError> {
+        let (blocks_posted_events, to_block) = self.get_blocks_posted_event(from_block).await?;
         let mut full_blocks = Vec::new();
         for event in blocks_posted_events {
             let tx = get_transaction(&self.rpc_url, event.tx_hash)
@@ -246,7 +256,7 @@ impl RollupContract {
                 eth_tx_index: event.eth_tx_index,
             });
         }
-        Ok(full_blocks)
+        Ok((full_blocks, to_block))
     }
 
     pub async fn initialize(
@@ -454,7 +464,8 @@ mod tests {
             )
             .await?;
 
-        let full_blocks = rollup_contract.get_full_block_with_meta(None).await?;
+        let from_block = 0;
+        let (full_blocks, _) = rollup_contract.get_full_block_with_meta(from_block).await?;
         assert_eq!(full_blocks.len(), 2);
 
         Ok(())

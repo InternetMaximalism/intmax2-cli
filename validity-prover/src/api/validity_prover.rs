@@ -47,10 +47,6 @@ type ADB = SqlMerkleTree<IndexedMerkleLeaf>;
 type BDB = SqlMerkleTree<Bytes32>;
 type DDB = SqlMerkleTree<DepositHash>;
 
-// type ADB = MockMerkleTree<IndexedMerkleLeaf>;
-// type BDB = MockMerkleTree<Bytes32>;
-// type DDB = MockMerkleTree<DepositHash>;
-
 const ACCOUNT_DB_TAG: u32 = 1;
 const BLOCK_DB_TAG: u32 = 2;
 const DEPOSIT_DB_TAG: u32 = 3;
@@ -88,11 +84,9 @@ impl ValidityProver {
             .await?;
 
         let account_db = SqlMerkleTree::new(&env.database_url, ACCOUNT_DB_TAG, ACCOUNT_TREE_HEIGHT);
-        // let account_db = MockMerkleTree::new(ACCOUNT_TREE_HEIGHT);
         let account_tree = HistoricalAccountTree::initialize(account_db).await?;
 
         let block_db = SqlMerkleTree::new(&env.database_url, BLOCK_DB_TAG, BLOCK_HASH_TREE_HEIGHT);
-        // let block_db = MockMerkleTree::new(BLOCK_HASH_TREE_HEIGHT);
         let block_tree = HistoricalBlockHashTree::new(block_db);
         let last_timestamp = block_tree.get_last_timestamp().await?;
         if last_timestamp == 0 {
@@ -105,7 +99,6 @@ impl ValidityProver {
         }
 
         let deposit_db = SqlMerkleTree::new(&env.database_url, DEPOSIT_DB_TAG, DEPOSIT_TREE_HEIGHT);
-        // let deposit_db = MockMerkleTree::new(DEPOSIT_TREE_HEIGHT);
         let deposit_hash_tree = HistoricalDepositHashTree::new(deposit_db);
 
         log::info!("block tree len: {}", block_tree.len(last_timestamp).await?);
