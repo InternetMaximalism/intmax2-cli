@@ -1,7 +1,10 @@
 -- Observer tables
-CREATE TABLE sync_state (
-    id SERIAL PRIMARY KEY,
-    sync_eth_block_number BIGINT
+CREATE TABLE observer_block_sync_eth_block_num (
+   block_sync_eth_block_num BIGINT NOT NULL
+);
+
+CREATE TABLE observer_deposit_sync_eth_block_num (
+   deposit_sync_eth_block_num BIGINT NOT NULL
 );
 
 CREATE TABLE full_blocks (

@@ -1,4 +1,5 @@
-DROP TABLE IF EXISTS sync_state;
+DROP TABLE IF EXISTS observer_block_sync_eth_block_num;
+DROP TABLE IF EXISTS observer_deposit_sync_eth_block_num;
 DROP TABLE IF EXISTS full_blocks;
 DROP TABLE IF EXISTS deposit_leaf_events;
 DROP TABLE IF EXISTS validity_state;
