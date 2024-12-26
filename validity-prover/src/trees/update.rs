@@ -1,4 +1,5 @@
 use anyhow::ensure;
+use hashbrown::HashMap;
 use intmax2_zkp::{
     common::{
         trees::{account_tree::AccountRegistrationProof, sender_tree::get_sender_leaves},
@@ -10,7 +11,7 @@ use intmax2_zkp::{
     },
     constants::{ACCOUNT_TREE_HEIGHT, NUM_SENDERS_IN_BLOCK},
     ethereum_types::{account_id_packed::AccountIdPacked, bytes32::Bytes32, u256::U256},
-    utils::trees::indexed_merkle_tree::leaf::IndexedMerkleLeaf,
+    utils::trees::indexed_merkle_tree::{leaf::IndexedMerkleLeaf, membership::MembershipProof},
 };
 
 use crate::trees::{
@@ -39,14 +40,20 @@ pub async fn to_block_witness<
             ))?;
             pubkeys.resize(NUM_SENDERS_IN_BLOCK, U256::dummy_pubkey());
             let mut account_membership_proofs = Vec::new();
+            let mut cached_proofs: HashMap<U256, MembershipProof> = HashMap::new();
             for pubkey in pubkeys.iter() {
+                if cached_proofs.contains_key(pubkey) {
+                    account_membership_proofs.push(cached_proofs[pubkey].clone());
+                    continue;
+                }
                 let is_dummy = pubkey.is_dummy_pubkey();
                 ensure!(
                     account_tree.index(timestamp, *pubkey).await?.is_none() || is_dummy,
                     "account already exists"
                 );
                 let proof = account_tree.prove_membership(timestamp, *pubkey).await?;
-                account_membership_proofs.push(proof);
+                account_membership_proofs.push(proof.clone());
+                cached_proofs.insert(*pubkey, proof);
             }
             (pubkeys, None, None, Some(account_membership_proofs))
         } else {

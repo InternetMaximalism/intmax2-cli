@@ -371,6 +371,7 @@ impl Observer {
     pub async fn sync(&self) -> Result<(), ObserverError> {
         self.sync_deposits().await?;
         self.sync_blocks().await?;
+        log::info!("Observer synced");
         Ok(())
     }
 }
