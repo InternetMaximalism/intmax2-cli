@@ -1,9 +1,11 @@
 -- Observer tables
 CREATE TABLE observer_block_sync_eth_block_num (
-   block_sync_eth_block_num BIGINT NOT NULL
+    singleton_key BOOLEAN PRIMARY KEY DEFAULT TRUE CHECK (singleton_key),
+    block_sync_eth_block_num BIGINT NOT NULL
 );
 
 CREATE TABLE observer_deposit_sync_eth_block_num (
+   singleton_key BOOLEAN PRIMARY KEY DEFAULT TRUE CHECK (singleton_key),
    deposit_sync_eth_block_num BIGINT NOT NULL
 );
 

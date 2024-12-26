@@ -62,10 +62,16 @@ impl Observer {
 
     async fn get_block_sync_eth_block_number(&self) -> Result<u64, ObserverError> {
         let block_sync_eth_block_number: Option<i64> = sqlx::query_scalar!(
-            "SELECT block_sync_eth_block_num FROM observer_block_sync_eth_block_num"
+            "SELECT block_sync_eth_block_num FROM observer_block_sync_eth_block_num WHERE singleton_key = TRUE"
         )
         .fetch_optional(&self.pool)
         .await?;
+
+        log::info!(
+            "get_block_sync_eth_block_number: {:?}",
+            block_sync_eth_block_number
+        );
+
         Ok(block_sync_eth_block_number
             .map(|x| x as u64)
             .unwrap_or(self.rollup_contract.deployed_block_number))
@@ -76,21 +82,32 @@ impl Observer {
         tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
         block_number: u64,
     ) -> Result<(), ObserverError> {
+        log::info!("set_block_sync_eth_block_number: {}", block_number);
         sqlx::query!(
-            "UPDATE observer_block_sync_eth_block_num SET block_sync_eth_block_num = $1",
+            r#"
+            INSERT INTO observer_block_sync_eth_block_num (singleton_key, block_sync_eth_block_num)
+            VALUES (TRUE, $1)
+            ON CONFLICT (singleton_key) DO UPDATE
+            SET block_sync_eth_block_num = $1
+            "#,
             block_number as i64
         )
         .execute(tx.as_mut())
         .await?;
+
         Ok(())
     }
 
     async fn get_deposit_sync_eth_block_number(&self) -> Result<u64, ObserverError> {
         let deposit_sync_eth_block_number: Option<i64> = sqlx::query_scalar!(
-            "SELECT deposit_sync_eth_block_num FROM observer_deposit_sync_eth_block_num"
+            "SELECT deposit_sync_eth_block_num FROM observer_deposit_sync_eth_block_num WHERE singleton_key = TRUE"
         )
         .fetch_optional(&self.pool)
         .await?;
+        log::info!(
+            "get_deposit_sync_eth_block_number: {:?}",
+            deposit_sync_eth_block_number
+        );
         Ok(deposit_sync_eth_block_number
             .map(|x| x as u64)
             .unwrap_or(self.rollup_contract.deployed_block_number))
@@ -101,8 +118,14 @@ impl Observer {
         tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
         block_number: u64,
     ) -> Result<(), ObserverError> {
+        log::info!("set_deposit_sync_eth_block_number: {}", block_number);
         sqlx::query!(
-            "UPDATE observer_deposit_sync_eth_block_num SET deposit_sync_eth_block_num = $1",
+            r#"
+            INSERT INTO observer_deposit_sync_eth_block_num (singleton_key, deposit_sync_eth_block_num)
+            VALUES (TRUE, $1)
+            ON CONFLICT (singleton_key) DO UPDATE
+            SET deposit_sync_eth_block_num = $1
+            "#,
             block_number as i64
         )
         .execute(tx.as_mut())
@@ -289,13 +312,13 @@ impl Observer {
             .execute(&mut *tx)
             .await?;
         }
-        self.set_deposit_sync_eth_block_number(&mut tx, to_block)
+        self.set_deposit_sync_eth_block_number(&mut tx, to_block + 1)
             .await?;
         tx.commit().await?;
 
         let next_deposit_index = self.get_next_deposit_index().await?;
         log::info!(
-            "Observer synced to next deposit index: {:?} from block number: {:?} to block number: {:?}",
+            "Observer synced to next deposit index: {:?} from_eth_block_number: {:?} to_eth_block_number: {:?}",
             next_deposit_index,
             deposit_sync_eth_block_number,
             to_block
@@ -332,12 +355,12 @@ impl Observer {
             .execute(&mut *tx)
             .await?;
         }
-        self.set_block_sync_eth_block_number(&mut tx, to_block)
+        self.set_block_sync_eth_block_number(&mut tx, to_block + 1)
             .await?;
         tx.commit().await?;
         let next_block_number = self.get_next_block_number().await?;
         log::info!(
-            "Observer synced to next block number: {:?} from block number: {:?} to block number: {:?}",
+            "Observer synced to next block number: {:?} from_eth_block_number: {:?} to_eth_block_number: {:?}",
             next_block_number,
             block_sync_eth_block_number,
             to_block
