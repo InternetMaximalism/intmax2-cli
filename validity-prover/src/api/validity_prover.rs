@@ -33,7 +33,7 @@ use crate::{
         account_tree::HistoricalAccountTree,
         block_tree::HistoricalBlockHashTree,
         deposit_hash_tree::{DepositHash, HistoricalDepositHashTree},
-        merkle_tree::{mock_merkle_tree::MockMerkleTree, sql_merkle_tree::SqlMerkleTree},
+        merkle_tree::sql_merkle_tree::SqlMerkleTree,
         update::{to_block_witness, update_trees},
     },
     Env,
