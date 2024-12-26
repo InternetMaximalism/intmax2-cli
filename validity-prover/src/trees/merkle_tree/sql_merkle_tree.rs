@@ -289,6 +289,7 @@ impl<V: Leafable + Serialize + DeserializeOwned> SqlMerkleTree<V> {
 
         let mut tx = self.pool.begin().await?;
         self.save_leaf(&mut tx, timestamp, index, leaf).await?;
+        self.save_node(&mut tx, timestamp, path, h).await?;
         while !path.is_empty() {
             let sibling = self.get_sibling_hash(&mut tx, timestamp, path).await?;
             let b = path.pop().unwrap(); // safe to unwrap

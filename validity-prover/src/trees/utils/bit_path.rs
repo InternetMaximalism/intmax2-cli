@@ -82,6 +82,8 @@ impl BitPath {
 
 #[cfg(test)]
 mod tests {
+    use rand::Rng as _;
+
     use super::*;
 
     #[test]
@@ -130,5 +132,32 @@ mod tests {
         assert_eq!(decoded, path);
 
         println!("{:?}", encoded.len());
+    }
+
+    #[test]
+    fn test_sibling() {
+        let path = BitPath::new(10, 6);
+        let sibling = path.sibling();
+        {
+            let path_bits = path.to_bits_le();
+            let mut path = path_bits.clone();
+            let last = path.len() - 1;
+            path[last] = !path[last];
+            let sibling2 = BitPath::from_bits_le(&path);
+            assert_eq!(sibling, sibling2);
+        }
+    }
+
+    #[test]
+    fn random_vec() {
+        let mut rng = rand::thread_rng();
+        let mut poped_bits = (0..10).map(|_| rng.gen_bool(0.5)).collect::<Vec<_>>();
+        let mut poped_path = BitPath::from_bits_le(&poped_bits);
+
+        poped_bits.pop();
+        poped_path.pop();
+
+        let poped_path_bits = poped_path.to_bits_le();
+        assert_eq!(poped_bits, poped_path_bits);
     }
 }

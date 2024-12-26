@@ -93,6 +93,16 @@ mod tests {
         for i in 0..4 {
             db_tree.push(timestamp, i as u32).await?;
         }
+
+        for i in 0..4 {
+            let bit_path = BitPath::new(height as u32, i);
+            let node = db_tree
+                .merkle_tree
+                .get_node_hash(timestamp, bit_path)
+                .await?;
+            println!("bit_path: {:?}, node: {:?}", bit_path, node);
+        }
+
         let bit_path = BitPath::new(height as u32, 1);
         println!("bit_path: {:?}", bit_path);
         println!(
@@ -104,7 +114,7 @@ mod tests {
 
     #[tokio::test]
     async fn merkle_tree_with_leaves() -> anyhow::Result<()> {
-        let height = 3;
+        let height = 2;
         let database_url = crate::trees::setup_test();
 
         let tag = 1;
@@ -117,33 +127,20 @@ mod tests {
         let db_tree = HistoricalIncrementalMerkleTree::new(db);
 
         let timestamp = db_tree.get_last_timestamp().await?;
-        for i in 0..5 {
-            db_tree.push(timestamp, i as u32).await?;
-        }
+        db_tree.push(timestamp, 1).await?;
+        db_tree.push(timestamp, 2).await?;
+        dbg!(&db_tree.merkle_tree.hash_nodes);
 
-        // let root_db = db_tree.get_root(timestamp).await?;
-        // let leaves_db = db_tree.get_leaves(timestamp).await?;
-        // dbg!(leaves_db);
+        let root_db = db_tree.get_root(timestamp).await?;
 
-        // let node = db_tree
-        //     .merkle_tree
-        //     .hash_nodes
-        //     .read()
-        //     .await
-        //     .get(&BitPath::default())
-        //     .cloned()
-        //     .unwrap();
-        // dbg!(&node);
-
-        // let mut tree = IncrementalMerkleTree::<V>::new(height);
-        // for i in 0..4 {
-        //     tree.push(i);
-        // }
-        // let root = tree.get_root();
-        // let leaves = tree.leaves();
-        // dbg!(leaves);
+        let mut tree = IncrementalMerkleTree::<V>::new(height);
+        tree.push(1);
+        tree.push(2);
+        let root = tree.get_root();
         // dbg!(tree);
-        // assert_eq!(root_db, root);
+
+        // let leaves = tree.leaves();
+        assert_eq!(root_db, root);
 
         // for _ in 0..100 {
         //     let index = rng.gen_range(0..1 << height);

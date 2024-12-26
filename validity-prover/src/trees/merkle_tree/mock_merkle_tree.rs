@@ -89,7 +89,7 @@ impl<V: Leafable + Serialize + DeserializeOwned> MockMerkleTree<V> {
         Ok(())
     }
 
-    async fn get_node_hash(
+    pub async fn get_node_hash(
         &self,
         timestamp: u64,
         bit_path: BitPath,
@@ -101,7 +101,6 @@ impl<V: Leafable + Serialize + DeserializeOwned> MockMerkleTree<V> {
             .get(&bit_path)
             .cloned()
             .unwrap_or_default();
-
         // Get the latest one that exists at that time
         let node_hash = hash_nodes
             .iter()
@@ -189,6 +188,8 @@ impl<V: Leafable + Serialize + DeserializeOwned> MockMerkleTree<V> {
         path.reverse();
         let mut h = leaf.hash();
         self.save_leaf(timestamp, index, leaf).await?;
+        self.save_node(timestamp, path, h).await?;
+
         while !path.is_empty() {
             let sibling = self.get_sibling_hash(timestamp, path).await?;
             let b = path.pop().unwrap(); // safe to unwrap
