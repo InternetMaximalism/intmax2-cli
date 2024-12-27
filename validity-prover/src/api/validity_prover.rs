@@ -186,6 +186,24 @@ impl ValidityProver {
             );
 
             let full_block = self.observer.get_full_block(block_number).await?;
+
+            let deposit_events = self
+                .observer
+                .get_deposits_between_blocks(block_number)
+                .await?;
+            for event in deposit_events {
+                self.deposit_hash_tree
+                    .push(block_number as u64, DepositHash(event.deposit_hash))
+                    .await?;
+            }
+            let deposit_tree_root = self.deposit_hash_tree.get_root(block_number as u64).await?;
+            if full_block.block.deposit_tree_root != deposit_tree_root {
+                return Err(ValidityProverError::DepositTreeRootMismatch(
+                    full_block.block.deposit_tree_root,
+                    deposit_tree_root,
+                ));
+            }
+
             let block_witness = to_block_witness(
                 &full_block,
                 block_number as u64,
@@ -194,25 +212,6 @@ impl ValidityProver {
             )
             .await
             .map_err(|e| ValidityProverError::BlockWitnessGenerationError(e.to_string()))?;
-
-            let deposit_events = self
-                .observer
-                .get_deposits_between_blocks(block_number)
-                .await?;
-
-            for event in deposit_events {
-                self.deposit_hash_tree
-                    .push(block_number as u64, DepositHash(event.deposit_hash))
-                    .await?;
-            }
-
-            let deposit_tree_root = self.deposit_hash_tree.get_root(block_number as u64).await?;
-            if full_block.block.deposit_tree_root != deposit_tree_root {
-                return Err(ValidityProverError::DepositTreeRootMismatch(
-                    full_block.block.deposit_tree_root,
-                    deposit_tree_root,
-                ));
-            }
 
             // Caution! This change the state of the account tree and block tree
             // TODO: atomic update
