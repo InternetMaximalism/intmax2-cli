@@ -1,5 +1,6 @@
-use intmax2_client_sdk::external_api::contract::rollup_contract::{
-    DepositLeafInserted, FullBlockWithMeta, RollupContract,
+use intmax2_client_sdk::external_api::{
+    contract::rollup_contract::{DepositLeafInserted, FullBlockWithMeta, RollupContract},
+    utils::time::sleep_for,
 };
 use intmax2_interfaces::api::validity_prover::interface::DepositInfo;
 use intmax2_zkp::{
@@ -9,6 +10,10 @@ use intmax2_zkp::{
 use sqlx::{postgres::PgPoolOptions, PgPool};
 
 use super::error::ObserverError;
+
+const BACKWARD_SYNC_BLOCK_NUMBER: u64 = 1000;
+const MAX_TRIES: u32 = 3;
+const SLEEP_TIME: u64 = 10;
 
 pub struct Observer {
     rollup_contract: RollupContract,
@@ -283,7 +288,7 @@ impl Observer {
             .collect())
     }
 
-    async fn sync_deposits(&self) -> Result<(), ObserverError> {
+    async fn try_sync_deposits(&self) -> Result<(Vec<DepositLeafInserted>, u64), ObserverError> {
         let deposit_sync_eth_block_number = self.get_deposit_sync_eth_block_number().await?;
         let (deposit_leaf_events, to_block) = self
             .rollup_contract
@@ -305,34 +310,61 @@ impl Observer {
                 )));
             }
         }
-        let mut tx = self.pool.begin().await?;
-        for event in &deposit_leaf_events {
-            sqlx::query!(
-                "INSERT INTO deposit_leaf_events (deposit_index, deposit_hash, eth_block_number, eth_tx_index) 
-                 VALUES ($1, $2, $3, $4)",
-                event.deposit_index as i32,
-                event.deposit_hash.to_bytes_be(),
-                event.eth_block_number as i64,
-                event.eth_tx_index as i64
-            )
-            .execute(&mut *tx)
-            .await?;
-        }
-        self.set_deposit_sync_eth_block_number(&mut tx, to_block + 1)
-            .await?;
-        tx.commit().await?;
-
-        let next_deposit_index = self.get_next_deposit_index().await?;
-        log::info!(
-            "Observer synced to next deposit index: {:?} from_eth_block_number: {:?} to_eth_block_number: {:?}",
-            next_deposit_index,
-            deposit_sync_eth_block_number,
-            to_block
-        );
-        Ok(())
+        Ok((deposit_leaf_events, to_block))
     }
 
-    async fn sync_blocks(&self) -> Result<(), ObserverError> {
+    async fn sync_deposits(&self) -> Result<(), ObserverError> {
+        let mut tries = 0;
+        loop {
+            if tries >= MAX_TRIES {
+                return Err(ObserverError::FullBlockSyncError(
+                    "Max tries exceeded".to_string(),
+                ));
+            }
+
+            match self.try_sync_deposits().await {
+                Ok((deposit_leaf_events, to_block)) => {
+                    let mut tx = self.pool.begin().await?;
+                    for event in &deposit_leaf_events {
+                        sqlx::query!(
+                            "INSERT INTO deposit_leaf_events (deposit_index, deposit_hash, eth_block_number, eth_tx_index) 
+                             VALUES ($1, $2, $3, $4)",
+                            event.deposit_index as i32,
+                            event.deposit_hash.to_bytes_be(),
+                            event.eth_block_number as i64,
+                            event.eth_tx_index as i64
+                        )
+                        .execute(&mut *tx)
+                        .await?;
+                    }
+                    self.set_deposit_sync_eth_block_number(&mut tx, to_block + 1)
+                        .await?;
+                    tx.commit().await?;
+                    return Ok(());
+                }
+                Err(e) => {
+                    if matches!(e, ObserverError::FullBlockSyncError(_)) {
+                        log::error!("Observer sync error: {:?}", e);
+                        // rollback to previous block number
+                        let block_number = self
+                            .get_deposit_sync_eth_block_number()
+                            .await?
+                            .saturating_sub(BACKWARD_SYNC_BLOCK_NUMBER);
+                        let mut tx = self.pool.begin().await?;
+                        self.set_deposit_sync_eth_block_number(&mut tx, block_number)
+                            .await?;
+                        tx.commit().await?;
+                        sleep_for(SLEEP_TIME).await;
+                        tries += 1;
+                    } else {
+                        return Err(e);
+                    }
+                }
+            }
+        }
+    }
+
+    async fn try_sync_block(&self) -> Result<(Vec<FullBlockWithMeta>, u64), ObserverError> {
         let block_sync_eth_block_number = self.get_block_sync_eth_block_number().await?;
         let (full_blocks, to_block) = self
             .rollup_contract
@@ -353,35 +385,63 @@ impl Observer {
                 )));
             }
         }
-        let mut tx = self.pool.begin().await?;
-        for block in &full_blocks {
-            sqlx::query!(
-                "INSERT INTO full_blocks (block_number, eth_block_number, eth_tx_index, full_block) 
-                 VALUES ($1, $2, $3, $4)",
-                block.full_block.block.block_number as i32,
-                block.eth_block_number as i64,
-                block.eth_tx_index as i64,
-                serde_json::to_value(&block.full_block).unwrap()
-            )
-            .execute(&mut *tx)
-            .await?;
+        Ok((full_blocks, to_block))
+    }
+
+    async fn sync_blocks(&self) -> Result<(), ObserverError> {
+        let mut tries = 0;
+        if tries >= MAX_TRIES {
+            return Err(ObserverError::FullBlockSyncError(
+                "Max tries exceeded".to_string(),
+            ));
         }
-        self.set_block_sync_eth_block_number(&mut tx, to_block + 1)
-            .await?;
-        tx.commit().await?;
-        let next_block_number = self.get_next_block_number().await?;
-        log::info!(
-            "Observer synced to next block number: {:?} from_eth_block_number: {:?} to_eth_block_number: {:?}",
-            next_block_number,
-            block_sync_eth_block_number,
-            to_block
-        );
-        Ok(())
+        loop {
+            match self.try_sync_block().await {
+                Ok((full_blocks, to_block)) => {
+                    let mut tx = self.pool.begin().await?;
+                    for block in &full_blocks {
+                        sqlx::query!(
+                            "INSERT INTO full_blocks (block_number, eth_block_number, eth_tx_index, full_block) 
+                             VALUES ($1, $2, $3, $4)",
+                            block.full_block.block.block_number as i32,
+                            block.eth_block_number as i64,
+                            block.eth_tx_index as i64,
+                            serde_json::to_value(&block.full_block).unwrap()
+                        )
+                        .execute(&mut *tx)
+                        .await?;
+                    }
+                    self.set_block_sync_eth_block_number(&mut tx, to_block + 1)
+                        .await?;
+                    tx.commit().await?;
+                    return Ok(());
+                }
+                Err(e) => {
+                    if matches!(e, ObserverError::FullBlockSyncError(_)) {
+                        log::error!("Observer sync error: {:?}", e);
+
+                        // rollback to previous block number
+                        let block_number = self
+                            .get_block_sync_eth_block_number()
+                            .await?
+                            .saturating_sub(BACKWARD_SYNC_BLOCK_NUMBER);
+                        let mut tx = self.pool.begin().await?;
+                        self.set_block_sync_eth_block_number(&mut tx, block_number)
+                            .await?;
+                        tx.commit().await?;
+                        sleep_for(SLEEP_TIME).await;
+                        tries += 1;
+                    } else {
+                        return Err(e);
+                    }
+                }
+            }
+        }
     }
 
     pub async fn sync(&self) -> Result<(), ObserverError> {
-        self.sync_deposits().await?;
         self.sync_blocks().await?;
+        self.sync_deposits().await?;
         log::info!("Observer synced");
         Ok(())
     }
