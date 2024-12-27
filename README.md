@@ -38,6 +38,10 @@ Launch database
 docker run --name postgres -e POSTGRES_PASSWORD=password -p 5432:5432 -d postgres
 ```
 
+Copy env file 
+
+You need to run `cp .env.example .env` in each directory.
+
 # Start server
 
 1. Start Store-vault-server. 
@@ -78,3 +82,20 @@ Please refer to [the examples of cli ](cli/README.md#examples)
 ```bash
 (cd store-vault-server && sqlx database reset -y && cd ../validity-prover && sqlx database reset -y && cd ../withdrawal-server && sqlx database reset -y)
 ```
+
+# Overview 
+
+**store-vault-server:**
+A server that stores backups of user's local states. It also acts as a mailbox for sending necessary data to a receiver during transfers.
+
+**balance-prover:**
+A server that generates client-side ZKPs on behalf of users. This server maintains no state.
+
+**validity-prover:**
+A server that generates ZKPs related to onchain information. It collects onchain data and generates corresponding ZKPs.
+
+**block-builder:**
+A server that receives transactions from users and generates blocks.
+
+**withdrawal-server:**
+A server that receives withdrawal requests from users and writes them to the database.
