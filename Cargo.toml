@@ -11,6 +11,7 @@ members = [
     "withdrawal-server",
     "tests",
     "server-common",
+    "mining",
 ]
 resolver = "2"
 
