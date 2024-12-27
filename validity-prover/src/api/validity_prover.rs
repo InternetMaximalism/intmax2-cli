@@ -195,25 +195,6 @@ impl ValidityProver {
             .await
             .map_err(|e| ValidityProverError::BlockWitnessGenerationError(e.to_string()))?;
 
-            let validity_witness = update_trees(
-                &block_witness,
-                block_number as u64,
-                &self.account_tree,
-                &self.block_tree,
-            )
-            .await
-            .map_err(|e| ValidityProverError::FailedToUpdateTrees(e.to_string()))?;
-
-            let validity_proof = self
-                .validity_processor()
-                .prove(&prev_validity_proof, &validity_witness)
-                .map_err(|e| ValidityProverError::ValidityProveError(e.to_string()))?;
-
-            log::info!(
-                "Sync validity prover: block number {} validity proof generated",
-                block_number
-            );
-
             let deposit_events = self
                 .observer
                 .get_deposits_between_blocks(block_number)
@@ -232,6 +213,27 @@ impl ValidityProver {
                     deposit_tree_root,
                 ));
             }
+
+            // Caution! This change the state of the account tree and block tree
+            // TODO: atomic update
+            let validity_witness = update_trees(
+                &block_witness,
+                block_number as u64,
+                &self.account_tree,
+                &self.block_tree,
+            )
+            .await
+            .map_err(|e| ValidityProverError::FailedToUpdateTrees(e.to_string()))?;
+
+            let validity_proof = self
+                .validity_processor()
+                .prove(&prev_validity_proof, &validity_witness)
+                .map_err(|e| ValidityProverError::ValidityProveError(e.to_string()))?;
+
+            log::info!(
+                "Sync validity prover: block number {} validity proof generated",
+                block_number
+            );
 
             // Update database state
             sqlx::query!(

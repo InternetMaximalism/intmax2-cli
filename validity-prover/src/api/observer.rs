@@ -340,6 +340,13 @@ impl Observer {
                     self.set_deposit_sync_eth_block_number(&mut tx, to_block + 1)
                         .await?;
                     tx.commit().await?;
+
+                    let next_deposit_index = self.get_next_deposit_index().await?;
+                    log::info!(
+                        "synced to deposit_index: {}, to_eth_block_number: {}",
+                        next_deposit_index.saturating_sub(1),
+                        to_block
+                    );
                     return Ok(());
                 }
                 Err(e) => {
@@ -414,6 +421,13 @@ impl Observer {
                     self.set_block_sync_eth_block_number(&mut tx, to_block + 1)
                         .await?;
                     tx.commit().await?;
+
+                    let next_block_number = self.get_next_block_number().await?;
+                    log::info!(
+                        "synced to block_number: {}, to_eth_block_number: {}",
+                        next_block_number.saturating_sub(1),
+                        to_block
+                    );
                     return Ok(());
                 }
                 Err(e) => {
