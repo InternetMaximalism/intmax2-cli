@@ -29,6 +29,7 @@ anvil
 
 Contract deployment
 ```bash
+cd tests
 cargo test -r -p tests deploy_contracts -- --nocapture
 ```
 
