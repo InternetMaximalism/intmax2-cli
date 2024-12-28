@@ -67,8 +67,7 @@ pub fn prove_withdrawal(
         .to_address()
         .with_context(|| "Failed to convert the withdrawal destination to an address")?;
     assert_eq!(
-        generic_withdrawal_destination.to_bytes_be(),
-        withdrawal_destination.as_fixed_bytes(),
+        generic_withdrawal_destination, withdrawal_destination,
         "The withdrawal destination is incorrect"
     );
     // let tx_inclusion_witness: TxInclusionValue = todo!();
@@ -114,14 +113,45 @@ pub fn is_mining_target(token_index: u32, amount: U256) -> U256 {
     U256::default()
 }
 
-struct Withdrawal {
-    recipient: Address,
-    token_index: u32,
-    amount: U256,
+fn filter_mining_withdrawals(
+    transfers: &[GenericTransfer],
+    is_included: bool,
     meta: MetaData,
+) -> Vec<Withdrawal> {
+    transfers
+        .into_iter()
+        .filter_map(|transfer| {
+            if let GenericTransfer::Withdrawal {
+                recipient,
+                token_index,
+                amount,
+                ..
+            } = transfer.clone()
+            {
+                let target_amount = is_mining_target(token_index, amount);
+                if target_amount != U256::default() && is_included {
+                    return Some(Withdrawal {
+                        recipient,
+                        token_index,
+                        amount,
+                        meta: meta.clone(),
+                    });
+                }
+            }
+
+            None
+        })
+        .collect()
 }
 
-pub async fn select_withdrawal_from_user_data(
+pub struct Withdrawal {
+    pub recipient: Address,
+    pub token_index: u32,
+    pub amount: U256,
+    pub meta: MetaData,
+}
+
+async fn select_withdrawal_from_user_data(
     history: &[HistoryEntry],
 ) -> anyhow::Result<Vec<Withdrawal>> {
     let processed_withdrawals = history
@@ -134,31 +164,7 @@ pub async fn select_withdrawal_from_user_data(
                 ..
             } = transition
             {
-                return transfers
-                    .clone()
-                    .into_iter()
-                    .filter_map(|transfer| {
-                        if let GenericTransfer::Withdrawal {
-                            recipient,
-                            token_index,
-                            amount,
-                            ..
-                        } = transfer
-                        {
-                            let target_amount = is_mining_target(token_index, amount);
-                            if target_amount != 0 && *is_included {
-                                return Some(Withdrawal {
-                                    recipient,
-                                    token_index,
-                                    amount,
-                                    meta: meta.clone(),
-                                });
-                            }
-                        }
-
-                        None
-                    })
-                    .collect::<Vec<Withdrawal>>();
+                return filter_mining_withdrawals(&transfers, *is_included, meta.clone());
             }
 
             vec![]
@@ -171,16 +177,12 @@ pub async fn select_withdrawal_from_user_data(
 
 pub async fn select_deposit_from_user_data(
     history: &[HistoryEntry],
-    key: KeySet,
     deposit_token_type: TokenType,
     deposit_token_index: u32,
     deposit_amount: U256,
     from_block: u32,
     to_block: u32,
 ) -> anyhow::Result<()> {
-    let client = get_client()?;
-    let history = fetch_history(&client, key).await?;
-
     let processed_deposits = history
         .iter()
         .filter(|transition| {
@@ -236,9 +238,10 @@ pub async fn prove_elapsed_time() -> anyhow::Result<PoetProof> {
     let history = fetch_history(&client, key).await?;
     prove_withdrawal(&witness, witness.withdrawal_destination)?;
     select_withdrawal_from_user_data(&history).await?;
+    let from_block = 0;
+    let to_block = 100;
     select_deposit_from_user_data(
         &history,
-        key,
         TokenType::NATIVE,
         0,
         deposit_amount,
