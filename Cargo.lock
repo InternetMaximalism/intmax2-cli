@@ -3398,6 +3398,7 @@ dependencies = [
  "intmax2-interfaces",
  "intmax2-zkp",
  "serde",
+ "tokio",
 ]
 
 [[package]]

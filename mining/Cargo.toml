@@ -9,5 +9,6 @@ envy.workspace = true
 ethers.workspace = true
 intmax2-client-sdk = { path = "../client-sdk" }
 intmax2-interfaces = { path = "../interfaces" }
-intmax2-zkp = { workspace = true }
+intmax2-zkp.workspace = true
 serde.workspace = true
+tokio = { workspace = true, features = ["rt-multi-thread"] }
