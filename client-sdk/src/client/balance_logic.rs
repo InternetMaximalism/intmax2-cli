@@ -305,13 +305,11 @@ async fn update_no_send<V: ValidityProverClientInterface, B: BalanceProverClient
     Ok(balance_proof)
 }
 
-pub async fn generate_spent_proof<B: BalanceProverClientInterface>(
-    balance_prover: &B,
-    key: KeySet,
+pub async fn generate_spent_witness(
     full_private_state: &FullPrivateState,
     tx_nonce: u32,
     transfers: &[Transfer],
-) -> Result<ProofWithPublicInputs<F, C, D>, ClientError> {
+) -> Result<SpentWitness, ClientError> {
     let transfer_tree = generate_transfer_tree(&transfers);
     let tx = Tx {
         nonce: tx_nonce,
@@ -328,6 +326,5 @@ pub async fn generate_spent_proof<B: BalanceProverClientInterface>(
     .map_err(|e| {
         ClientError::WitnessGenerationError(format!("failed to generate spent witness: {}", e))
     })?;
-    let spent_proof = balance_prover.prove_spent(key, &spent_witness).await?;
-    Ok(spent_proof)
+    Ok(spent_witness)
 }

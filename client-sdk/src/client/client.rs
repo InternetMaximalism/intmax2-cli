@@ -52,7 +52,7 @@ use crate::{
 };
 
 use super::{
-    balance_logic::process_deposit,
+    balance_logic::{generate_spent_witness, process_deposit},
     config::ClientConfig,
     error::ClientError,
     history::{fetch_history, HistoryEntry},
@@ -60,7 +60,6 @@ use super::{
         strategy::{determine_next_action, Action, PendingInfo},
         withdrawal::fetch_withdrawal_info,
     },
-    utils::generate_transfer_tree,
 };
 
 type F = GoldilocksField;
@@ -212,23 +211,11 @@ where
             .ok_or_else(|| ClientError::BalanceProofNotFound)?;
 
         // generate spent proof
-        let transfer_tree = generate_transfer_tree(&transfers);
-        let tx = Tx {
-            nonce: user_data.full_private_state.nonce,
-            transfer_tree_root: transfer_tree.get_root(),
-        };
-        let new_salt = generate_salt();
-        let spent_witness = SpentWitness::new(
-            &user_data.full_private_state.asset_tree,
-            &user_data.full_private_state.to_private_state(),
-            &transfer_tree.leaves(), // this is padded
-            tx,
-            new_salt,
-        )
-        .map_err(|e| {
-            ClientError::WitnessGenerationError(format!("failed to generate spent witness: {}", e))
-        })?;
+        let tx_nonce = user_data.full_private_state.nonce;
+        let spent_witness =
+            generate_spent_witness(&user_data.full_private_state, tx_nonce, &transfers).await?;
         let spent_proof = self.balance_prover.prove_spent(key, &spent_witness).await?;
+        let tx = spent_witness.tx;
 
         // fetch if this is first time tx
         let account_info = self.validity_prover.get_account_info(key.pubkey).await?;
