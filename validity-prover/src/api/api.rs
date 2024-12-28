@@ -42,6 +42,15 @@ pub async fn get_account_info(
     query: QsQuery<GetAccountInfoQuery>,
 ) -> Result<Json<GetAccountInfoResponse>, Error> {
     let query = query.into_inner();
+    if let Some(block_number) = query.block_number {
+        let account_info = state
+            .validity_prover
+            .get_account_info_by_block_number(block_number, query.pubkey)
+            .await
+            .map_err(|e| actix_web::error::ErrorInternalServerError(e))?;
+        return Ok(Json(GetAccountInfoResponse { account_info }));
+    }
+
     let account_info = state
         .validity_prover
         .get_account_info(query.pubkey)

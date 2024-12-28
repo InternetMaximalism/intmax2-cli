@@ -175,7 +175,28 @@ impl ValidityProverClientInterface for ValidityProverClient {
     }
 
     async fn get_account_info(&self, pubkey: U256) -> Result<AccountInfo, ServerError> {
-        let query = GetAccountInfoQuery { pubkey };
+        let query = GetAccountInfoQuery {
+            pubkey,
+            block_number: None,
+        };
+        let response: GetAccountInfoResponse = get_request(
+            &self.base_url,
+            "/validity-prover/get-account-info",
+            Some(query),
+        )
+        .await?;
+        Ok(response.account_info)
+    }
+
+    async fn get_account_info_by_block_number(
+        &self,
+        block_number: u32,
+        pubkey: U256,
+    ) -> Result<AccountInfo, ServerError> {
+        let query = GetAccountInfoQuery {
+            pubkey,
+            block_number: Some(block_number),
+        };
         let response: GetAccountInfoResponse = get_request(
             &self.base_url,
             "/validity-prover/get-account-info",

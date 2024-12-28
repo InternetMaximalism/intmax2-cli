@@ -81,4 +81,10 @@ pub trait ValidityProverClientInterface {
     ) -> Result<DepositMerkleProof, ServerError>;
 
     async fn get_account_info(&self, pubkey: U256) -> Result<AccountInfo, ServerError>;
+
+    async fn get_account_info_by_block_number(
+        &self,
+        block_number: u32,
+        pubkey: U256,
+    ) -> Result<AccountInfo, ServerError>;
 }

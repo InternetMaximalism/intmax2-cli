@@ -321,6 +321,15 @@ impl ValidityProver {
 
     pub async fn get_account_info(&self, pubkey: U256) -> Result<AccountInfo, ValidityProverError> {
         let block_number = self.get_block_number().await?;
+        self.get_account_info_by_block_number(block_number, pubkey)
+            .await
+    }
+
+    pub async fn get_account_info_by_block_number(
+        &self,
+        block_number: u32,
+        pubkey: U256,
+    ) -> Result<AccountInfo, ValidityProverError> {
         let account_id = self.account_tree.index(block_number as u64, pubkey).await?;
         Ok(AccountInfo {
             block_number,

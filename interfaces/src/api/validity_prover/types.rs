@@ -122,6 +122,7 @@ pub struct GetDepositMerkleProofResponse {
 #[serde(rename_all = "camelCase")]
 pub struct GetAccountInfoQuery {
     pub pubkey: U256,
+    pub block_number: Option<u32>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
