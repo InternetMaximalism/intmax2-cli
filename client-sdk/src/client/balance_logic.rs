@@ -13,11 +13,13 @@ use intmax2_zkp::{
         private_state::FullPrivateState,
         salt::Salt,
         signature::key_set::KeySet,
+        transfer::Transfer,
+        tx::Tx,
         witness::{
             deposit_witness::DepositWitness, private_transition_witness::PrivateTransitionWitness,
             receive_deposit_witness::ReceiveDepositWitness,
-            receive_transfer_witness::ReceiveTransferWitness, transfer_witness::TransferWitness,
-            tx_witness::TxWitness,
+            receive_transfer_witness::ReceiveTransferWitness, spent_witness::SpentWitness,
+            transfer_witness::TransferWitness, tx_witness::TxWitness,
         },
     },
     ethereum_types::{bytes32::Bytes32, u256::U256},
@@ -27,7 +29,10 @@ use plonky2::{
     plonk::{config::PoseidonGoldilocksConfig, proof::ProofWithPublicInputs},
 };
 
-use super::error::ClientError;
+use super::{
+    error::ClientError,
+    utils::{generate_salt, generate_transfer_tree},
+};
 
 type F = GoldilocksField;
 type C = PoseidonGoldilocksConfig;
@@ -35,7 +40,7 @@ const D: usize = 2;
 
 pub async fn process_deposit<V: ValidityProverClientInterface, B: BalanceProverClientInterface>(
     validity_prover: &V,
-    balance_processor: &B,
+    balance_prover: &B,
     key: KeySet,
     pubkey: U256,
     full_private_state: &mut FullPrivateState,
@@ -45,9 +50,9 @@ pub async fn process_deposit<V: ValidityProverClientInterface, B: BalanceProverC
     deposit_data: &DepositData,
 ) -> Result<ProofWithPublicInputs<F, C, D>, ClientError> {
     // update balance proof up to the deposit block
-    let before_balance_proof = update_balance_proof(
+    let before_balance_proof = update_no_send(
         validity_prover,
-        balance_processor,
+        balance_prover,
         key,
         pubkey,
         prev_balance_proof,
@@ -92,7 +97,7 @@ pub async fn process_deposit<V: ValidityProverClientInterface, B: BalanceProverC
     };
 
     // prove deposit
-    let balance_proof = balance_processor
+    let balance_proof = balance_prover
         .prove_receive_deposit(
             key,
             pubkey,
@@ -106,7 +111,7 @@ pub async fn process_deposit<V: ValidityProverClientInterface, B: BalanceProverC
 
 pub async fn process_transfer<V: ValidityProverClientInterface, B: BalanceProverClientInterface>(
     validity_prover: &V,
-    balance_processor: &B,
+    balance_prover: &B,
     key: KeySet,
     pubkey: U256,
     full_private_state: &mut FullPrivateState,
@@ -126,9 +131,9 @@ pub async fn process_transfer<V: ValidityProverClientInterface, B: BalanceProver
     }
 
     // update balance proof up to the deposit block
-    let before_balance_proof = update_balance_proof(
+    let before_balance_proof = update_no_send(
         validity_prover,
-        balance_processor,
+        balance_prover,
         key,
         pubkey,
         prev_balance_proof,
@@ -166,7 +171,7 @@ pub async fn process_transfer<V: ValidityProverClientInterface, B: BalanceProver
     };
 
     // prove transfer
-    let balance_proof = balance_processor
+    let balance_proof = balance_prover
         .prove_receive_transfer(
             key,
             pubkey,
@@ -183,7 +188,7 @@ pub async fn process_common_tx<
     B: BalanceProverClientInterface,
 >(
     validity_prover: &V,
-    balance_processor: &B,
+    balance_prover: &B,
     key: KeySet,
     sender: U256,
     prev_balance_proof: &Option<ProofWithPublicInputs<F, C, D>>,
@@ -237,7 +242,7 @@ pub async fn process_common_tx<
         .await?;
 
     // prove tx send
-    let balance_proof = balance_processor
+    let balance_proof = balance_prover
         .prove_send(
             key,
             sender,
@@ -251,10 +256,11 @@ pub async fn process_common_tx<
     Ok(balance_proof)
 }
 
-// Inner function to update balance proof
-async fn update_balance_proof<V: ValidityProverClientInterface, B: BalanceProverClientInterface>(
+/// Update prev_balance_proof to block_number or do noting if already synced later than block_number.
+/// Assumes that there are no send transactions between the block_number of prev_balance_proof and block_number.
+async fn update_no_send<V: ValidityProverClientInterface, B: BalanceProverClientInterface>(
     validity_prover: &V,
-    balance_processor: &B,
+    balance_prover: &B,
     key: KeySet,
     pubkey: U256,
     prev_balance_proof: &Option<ProofWithPublicInputs<F, C, D>>,
@@ -271,9 +277,9 @@ async fn update_balance_proof<V: ValidityProverClientInterface, B: BalanceProver
             "Block number should be greater than 0".to_string(),
         ));
     }
-
     let prev_balance_pis = get_prev_balance_pis(pubkey, prev_balance_proof);
-    if block_number == prev_balance_pis.public_state.block_number {
+    let prev_block_number = prev_balance_pis.public_state.block_number;
+    if block_number <= prev_block_number {
         // no need to update balance proof
         return Ok(prev_balance_proof.clone().unwrap());
     }
@@ -288,13 +294,40 @@ async fn update_balance_proof<V: ValidityProverClientInterface, B: BalanceProver
         )
         .await?;
     let last_block_number = update_witness.get_last_block_number();
-    if last_block_number > block_number {
+    if prev_block_number < last_block_number {
         return Err(ClientError::InternalError(
             "There is a sent tx after prev balance proof".to_string(),
         ));
     }
-    let balance_proof = balance_processor
+    let balance_proof = balance_prover
         .prove_update(key, pubkey, &update_witness, &prev_balance_proof)
         .await?;
     Ok(balance_proof)
+}
+
+pub async fn generate_spent_proof<B: BalanceProverClientInterface>(
+    balance_prover: &B,
+    key: KeySet,
+    full_private_state: &FullPrivateState,
+    tx_nonce: u32,
+    transfers: &[Transfer],
+) -> Result<ProofWithPublicInputs<F, C, D>, ClientError> {
+    let transfer_tree = generate_transfer_tree(&transfers);
+    let tx = Tx {
+        nonce: tx_nonce,
+        transfer_tree_root: transfer_tree.get_root(),
+    };
+    let new_salt = generate_salt();
+    let spent_witness = SpentWitness::new(
+        &full_private_state.asset_tree,
+        &full_private_state.to_private_state(),
+        &transfer_tree.leaves(), // this is padded
+        tx,
+        new_salt,
+    )
+    .map_err(|e| {
+        ClientError::WitnessGenerationError(format!("failed to generate spent witness: {}", e))
+    })?;
+    let spent_proof = balance_prover.prove_spent(key, &spent_witness).await?;
+    Ok(spent_proof)
 }
