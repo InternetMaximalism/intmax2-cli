@@ -3,7 +3,10 @@ use intmax2_interfaces::{
         balance_prover::interface::BalanceProverClientInterface,
         validity_prover::interface::ValidityProverClientInterface,
     },
-    data::{common_tx_data::CommonTxData, deposit_data::DepositData, transfer_data::TransferData},
+    data::{
+        common_tx_data::CommonTxData, deposit_data::DepositData, transfer_data::TransferData,
+        tx_data::TxData,
+    },
 };
 use intmax2_zkp::{
     circuits::balance::{
@@ -183,7 +186,97 @@ pub async fn process_transfer<V: ValidityProverClientInterface, B: BalanceProver
     Ok(balance_proof)
 }
 
-pub async fn process_common_tx<
+pub async fn update_send_by_sender<
+    V: ValidityProverClientInterface,
+    B: BalanceProverClientInterface,
+>(
+    validity_prover: &V,
+    balance_prover: &B,
+    key: KeySet,
+    full_private_state: &mut FullPrivateState,
+    prev_balance_proof: &Option<ProofWithPublicInputs<F, C, D>>,
+    tx_block_number: u32,
+    tx_data: &TxData<F, C, D>,
+) -> Result<ProofWithPublicInputs<F, C, D>, ClientError> {
+    // sync check
+    if tx_block_number > validity_prover.get_block_number().await? {
+        return Err(ClientError::InternalError(
+            "Validity prover is not up to date".to_string(),
+        ));
+    }
+    let prev_balance_pis = get_prev_balance_pis(key.pubkey, prev_balance_proof);
+    if tx_block_number <= prev_balance_pis.public_state.block_number {
+        return Err(ClientError::InternalError(
+            "tx block number is not greater than prev balance proof".to_string(),
+        ));
+    }
+    // get witness
+    let validity_pis = validity_prover
+        .get_validity_pis(tx_block_number)
+        .await?
+        .ok_or(ClientError::InternalError(format!(
+            "validity public inputs not found for block number {}",
+            tx_block_number
+        )))?;
+    let sender_leaves = validity_prover
+        .get_sender_leaves(tx_block_number)
+        .await?
+        .ok_or(ClientError::InternalError(format!(
+            "sender leaves not found for block number {}",
+            tx_block_number
+        )))?;
+    let tx_witness = TxWitness {
+        validity_pis,
+        sender_leaves,
+        tx: tx_data.common.tx.clone(),
+        tx_index: tx_data.common.tx_index,
+        tx_merkle_proof: tx_data.common.tx_merkle_proof.clone(),
+    };
+    let update_witness = validity_prover
+        .get_update_witness(
+            key.pubkey,
+            tx_block_number,
+            prev_balance_pis.public_state.block_number,
+            true,
+        )
+        .await?;
+    let last_block_number = update_witness.get_last_block_number();
+    if last_block_number != tx_block_number {
+        return Err(ClientError::InternalError(
+            "last block number should be tx_block_number".to_string(),
+        ));
+    }
+    let spent_proof =
+        if tx_data.spent_witness.prev_private_state == full_private_state.to_private_state() {
+            // We can use the original spent proof if prev_private_state matches
+            tx_data.common.spent_proof.clone()
+        } else {
+            // We regenerate spent proof
+            let spent_witness = generate_spent_witness(
+                full_private_state,
+                tx_data.spent_witness.tx.nonce,
+                &tx_data.spent_witness.transfers,
+            )
+            .await?;
+            balance_prover.prove_spent(key, &spent_witness).await?
+        };
+
+    // prove tx send
+    let balance_proof = balance_prover
+        .prove_send(
+            key,
+            key.pubkey,
+            &tx_witness,
+            &update_witness,
+            &spent_proof,
+            prev_balance_proof,
+        )
+        .await?;
+    Ok(balance_proof)
+}
+
+/// Update balance proof to the tx specified by tx_block_number and common_tx_data by receiver side.
+pub async fn update_send_by_receiver<
     V: ValidityProverClientInterface,
     B: BalanceProverClientInterface,
 >(
@@ -240,6 +333,12 @@ pub async fn process_common_tx<
             true,
         )
         .await?;
+    let last_block_number = update_witness.get_last_block_number();
+    if last_block_number != tx_block_number {
+        return Err(ClientError::InternalError(
+            "last block number should be tx_block_number".to_string(),
+        ));
+    }
 
     // prove tx send
     let balance_proof = balance_prover

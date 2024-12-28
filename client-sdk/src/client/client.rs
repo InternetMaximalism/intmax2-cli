@@ -42,7 +42,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     client::{
-        balance_logic::{process_common_tx, process_transfer},
+        balance_logic::{process_transfer, update_send_by_receiver},
         utils::generate_salt,
     },
     external_api::{
@@ -690,7 +690,7 @@ where
             .await?
             .ok_or_else(|| ClientError::BalanceProofNotFound)?;
 
-        let new_sender_balance_proof = process_common_tx(
+        let new_sender_balance_proof = update_send_by_receiver(
             &self.validity_prover,
             &self.balance_prover,
             key,
