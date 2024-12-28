@@ -5,10 +5,13 @@ edition.workspace = true
 
 [dependencies]
 anyhow.workspace = true
+dotenv.workspace = true
 envy.workspace = true
 ethers.workspace = true
+hex = "0.4.3"
 intmax2-client-sdk = { path = "../client-sdk" }
 intmax2-interfaces = { path = "../interfaces" }
 intmax2-zkp.workspace = true
+num-bigint = "0.4.6"
 serde.workspace = true
 tokio = { workspace = true, features = ["rt-multi-thread"] }

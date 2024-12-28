@@ -3392,11 +3392,14 @@ name = "mining"
 version = "0.1.3"
 dependencies = [
  "anyhow",
+ "dotenv",
  "envy",
  "ethers",
+ "hex",
  "intmax2-client-sdk",
  "intmax2-interfaces",
  "intmax2-zkp",
+ "num-bigint 0.4.6",
  "serde",
  "tokio",
 ]
