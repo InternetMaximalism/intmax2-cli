@@ -28,6 +28,7 @@ pub enum Action {
     Deposit(MetaData, DepositData),            // Receive deposit
     Transfer(MetaData, TransferData<F, C, D>), // Receive transfer
     Tx(MetaData, TxData<F, C, D>),             // Send tx
+    UpdateNoSend(u32),                         // Update balance proof
     PendingTx(MetaData, TxData<F, C, D>),      // Pending tx
     None,
 }
@@ -39,6 +40,7 @@ impl Action {
             Action::Transfer(meta, _) => Some(meta.uuid.clone()),
             Action::Tx(meta, _) => Some(meta.uuid.clone()),
             Action::PendingTx(meta, _) => Some(meta.uuid.clone()),
+            Action::UpdateNoSend(_) => None,
             Action::None => None,
         }
     }

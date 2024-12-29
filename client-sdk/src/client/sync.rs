@@ -99,6 +99,9 @@ where
                 self.sync_transfer(key, &meta, &transfer_data).await?;
             }
             Action::Tx(meta, tx_data) => self.sync_tx(key, &meta, &tx_data).await?,
+            Action::UpdateNoSend(to_block_number) => {
+                self.update_no_send(key, to_block_number).await?;
+            }
         }
         Ok(SyncStatus::Continue)
     }
