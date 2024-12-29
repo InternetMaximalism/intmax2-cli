@@ -331,9 +331,14 @@ impl ValidityProver {
         pubkey: U256,
     ) -> Result<AccountInfo, ValidityProverError> {
         let account_id = self.account_tree.index(block_number as u64, pubkey).await?;
+        let account_membership_proof = self
+            .get_account_membership_proof(block_number, pubkey)
+            .await?;
         Ok(AccountInfo {
             block_number,
             account_id,
+            membership_proof: account_membership_proof,
+            root_hash: self.account_tree.get_root(block_number as u64).await?,
         })
     }
 

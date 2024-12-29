@@ -9,6 +9,9 @@ use intmax2_zkp::{
         witness::update_witness::UpdateWitness,
     },
     ethereum_types::{bytes32::Bytes32, u256::U256},
+    utils::{
+        poseidon_hash_out::PoseidonHashOut, trees::indexed_merkle_tree::membership::MembershipProof,
+    },
 };
 use plonky2::{field::goldilocks_field::GoldilocksField, plonk::config::PoseidonGoldilocksConfig};
 use serde::{Deserialize, Serialize};
@@ -32,6 +35,8 @@ pub struct DepositInfo {
 pub struct AccountInfo {
     pub account_id: Option<u64>,
     pub block_number: u32,
+    pub membership_proof: MembershipProof,
+    pub root_hash: PoseidonHashOut,
 }
 
 #[async_trait(?Send)]
