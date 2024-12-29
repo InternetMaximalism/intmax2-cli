@@ -1,13 +1,25 @@
 use crate::common::history::{DepositEntry, SendEntry};
 use intmax2_client_sdk::client::history::GenericTransfer;
-use intmax2_interfaces::data::meta_data::MetaData;
+use intmax2_interfaces::data::{deposit_data::DepositData, meta_data::MetaData};
 use intmax2_zkp::{
     common::salt::Salt,
     ethereum_types::{address::Address, u256::U256},
 };
 
+#[derive(Debug, Clone, Default)]
+pub struct ReceivedDeposit {
+    pub sender: Address,
+    // pub recipient: U256,
+    pub token_index: u32,
+    pub amount: U256,
+    pub salt: Salt,
+    pub block_number: u32,
+    pub timestamp: u64,
+}
+
 #[derive(Debug, Clone)]
 pub struct Withdrawal {
+    // pub sender: U256,
     pub recipient: Address,
     pub token_index: u32,
     pub amount: U256,
@@ -77,27 +89,27 @@ fn extract_deposit(
     withdrawal: &Withdrawal,
     from_block: u32,
     to_block: u32,
-) -> Option<u32> {
+) -> Option<DepositEntry> {
     let DepositEntry {
+        is_included,
         token_index,
         amount,
-        is_included,
-        meta,
+        block_number,
         ..
     } = transition;
 
     // TODO: Check deposit nullifier from contract
     println!(
         "Deposit: Token index: {:?}, Amount: {:?}, Included: {:?}, Block number: {:?}",
-        token_index, amount, is_included, meta.block_number
+        token_index, amount, is_included, block_number
     );
     if token_index == Some(withdrawal.token_index)
         && amount == withdrawal.amount
         && is_included
-        && meta.block_number > Some(from_block)
-        && meta.block_number <= Some(to_block)
+        && block_number > from_block
+        && block_number <= to_block
     {
-        return meta.block_number; // TODO: deposit index
+        return Some(transition); // TODO: deposit index
     }
 
     None
@@ -109,7 +121,7 @@ pub fn select_most_recent_deposit_from_history(
     withdrawal: &Withdrawal,
     from_block: u32,
     to_block: u32,
-) -> Option<u32> {
+) -> Option<DepositEntry> {
     let processed_deposits = deposit_history
         .iter()
         .cloned()

@@ -15,8 +15,8 @@ use intmax2_interfaces::{
     data::{deposit_data::TokenType, meta_data::MetaData},
 };
 use intmax2_zkp::{
-    common::signature::key_set::KeySet,
-    ethereum_types::{address::Address, u256::U256},
+    common::{salt::Salt, signature::key_set::KeySet},
+    ethereum_types::{address::Address, bytes32::Bytes32, u256::U256},
 };
 use serde::{Deserialize, Serialize};
 // use plonky2::{field::goldilocks_field::GoldilocksField, plonk::config::PoseidonGoldilocksConfig};
@@ -28,14 +28,17 @@ use serde::{Deserialize, Serialize};
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct DepositEntry {
+    pub is_included: bool,
+    pub is_rejected: bool,
+    pub pubkey_salt_hash: Bytes32,
     pub token_type: TokenType,
-    pub token_address: Address,
+    pub token_address: Address, // H160
     pub token_id: U256,
     pub token_index: Option<u32>,
     pub amount: U256,
-    pub is_included: bool,
-    pub is_rejected: bool,
-    pub meta: MetaData,
+    pub salt: Salt,
+    pub block_number: u32,
+    pub timestamp: u64,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -88,40 +91,55 @@ pub async fn fetch_deposit_history<
     )
     .await?;
     for (meta, settled) in all_deposit_info.settled {
-        history.push(DepositEntry {
-            token_type: settled.token_type,
-            token_address: settled.token_address,
-            token_id: settled.token_id,
-            token_index: settled.token_index,
-            amount: settled.amount,
-            is_included: processed_deposit_uuids.contains(&meta.uuid),
-            is_rejected: false,
-            meta,
-        });
+        if let Some(block_number) = meta.block_number {
+            history.push(DepositEntry {
+                is_included: processed_deposit_uuids.contains(&meta.uuid),
+                is_rejected: false,
+                pubkey_salt_hash: settled.pubkey_salt_hash,
+                token_type: settled.token_type,
+                token_address: settled.token_address,
+                token_id: settled.token_id,
+                token_index: settled.token_index,
+                amount: settled.amount,
+                salt: settled.deposit_salt,
+                block_number,
+                timestamp: meta.timestamp,
+            });
+        }
     }
     for (meta, pending) in all_deposit_info.pending {
-        history.push(DepositEntry {
-            token_type: pending.token_type,
-            token_address: pending.token_address,
-            token_id: pending.token_id,
-            token_index: pending.token_index,
-            amount: pending.amount,
-            is_included: false,
-            is_rejected: false,
-            meta,
-        });
+        if let Some(block_number) = meta.block_number {
+            history.push(DepositEntry {
+                is_included: false,
+                is_rejected: false,
+                pubkey_salt_hash: pending.pubkey_salt_hash,
+                token_type: pending.token_type,
+                token_address: pending.token_address,
+                token_id: pending.token_id,
+                token_index: pending.token_index,
+                amount: pending.amount,
+                salt: pending.deposit_salt,
+                block_number,
+                timestamp: meta.timestamp,
+            });
+        }
     }
     for (meta, timeout) in all_deposit_info.timeout {
-        history.push(DepositEntry {
-            token_type: timeout.token_type,
-            token_address: timeout.token_address,
-            token_id: timeout.token_id,
-            token_index: timeout.token_index,
-            amount: timeout.amount,
-            is_included: false,
-            is_rejected: true,
-            meta,
-        });
+        if let Some(block_number) = meta.block_number {
+            history.push(DepositEntry {
+                is_included: false,
+                is_rejected: true,
+                pubkey_salt_hash: timeout.pubkey_salt_hash,
+                token_type: timeout.token_type,
+                token_address: timeout.token_address,
+                token_id: timeout.token_id,
+                token_index: timeout.token_index,
+                amount: timeout.amount,
+                salt: timeout.deposit_salt,
+                block_number,
+                timestamp: meta.timestamp,
+            });
+        }
     }
 
     Ok(history)

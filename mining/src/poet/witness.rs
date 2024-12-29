@@ -2,11 +2,24 @@ use crate::{
     common::history::{fetch_deposit_history, fetch_tx_history, DepositEntry, SendEntry},
     poet::{
         client::get_client,
-        history::{filter_withdrawals_from_history, select_most_recent_deposit_from_history},
+        history::{
+            filter_withdrawals_from_history, select_most_recent_deposit_from_history,
+            ReceivedDeposit,
+        },
         validation::{fetch_validation_data, ValidationData},
     },
 };
-use intmax2_client_sdk::client::client::Client;
+use ethers::{
+    contract::LogMeta,
+    types::{H160, H256},
+};
+use intmax2_client_sdk::{
+    client::client::Client,
+    external_api::{
+        contract::{liquidity_contract::DepositedFilter, utils::get_latest_block_number},
+        utils::retry::with_retry,
+    },
+};
 use intmax2_interfaces::{
     api::{
         balance_prover::interface::BalanceProverClientInterface,
@@ -19,11 +32,14 @@ use intmax2_interfaces::{
 };
 use intmax2_zkp::{
     common::{salt::Salt, signature::key_set::KeySet, trees::account_tree::AccountTree},
-    ethereum_types::{address::Address, u256::U256},
+    ethereum_types::{address::Address, u256::U256, u32limb_trait::U32LimbTrait},
     utils::trees::indexed_merkle_tree::membership::MembershipProof,
 };
 
-use super::history::Withdrawal;
+use super::{
+    blockchain::{get_rpc_url, get_start_block_number},
+    history::Withdrawal,
+};
 
 const MIN_ELAPSED_TIME: u32 = 1;
 
@@ -39,6 +55,7 @@ pub struct PoetWitness {
     pub intermediate: U256,
     pub withdrawal_destination: Address,
     pub proof_data: ValidationData,
+    pub deposit_transfer: ReceivedDeposit,
     pub withdrawal_transfer: Withdrawal,
     pub account_membership_proof_just_before_withdrawal: MembershipProof,
 }
@@ -53,6 +70,7 @@ impl Default for PoetWitness {
             intermediate: U256::default(),
             withdrawal_destination: Address::default(),
             proof_data: ValidationData::default(),
+            deposit_transfer: ReceivedDeposit::default(),
             withdrawal_transfer: Withdrawal {
                 recipient: Address::default(),
                 token_index: 0,
@@ -67,6 +85,66 @@ impl Default for PoetWitness {
             account_membership_proof_just_before_withdrawal,
         }
     }
+}
+
+const EVENT_BLOCK_RANGE: u64 = 50000;
+
+// pub fn get_pubkey_salt_hash(pubkey: U256, salt: Salt) -> Bytes32 {
+//     let input = vec![pubkey.to_u64_vec(), salt.to_u64_vec()].concat();
+//     let hash = PoseidonHashOut::hash_inputs_u64(&input);
+//     hash.into()
+// }
+
+async fn fetch_deposited_event<
+    BB: BlockBuilderClientInterface,
+    S: StoreVaultClientInterface,
+    V: ValidityProverClientInterface,
+    B: BalanceProverClientInterface,
+    W: WithdrawalServerClientInterface,
+>(
+    client: &Client<BB, S, V, B, W>,
+    pubkey_salt_hash: H256,
+) -> anyhow::Result<(Vec<(DepositedFilter, LogMeta)>, Vec<H160>)> {
+    let liquidity_contract = client.liquidity_contract.get_contract().await?;
+
+    let rpc_url = get_rpc_url()?;
+    let mut events = Vec::new();
+    let mut from_block = get_start_block_number()
+        .await
+        .map_err(|_| anyhow::anyhow!("failed to get start block number"))?;
+    loop {
+        println!("get_deposited_event_by_sender: from_block={}", from_block);
+        let new_events = with_retry(|| async {
+            liquidity_contract
+                .deposited_filter()
+                .address(liquidity_contract.address().into())
+                .topic3(pubkey_salt_hash)
+                .from_block(from_block)
+                .to_block(from_block + EVENT_BLOCK_RANGE)
+                .query_with_meta()
+                .await
+        })
+        .await
+        .map_err(|_| anyhow::anyhow!("failed to get deposited event"))?;
+        events.extend(new_events);
+        let latest_block_number = get_latest_block_number(&rpc_url).await?;
+        from_block += EVENT_BLOCK_RANGE;
+        if from_block > latest_block_number {
+            break;
+        }
+    }
+
+    let mut senders = vec![];
+    for (filter, _) in &events {
+        let deposit_data = liquidity_contract
+            .get_deposit_data(filter.deposit_id)
+            .await?;
+        println!("Deposited event: {:?}", deposit_data);
+        let deposit_sender = deposit_data.sender;
+        senders.push(deposit_sender);
+    }
+
+    Ok((events, senders))
 }
 
 impl PoetWitness {
@@ -92,7 +170,7 @@ impl PoetWitness {
 
         let from_block = calculate_from_block(&client, &tx_history, processed_withdrawal_block);
         let to_block = processed_withdrawal_block - MIN_ELAPSED_TIME;
-        let processed_deposit_block = select_most_recent_deposit_from_history(
+        let processed_deposit_transition = select_most_recent_deposit_from_history(
             &deposit_history,
             withdrawal_transfer,
             from_block,
@@ -102,9 +180,35 @@ impl PoetWitness {
             "No deposits were made between the withdrawal block and the specified block"
         ))?;
 
+        let processed_deposit_block = processed_deposit_transition.block_number;
         let proof_data =
             fetch_validation_data(&client, processed_deposit_block, processed_withdrawal_block)
                 .await?;
+
+        let recipient_salt_hash =
+            H256::from_slice(&processed_deposit_transition.pubkey_salt_hash.to_bytes_be());
+        let (deposited_events, senders) =
+            fetch_deposited_event(&client, recipient_salt_hash).await?;
+        if deposited_events.is_empty() {
+            anyhow::bail!("No deposited events found for the recipient salt hash");
+        }
+
+        let (deposit_event, _) = deposited_events.first().unwrap();
+        let deposit_sender = senders.first().unwrap();
+
+        // let deposit_leaf = (
+        //     Deposit {
+        //         pubkey_salt_hash: processed_deposit_transition.pubkey_salt_hash,
+        //         token_index: deposit_event.token_index,
+        //         amount: processed_deposit_transition.amount,
+        //     },
+        //     deposit_sender,
+        // );
+        // let deposit_hash = deposit_leaf.0.hash();
+        // assert_eq!(
+        //     actual_deposit_hash,
+        //     proof_data.deposit_validity_pis.public_state.deposit_nullifier_hash
+        // );
 
         let prev_account_info = client
             .validity_prover
@@ -124,11 +228,22 @@ impl PoetWitness {
                 .prev_account_tree_root
         );
 
+        let deposit_source = Address::from_bytes_be(deposit_sender.as_bytes());
+        let deposit_transfer = ReceivedDeposit {
+            sender: deposit_source,
+            // recipient: intermediate_account.pubkey,
+            token_index: deposit_event.token_index,
+            amount: processed_deposit_transition.amount,
+            salt: processed_deposit_transition.salt,
+            block_number: processed_deposit_transition.block_number,
+            timestamp: processed_deposit_transition.timestamp,
+        };
         Ok(Self {
-            deposit_source: Address::default(),
+            deposit_source,
             intermediate: intermediate_account.pubkey,
             withdrawal_destination: withdrawal_transfer.recipient,
             proof_data,
+            deposit_transfer,
             withdrawal_transfer: withdrawal_transfer.clone(),
             account_membership_proof_just_before_withdrawal: prev_account_info.membership_proof,
         })
