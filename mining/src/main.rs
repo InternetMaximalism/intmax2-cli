@@ -9,8 +9,8 @@ async fn main() -> anyhow::Result<()> {
         "18e722f9a8eeb7fa35880bec62f3ffdfbe7616c0423359ef2424d164d5cb6d98",
     )?);
     let account = h256_to_keyset(private_key);
-    let witness = generate_witness_of_elapsed_time(account).await?;
-    prove_elapsed_time(witness)?;
+    let witness = PoetWitness::generate(account).await?;
+    witness.prove_elapsed_time()?;
 
     Ok(())
 }
