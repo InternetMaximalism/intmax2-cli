@@ -61,7 +61,7 @@ pub async fn fetch_deposit_info<S: StoreVaultClientInterface, V: ValidityProverC
                     if meta.timestamp + deposit_timeout < chrono::Utc::now().timestamp() as u64 {
                         // timeout
                         log::error!(
-                            "Deposit uuid: {}, hash: {} is timeouted",
+                            "Deposit uuid: {}, hash: {} is timeout",
                             meta.uuid,
                             deposit_hash
                         );

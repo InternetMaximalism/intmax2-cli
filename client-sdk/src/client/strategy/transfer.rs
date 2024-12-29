@@ -50,7 +50,7 @@ pub async fn fetch_transfer_info<S: StoreVaultClientInterface, V: ValidityProver
                 } else {
                     if meta.timestamp + tx_timeout < chrono::Utc::now().timestamp() as u64 {
                         // timeout
-                        log::error!("Transfer {} is timeouted", meta.uuid);
+                        log::error!("Transfer {} is timeout", meta.uuid);
                         timeout.push((meta, transfer_data));
                     } else {
                         // pending
