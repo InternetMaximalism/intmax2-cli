@@ -14,8 +14,11 @@ use intmax2_interfaces::{
     data::meta_data::MetaData,
 };
 use intmax2_zkp::{
+    circuits::validity::validity_pis::ValidityPublicInputs,
     common::{
-        block::Block, salt::Salt, signature::key_set::KeySet, trees::account_tree::AccountTree,
+        salt::Salt,
+        signature::key_set::KeySet,
+        trees::{account_tree::AccountTree, block_hash_tree::BlockHashMerkleProof},
     },
     ethereum_types::{address::Address, u256::U256},
     utils::trees::indexed_merkle_tree::membership::MembershipProof,
@@ -37,8 +40,11 @@ pub struct PoetWitness {
     pub deposit_source: Address,
     pub intermediate: U256,
     pub withdrawal_destination: Address,
-    pub deposit_block: Block,
-    pub withdrawal_block: Block,
+    pub latest_validity_pis: ValidityPublicInputs,
+    pub deposit_validity_pis: ValidityPublicInputs,
+    pub deposit_block_merkle_proof: BlockHashMerkleProof,
+    pub withdrawal_validity_pis: ValidityPublicInputs,
+    pub withdrawal_block_merkle_proof: BlockHashMerkleProof,
     pub withdrawal_transfer: Withdrawal,
     pub account_membership_proof_just_before_withdrawal: MembershipProof,
 }
@@ -52,8 +58,11 @@ impl Default for PoetWitness {
             deposit_source: Address::default(),
             intermediate: U256::default(),
             withdrawal_destination: Address::default(),
-            deposit_block: Block::default(),
-            withdrawal_block: Block::default(),
+            latest_validity_pis: ValidityPublicInputs::genesis(),
+            deposit_validity_pis: ValidityPublicInputs::genesis(),
+            deposit_block_merkle_proof: BlockHashMerkleProof::dummy(32),
+            withdrawal_validity_pis: ValidityPublicInputs::genesis(),
+            withdrawal_block_merkle_proof: BlockHashMerkleProof::dummy(32),
             withdrawal_transfer: Withdrawal {
                 recipient: Address::default(),
                 token_index: 0,
@@ -72,12 +81,8 @@ impl Default for PoetWitness {
 
 impl PoetWitness {
     pub fn get_elapsed_time(&self) -> u32 {
-        let deposit_block_number = self.deposit_block.block_number;
-        let withdrawal_block_number = self.withdrawal_block.block_number;
-        println!(
-            "Deposit block number: {:?}, Withdrawal block number: {:?}",
-            deposit_block_number, withdrawal_block_number
-        );
+        let deposit_block_number = self.deposit_validity_pis.public_state.block_number;
+        let withdrawal_block_number = self.withdrawal_validity_pis.public_state.block_number;
 
         withdrawal_block_number - deposit_block_number
     }
@@ -90,19 +95,47 @@ pub struct PoetProof {
 }
 
 // deposit_source -> intermediates[0]
-fn prove_deposit(_witness: &PoetWitness) {
+fn prove_deposit(witness: &PoetWitness) -> anyhow::Result<()> {
     println!("Proving deposit...");
+    witness.deposit_block_merkle_proof.verify(
+        &witness.deposit_validity_pis.public_state.block_hash,
+        witness.deposit_validity_pis.public_state.block_number as u64,
+        witness.latest_validity_pis.public_state.block_tree_root,
+    )?;
+
+    Ok(())
 }
 
 // intermediates[n-1] -> withdrawal_destination
 fn prove_withdrawal(witness: &PoetWitness, withdrawal_destination: Address) -> anyhow::Result<()> {
     println!("Proving withdraw...");
+    witness
+        .withdrawal_block_merkle_proof
+        .verify(
+            &witness.withdrawal_validity_pis.public_state.block_hash,
+            witness.withdrawal_validity_pis.public_state.block_number as u64,
+            witness.latest_validity_pis.public_state.block_tree_root,
+        )
+        .map_err(|e| anyhow::anyhow!("Failed to verify withdrawal block merkle proof: {:?}", e))?;
+
     let generic_withdrawal_destination = witness.withdrawal_transfer.recipient;
-    assert_eq!(
-        generic_withdrawal_destination, withdrawal_destination,
-        "The withdrawal destination is incorrect"
+    anyhow::ensure!(
+        generic_withdrawal_destination == withdrawal_destination,
+        "The withdrawal destination is incorrect: {} != {}",
+        generic_withdrawal_destination,
+        withdrawal_destination
     );
-    // let tx_inclusion_witness: TxInclusionValue = todo!();
+
+    witness
+        .account_membership_proof_just_before_withdrawal
+        .verify(
+            witness.intermediate,
+            witness
+                .withdrawal_validity_pis
+                .public_state
+                .prev_account_tree_root,
+        )
+        .map_err(|e| anyhow::anyhow!("Failed to verify account membership proof: {:?}", e))?;
 
     Ok(())
 }
@@ -122,9 +155,9 @@ pub fn prove_elapsed_time(witness: PoetWitness) -> anyhow::Result<PoetProof> {
         MIN_ELAPSED_TIME
     );
 
-    prove_deposit(&witness);
+    prove_deposit(&witness)?;
     prove_withdrawal(&witness, witness.withdrawal_destination)?;
-    prove_not_to_transfer(&witness);
+    prove_not_to_transfer(&witness)?;
 
     Ok(PoetProof {
         poet_witness: witness,
@@ -137,16 +170,17 @@ fn get_last_sent_tx_block_number(witness: &PoetWitness) -> u32 {
     account_leaf.value as u32
 }
 
-// TODO
-pub fn prove_not_to_transfer(witness: &PoetWitness) {
+fn prove_not_to_transfer(witness: &PoetWitness) -> anyhow::Result<()> {
     println!("Proving to stay...");
     let last_sent_tx_block_number = get_last_sent_tx_block_number(&witness);
 
-    assert!(
-        last_sent_tx_block_number < witness.deposit_block.block_number,
+    anyhow::ensure!(
+        last_sent_tx_block_number < witness.deposit_validity_pis.public_state.block_number,
         "No transfers were made between the deposit and withdrawal: last sent tx block number {} should be less than deposit block {}",
-        last_sent_tx_block_number, witness.deposit_block.block_number
+        last_sent_tx_block_number, witness.deposit_validity_pis.public_state.block_number
     );
+
+    Ok(())
 }
 
 // TODO
@@ -159,39 +193,34 @@ fn is_mining_target(token_index: u32, amount: U256) -> U256 {
     U256::default()
 }
 
-fn filter_mining_withdrawals(
-    transfers: &[GenericTransfer],
+fn extract_withdrawal_transfer(
+    transfer: &GenericTransfer,
     is_included: bool,
     meta: MetaData,
-) -> Vec<Withdrawal> {
-    transfers
-        .into_iter()
-        .filter_map(|transfer| {
-            if let GenericTransfer::Withdrawal {
+) -> Option<Withdrawal> {
+    if let GenericTransfer::Withdrawal {
+        recipient,
+        token_index,
+        amount,
+        ..
+    } = transfer.clone()
+    {
+        let target_amount = is_mining_target(token_index, amount);
+        if target_amount != U256::default() && is_included {
+            return Some(Withdrawal {
                 recipient,
                 token_index,
                 amount,
-                ..
-            } = transfer.clone()
-            {
-                let target_amount = is_mining_target(token_index, amount);
-                if target_amount != U256::default() && is_included {
-                    return Some(Withdrawal {
-                        recipient,
-                        token_index,
-                        amount,
-                        salt: Salt::default(), // TODO
-                        meta: meta.clone(),
-                    });
-                }
-            }
+                salt: Salt::default(), // TODO
+                meta: meta.clone(),
+            });
+        }
+    }
 
-            None
-        })
-        .collect()
+    None
 }
 
-fn select_withdrawals_from_history(history: &[HistoryEntry]) -> anyhow::Result<Vec<Withdrawal>> {
+fn filter_withdrawals_from_history(history: &[HistoryEntry]) -> anyhow::Result<Vec<Withdrawal>> {
     let processed_withdrawals = history
         .into_iter()
         .map(|transition| {
@@ -202,7 +231,12 @@ fn select_withdrawals_from_history(history: &[HistoryEntry]) -> anyhow::Result<V
                 ..
             } = transition
             {
-                return filter_mining_withdrawals(&transfers, *is_included, meta.clone());
+                return transfers
+                    .into_iter()
+                    .filter_map(|transfer| {
+                        extract_withdrawal_transfer(transfer, *is_included, meta.clone())
+                    })
+                    .collect();
             }
 
             vec![]
@@ -233,6 +267,7 @@ pub fn select_most_recent_deposit_from_history(
                 ..
             } = transition
             {
+                // TODO: Check deposit nullifier from contract
                 println!(
                     "Token index: {:?}, Amount: {:?}, Is included: {:?}, Block number: {:?}",
                     token_index, amount, is_included, meta.block_number
@@ -281,7 +316,7 @@ pub async fn generate_witness_of_elapsed_time(
     let history = fetch_history(&client, intermediate_account).await?;
 
     // prove_withdrawal(&witness, witness.withdrawal_destination)?;
-    let withdrawals = select_withdrawals_from_history(&history)?;
+    let withdrawals = filter_withdrawals_from_history(&history)?;
     let withdrawal_transfer = withdrawals.first().unwrap();
     println!("Withdrawal: {:?}", withdrawal_transfer);
 
@@ -299,13 +334,8 @@ pub async fn generate_witness_of_elapsed_time(
         )
         .await?;
     let account_membership_proof_just_before_withdrawal = prev_account_info.membership_proof;
-    let account_root_hash = prev_account_info.root_hash;
-    account_membership_proof_just_before_withdrawal
-        .verify(intermediate_account.pubkey, account_root_hash)
-        .map_err(|e| anyhow::anyhow!("Failed to verify account membership proof: {:?}", e))?;
 
-    let last_seen_block_number: u32 = prev_account_info.block_number;
-    println!("Last seen block number: {:?}", last_seen_block_number);
+    // let last_seen_block_number: u32 = prev_account_info.block_number;
 
     let from_block = calculate_from_block(&client, &history, processed_withdrawal_block);
     let processed_deposit_block = select_most_recent_deposit_from_history(
@@ -322,17 +352,46 @@ pub async fn generate_witness_of_elapsed_time(
         processed_deposit_block
     );
 
-    let mut deposit_block = Block::default();
-    deposit_block.block_number = processed_deposit_block;
-    let mut withdrawal_block = Block::default();
-    withdrawal_block.block_number = processed_withdrawal_block;
+    let latest_block_number = client.validity_prover.get_block_number().await?;
+    let deposit_block_merkle_proof = client
+        .validity_prover
+        .get_block_merkle_proof(latest_block_number, processed_deposit_block)
+        .await?;
+    let withdrawal_block_merkle_proof = client
+        .validity_prover
+        .get_block_merkle_proof(latest_block_number, processed_withdrawal_block)
+        .await?;
+    let latest_validity_pis = client
+        .validity_prover
+        .get_validity_pis(latest_block_number)
+        .await?
+        .unwrap();
+    let deposit_validity_pis = client
+        .validity_prover
+        .get_validity_pis(processed_deposit_block)
+        .await?
+        .unwrap();
+    let withdrawal_validity_pis = client
+        .validity_prover
+        .get_validity_pis(processed_withdrawal_block)
+        .await?
+        .unwrap();
+
+    let account_root_hash = prev_account_info.root_hash;
+    assert_eq!(
+        account_root_hash,
+        withdrawal_validity_pis.public_state.prev_account_tree_root
+    );
 
     let witness = PoetWitness {
         deposit_source: Address::default(),
         intermediate: intermediate_account.pubkey,
         withdrawal_destination: withdrawal_transfer.recipient,
-        deposit_block,
-        withdrawal_block,
+        latest_validity_pis,
+        deposit_validity_pis,
+        deposit_block_merkle_proof,
+        withdrawal_validity_pis,
+        withdrawal_block_merkle_proof,
         withdrawal_transfer: withdrawal_transfer.clone(),
         account_membership_proof_just_before_withdrawal,
     };
