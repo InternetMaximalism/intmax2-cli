@@ -45,13 +45,12 @@ pub async fn receive_deposit<V: ValidityProverClientInterface, B: BalanceProverC
     validity_prover: &V,
     balance_prover: &B,
     key: KeySet,
-    pubkey: U256,
     full_private_state: &mut FullPrivateState,
     new_salt: Salt,
     prev_balance_proof: &Option<ProofWithPublicInputs<F, C, D>>,
     deposit_data: &DepositData,
 ) -> Result<ProofWithPublicInputs<F, C, D>, ClientError> {
-    let prev_balance_pis = get_prev_balance_pis(pubkey, prev_balance_proof);
+    let prev_balance_pis = get_prev_balance_pis(key.pubkey, prev_balance_proof);
     let receive_block_number = prev_balance_pis.public_state.block_number;
     // Generate witness
     let deposit_info = validity_prover
@@ -91,7 +90,12 @@ pub async fn receive_deposit<V: ValidityProverClientInterface, B: BalanceProverC
 
     // prove deposit
     let balance_proof = balance_prover
-        .prove_receive_deposit(key, pubkey, &receive_deposit_witness, &prev_balance_proof)
+        .prove_receive_deposit(
+            key,
+            key.pubkey,
+            &receive_deposit_witness,
+            &prev_balance_proof,
+        )
         .await?;
 
     Ok(balance_proof)
@@ -101,7 +105,6 @@ pub async fn receive_transfer<V: ValidityProverClientInterface, B: BalanceProver
     validity_prover: &V,
     balance_prover: &B,
     key: KeySet,
-    pubkey: U256,
     full_private_state: &mut FullPrivateState,
     new_salt: Salt,
     sender_balance_proof: &ProofWithPublicInputs<F, C, D>, /* sender's balance proof after
@@ -110,7 +113,7 @@ pub async fn receive_transfer<V: ValidityProverClientInterface, B: BalanceProver
                                                                   * proof */
     transfer_data: &TransferData<F, C, D>,
 ) -> Result<ProofWithPublicInputs<F, C, D>, ClientError> {
-    let prev_balance_pis = get_prev_balance_pis(pubkey, prev_balance_proof);
+    let prev_balance_pis = get_prev_balance_pis(key.pubkey, prev_balance_proof);
     let receive_block_number = prev_balance_pis.public_state.block_number;
     let sender_balance_pis = BalancePublicInputs::from_pis(&sender_balance_proof.public_inputs);
     if receive_block_number < prev_balance_pis.public_state.block_number {
@@ -149,7 +152,12 @@ pub async fn receive_transfer<V: ValidityProverClientInterface, B: BalanceProver
 
     // prove transfer
     let balance_proof = balance_prover
-        .prove_receive_transfer(key, pubkey, &receive_transfer_witness, &prev_balance_proof)
+        .prove_receive_transfer(
+            key,
+            key.pubkey,
+            &receive_transfer_witness,
+            &prev_balance_proof,
+        )
         .await?;
 
     Ok(balance_proof)
