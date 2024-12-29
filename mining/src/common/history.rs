@@ -1,3 +1,9 @@
+use intmax2_client_sdk::client::{
+    client::Client,
+    error::ClientError,
+    history::{extract_generic_transfers, GenericTransfer},
+    strategy::{deposit::fetch_deposit_info, transfer::fetch_transfer_info, tx::fetch_tx_info},
+};
 use intmax2_interfaces::{
     api::{
         balance_prover::interface::BalanceProverClientInterface,
@@ -6,100 +12,61 @@ use intmax2_interfaces::{
         validity_prover::interface::ValidityProverClientInterface,
         withdrawal_server::interface::WithdrawalServerClientInterface,
     },
-    data::{deposit_data::TokenType, meta_data::MetaData, tx_data::TxData},
+    data::{deposit_data::TokenType, meta_data::MetaData},
 };
 use intmax2_zkp::{
     common::signature::key_set::KeySet,
-    ethereum_types::{address::Address, u256::U256, u32limb_trait::U32LimbTrait},
+    ethereum_types::{address::Address, u256::U256},
 };
-use plonky2::{field::goldilocks_field::GoldilocksField, plonk::config::PoseidonGoldilocksConfig};
 use serde::{Deserialize, Serialize};
+// use plonky2::{field::goldilocks_field::GoldilocksField, plonk::config::PoseidonGoldilocksConfig};
 
-use super::{
-    client::Client,
-    error::ClientError,
-    strategy::{deposit::fetch_deposit_info, transfer::fetch_transfer_info, tx::fetch_tx_info},
-};
-
-type F = GoldilocksField;
-type C = PoseidonGoldilocksConfig;
-const D: usize = 2;
+// type F = GoldilocksField;
+// type C = PoseidonGoldilocksConfig;
+// const D: usize = 2;
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub enum HistoryEntry {
-    Deposit {
-        token_type: TokenType,
-        token_address: Address,
-        token_id: U256,
-        token_index: Option<u32>,
-        amount: U256,
-        is_included: bool,
-        is_rejected: bool,
-        meta: MetaData,
-    },
-    Receive {
-        amount: U256,
-        token_index: u32,
-        from: U256,
-        is_included: bool,
-        is_rejected: bool,
-        meta: MetaData,
-    },
-    Send {
-        transfers: Vec<GenericTransfer>,
-        is_included: bool,
-        is_rejected: bool,
-        meta: MetaData,
-    },
+pub struct DepositEntry {
+    pub token_type: TokenType,
+    pub token_address: Address,
+    pub token_id: U256,
+    pub token_index: Option<u32>,
+    pub amount: U256,
+    pub is_included: bool,
+    pub is_rejected: bool,
+    pub meta: MetaData,
 }
 
-/// Transfer without salt
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub enum GenericTransfer {
-    Transfer {
-        recipient: U256,
-        token_index: u32,
-        amount: U256,
-    },
-    Withdrawal {
-        recipient: Address,
-        token_index: u32,
-        amount: U256,
-    },
+pub struct ReceiveEntry {
+    pub amount: U256,
+    pub token_index: u32,
+    pub from: U256,
+    pub is_included: bool,
+    pub is_rejected: bool,
+    pub meta: MetaData,
 }
 
-impl std::fmt::Display for GenericTransfer {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            GenericTransfer::Transfer {
-                recipient,
-                token_index,
-                amount,
-            } => write!(
-                f,
-                "Transfer(recipient: {}, token_index: {}, amount: {})",
-                recipient.to_hex(),
-                token_index,
-                amount
-            ),
-            GenericTransfer::Withdrawal {
-                recipient,
-                token_index,
-                amount,
-            } => write!(
-                f,
-                "Withdrawal(recipient: {}, token_index: {}, amount: {})",
-                recipient.to_hex(),
-                token_index,
-                amount
-            ),
-        }
-    }
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SendEntry {
+    pub transfers: Vec<GenericTransfer>,
+    pub is_included: bool,
+    pub is_rejected: bool,
+    pub meta: MetaData,
 }
 
-pub async fn fetch_history<
+// #[derive(Clone, Debug, Serialize, Deserialize)]
+// #[serde(rename_all = "camelCase")]
+// pub enum HistoryEntry {
+//     Deposit(DepositEntry),
+//     Receive(ReceiveEntry),
+//     Send(SendEntry),
+// }
+
+pub async fn fetch_deposit_history<
     BB: BlockBuilderClientInterface,
     S: StoreVaultClientInterface,
     V: ValidityProverClientInterface,
@@ -108,12 +75,9 @@ pub async fn fetch_history<
 >(
     client: &Client<BB, S, V, B, W>,
     key: KeySet,
-) -> Result<Vec<HistoryEntry>, ClientError> {
-    let user_data = client.get_user_data(key).await?;
-
-    let mut history = Vec::new();
-
-    // Deposits
+    processed_deposit_uuids: Vec<String>,
+) -> Result<Vec<DepositEntry>, ClientError> {
+    let mut history = vec![];
     let all_deposit_info = fetch_deposit_info(
         &client.store_vault_server,
         &client.validity_prover,
@@ -124,19 +88,19 @@ pub async fn fetch_history<
     )
     .await?;
     for (meta, settled) in all_deposit_info.settled {
-        history.push(HistoryEntry::Deposit {
+        history.push(DepositEntry {
             token_type: settled.token_type,
             token_address: settled.token_address,
             token_id: settled.token_id,
             token_index: settled.token_index,
             amount: settled.amount,
-            is_included: user_data.processed_deposit_uuids.contains(&meta.uuid),
+            is_included: processed_deposit_uuids.contains(&meta.uuid),
             is_rejected: false,
             meta,
         });
     }
     for (meta, pending) in all_deposit_info.pending {
-        history.push(HistoryEntry::Deposit {
+        history.push(DepositEntry {
             token_type: pending.token_type,
             token_address: pending.token_address,
             token_id: pending.token_id,
@@ -148,7 +112,7 @@ pub async fn fetch_history<
         });
     }
     for (meta, timeout) in all_deposit_info.timeout {
-        history.push(HistoryEntry::Deposit {
+        history.push(DepositEntry {
             token_type: timeout.token_type,
             token_address: timeout.token_address,
             token_id: timeout.token_id,
@@ -160,6 +124,21 @@ pub async fn fetch_history<
         });
     }
 
+    Ok(history)
+}
+
+pub async fn fetch_transfer_history<
+    BB: BlockBuilderClientInterface,
+    S: StoreVaultClientInterface,
+    V: ValidityProverClientInterface,
+    B: BalanceProverClientInterface,
+    W: WithdrawalServerClientInterface,
+>(
+    client: &Client<BB, S, V, B, W>,
+    key: KeySet,
+    processed_transfer_uuids: Vec<String>,
+) -> Result<Vec<ReceiveEntry>, ClientError> {
+    let mut history = vec![];
     let all_transfers_info = fetch_transfer_info(
         &client.store_vault_server,
         &client.validity_prover,
@@ -170,18 +149,18 @@ pub async fn fetch_history<
     .await?;
     for (meta, settled) in all_transfers_info.settled {
         let transfer = settled.transfer;
-        history.push(HistoryEntry::Receive {
+        history.push(ReceiveEntry {
             amount: transfer.amount,
             token_index: transfer.token_index,
             from: transfer.recipient.data,
-            is_included: user_data.processed_transfer_uuids.contains(&meta.uuid),
+            is_included: processed_transfer_uuids.contains(&meta.uuid),
             is_rejected: false,
             meta: meta.clone(),
         });
     }
     for (meta, pending) in all_transfers_info.pending {
         let transfer = pending.transfer;
-        history.push(HistoryEntry::Receive {
+        history.push(ReceiveEntry {
             amount: transfer.amount,
             token_index: transfer.token_index,
             from: transfer.recipient.data,
@@ -192,7 +171,7 @@ pub async fn fetch_history<
     }
     for (meta, timeout) in all_transfers_info.timeout {
         let transfer = timeout.transfer;
-        history.push(HistoryEntry::Receive {
+        history.push(ReceiveEntry {
             amount: transfer.amount,
             token_index: transfer.token_index,
             from: transfer.recipient.data,
@@ -202,6 +181,21 @@ pub async fn fetch_history<
         });
     }
 
+    Ok(history)
+}
+
+pub async fn fetch_tx_history<
+    BB: BlockBuilderClientInterface,
+    S: StoreVaultClientInterface,
+    V: ValidityProverClientInterface,
+    B: BalanceProverClientInterface,
+    W: WithdrawalServerClientInterface,
+>(
+    client: &Client<BB, S, V, B, W>,
+    key: KeySet,
+    processed_tx_uuids: Vec<String>,
+) -> Result<Vec<SendEntry>, ClientError> {
+    let mut history = vec![];
     let all_tx_info = fetch_tx_info(
         &client.store_vault_server,
         &client.validity_prover,
@@ -211,15 +205,15 @@ pub async fn fetch_history<
     )
     .await?;
     for (meta, settled) in all_tx_info.settled {
-        history.push(HistoryEntry::Send {
+        history.push(SendEntry {
             transfers: extract_generic_transfers(settled),
-            is_included: user_data.processed_tx_uuids.contains(&meta.uuid),
+            is_included: processed_tx_uuids.contains(&meta.uuid),
             is_rejected: false,
             meta,
         });
     }
     for (meta, pending) in all_tx_info.pending {
-        history.push(HistoryEntry::Send {
+        history.push(SendEntry {
             transfers: extract_generic_transfers(pending),
             is_included: false,
             is_rejected: false,
@@ -227,7 +221,7 @@ pub async fn fetch_history<
         });
     }
     for (meta, timeout) in all_tx_info.timeout {
-        history.push(HistoryEntry::Send {
+        history.push(SendEntry {
             transfers: extract_generic_transfers(timeout),
             is_included: false,
             is_rejected: true,
@@ -235,40 +229,41 @@ pub async fn fetch_history<
         });
     }
 
-    // sort history
-    history.sort_by_key(|entry| match entry {
-        HistoryEntry::Deposit { meta, .. } => meta.timestamp,
-        HistoryEntry::Receive { meta, .. } => meta.timestamp,
-        HistoryEntry::Send { meta, .. } => meta.timestamp,
-    });
-
     Ok(history)
 }
 
-pub fn extract_generic_transfers(tx_data: TxData<F, C, D>) -> Vec<GenericTransfer> {
-    let mut transfers = Vec::new();
-    for transfer in tx_data.spent_witness.transfers.iter() {
-        let recipient = transfer.recipient;
-        if !recipient.is_pubkey
-            && recipient.data == U256::default()
-            && transfer.amount == U256::default()
-        {
-            // dummy transfer
-            continue;
-        }
-        if recipient.is_pubkey {
-            transfers.push(GenericTransfer::Transfer {
-                recipient: recipient.to_pubkey().unwrap(),
-                token_index: transfer.token_index,
-                amount: transfer.amount,
-            });
-        } else {
-            transfers.push(GenericTransfer::Withdrawal {
-                recipient: recipient.to_address().unwrap(),
-                token_index: transfer.token_index,
-                amount: transfer.amount,
-            });
-        }
-    }
-    transfers
-}
+// pub async fn fetch_history<
+//     BB: BlockBuilderClientInterface,
+//     S: StoreVaultClientInterface,
+//     V: ValidityProverClientInterface,
+//     B: BalanceProverClientInterface,
+//     W: WithdrawalServerClientInterface,
+// >(
+//     client: &Client<BB, S, V, B, W>,
+//     key: KeySet,
+// ) -> Result<Vec<HistoryEntry>, ClientError> {
+//     let mut history = Vec::new();
+
+//     let user_data = client.get_user_data(key).await?;
+
+//     fetch_deposit_history(&mut history, client, key, user_data.processed_deposit_uuids).await?;
+
+//     fetch_transfer_history(
+//         &mut history,
+//         client,
+//         key,
+//         user_data.processed_transfer_uuids,
+//     )
+//     .await?;
+
+//     fetch_tx_history(&mut history, client, key, user_data.processed_tx_uuids).await?;
+
+//     // sort history
+//     history.sort_by_key(|entry| match entry {
+//         HistoryEntry::Deposit(DepositEntry { meta, .. }) => meta.timestamp,
+//         HistoryEntry::Receive(ReceiveEntry { meta, .. }) => meta.timestamp,
+//         HistoryEntry::Send(SendEntry { meta, .. }) => meta.timestamp,
+//     });
+
+//     Ok(history)
+// }
