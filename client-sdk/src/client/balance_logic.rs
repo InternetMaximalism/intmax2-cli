@@ -218,7 +218,17 @@ pub async fn update_send_by_sender<
     let spent_proof =
         if tx_data.spent_witness.prev_private_state == full_private_state.to_private_state() {
             // We can use the original spent proof if prev_private_state matches
-            tx_data.common.spent_proof.clone()
+            let spent_proof = tx_data.common.spent_proof.clone();
+
+            // update private state
+            tx_data
+                .spent_witness
+                .update_private_state(full_private_state)
+                .map_err(|e| {
+                    ClientError::InternalError(format!("failed to update private state: {}", e))
+                })?;
+
+            spent_proof
         } else {
             // We regenerate spent proof
             let spent_witness = generate_spent_witness(
@@ -227,6 +237,14 @@ pub async fn update_send_by_sender<
                 &tx_data.spent_witness.transfers,
             )
             .await?;
+
+            // update private state
+            spent_witness
+                .update_private_state(full_private_state)
+                .map_err(|e| {
+                    ClientError::InternalError(format!("failed to update private state: {}", e))
+                })?;
+
             balance_prover.prove_spent(key, &spent_witness).await?
         };
 

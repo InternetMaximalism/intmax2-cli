@@ -37,7 +37,9 @@ pub enum SyncStatus {
 }
 
 use crate::client::{
-    balance_logic::{receive_transfer, update_send_by_receiver},
+    balance_logic::{
+        receive_transfer, update_no_send, update_send_by_receiver, update_send_by_sender,
+    },
     utils::generate_salt,
 };
 
@@ -134,6 +136,11 @@ where
         deposit_data: &DepositData,
     ) -> Result<(), ClientError> {
         log::info!("sync_deposit: {:?}", meta);
+        if meta.block_number.is_none() {
+            return Err(ClientError::InternalError(
+                "block number is not set".to_string(),
+            ));
+        }
         let mut user_data = self.get_user_data(key).await?;
 
         // user's balance proof before applying the tx
@@ -182,6 +189,11 @@ where
         transfer_data: &TransferData<F, C, D>,
     ) -> Result<(), ClientError> {
         log::info!("sync_transfer: {:?}", meta);
+        if meta.block_number.is_none() {
+            return Err(ClientError::InternalError(
+                "block number is not set".to_string(),
+            ));
+        }
         let mut user_data = self.get_user_data(key).await?;
         // user's balance proof before applying the tx
         let prev_balance_proof = self
@@ -195,7 +207,7 @@ where
 
         // sender balance proof after applying the tx
         let new_sender_balance_proof = self
-            .generate_new_sender_balance_proof(
+            .update_send_by_receiver(
                 key,
                 transfer_data.sender,
                 meta.block_number.unwrap(),
@@ -240,30 +252,48 @@ where
         tx_data: &TxData<F, C, D>,
     ) -> Result<(), ClientError> {
         log::info!("sync_tx: {:?}", meta);
+        if meta.block_number.is_none() {
+            return Err(ClientError::InternalError(
+                "block number is not set".to_string(),
+            ));
+        }
         let mut user_data = self.get_user_data(key).await?;
-        let balance_proof = self
-            .generate_new_sender_balance_proof(
-                key,
+        let prev_balance_proof = self
+            .store_vault_server
+            .get_balance_proof(
                 key.pubkey,
-                meta.block_number.unwrap(),
-                &tx_data.common,
+                user_data.block_number,
+                user_data.private_commitment(),
             )
             .await?;
+        let balance_proof = update_send_by_sender(
+            &self.validity_prover,
+            &self.balance_prover,
+            key,
+            &mut user_data.full_private_state,
+            &prev_balance_proof,
+            meta.block_number.unwrap(),
+            tx_data,
+        )
+        .await?;
         let balance_pis = BalancePublicInputs::from_pis(&balance_proof.public_inputs);
         if balance_pis.public_state.block_number != meta.block_number.unwrap() {
-            return Err(ClientError::SyncError("block number mismatch".to_string()));
+            return Err(ClientError::SyncError(format!(
+                "block number mismatch balance pis: {}, meta: {}",
+                balance_pis.public_state.block_number,
+                meta.block_number.unwrap()
+            )));
         }
+
+        // save balance proof
+        self.store_vault_server
+            .save_balance_proof(key.pubkey, &balance_proof)
+            .await?;
 
         // update user data
         user_data.block_number = meta.block_number.unwrap();
         user_data.tx_lpt = meta.timestamp;
         user_data.processed_tx_uuids.push(meta.uuid.clone());
-        tx_data
-            .spent_witness
-            .update_private_state(&mut user_data.full_private_state)
-            .map_err(|e| {
-                ClientError::InternalError(format!("failed to update private state: {}", e))
-            })?;
 
         // validation
         if balance_pis.private_commitment != user_data.private_commitment() {
@@ -293,9 +323,8 @@ where
         }
 
         let mut user_data = self.get_user_data(key).await?;
-
         let new_user_balance_proof = self
-            .generate_new_sender_balance_proof(
+            .update_send_by_receiver(
                 key,
                 key.pubkey,
                 meta.block_number.unwrap(),
@@ -337,7 +366,7 @@ where
 
     // generate sender's balance proof after applying the tx
     // save the proof to the data store server
-    async fn generate_new_sender_balance_proof(
+    async fn update_send_by_receiver(
         &self,
         key: KeySet,
         sender: U256,
@@ -345,7 +374,7 @@ where
         common_tx_data: &CommonTxData<F, C, D>,
     ) -> Result<ProofWithPublicInputs<F, C, D>, ClientError> {
         log::info!(
-            "generate_new_sender_balance_proof: sender {}, block_number {}",
+            "update_send_by_receiver: sender {}, block_number {}",
             sender,
             block_number
         );
@@ -382,10 +411,45 @@ where
         )
         .await?;
 
+        // save sender's balance proof
         self.store_vault_server
             .save_balance_proof(sender, &new_sender_balance_proof)
             .await?;
 
         Ok(new_sender_balance_proof)
+    }
+
+    async fn update_no_send(&self, key: KeySet, to_block_number: u32) -> Result<(), ClientError> {
+        log::info!("update_no_send: {:?}", to_block_number);
+        let mut user_data = self.get_user_data(key).await?;
+        let prev_balance_proof = self
+            .store_vault_server
+            .get_balance_proof(
+                key.pubkey,
+                user_data.block_number,
+                user_data.private_commitment(),
+            )
+            .await?;
+        let new_balance_proof = update_no_send(
+            &self.validity_prover,
+            &self.balance_prover,
+            key,
+            &prev_balance_proof,
+            to_block_number,
+        )
+        .await?;
+
+        // save balance proof
+        self.store_vault_server
+            .save_balance_proof(key.pubkey, &new_balance_proof)
+            .await?;
+
+        // update user data
+        user_data.block_number = to_block_number;
+        self.store_vault_server
+            .save_user_data(key.pubkey, user_data.encrypt(key.pubkey))
+            .await?;
+
+        Ok(())
     }
 }
