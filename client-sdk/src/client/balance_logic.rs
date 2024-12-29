@@ -41,7 +41,7 @@ type F = GoldilocksField;
 type C = PoseidonGoldilocksConfig;
 const D: usize = 2;
 
-pub async fn process_deposit<V: ValidityProverClientInterface, B: BalanceProverClientInterface>(
+pub async fn receive_deposit<V: ValidityProverClientInterface, B: BalanceProverClientInterface>(
     validity_prover: &V,
     balance_prover: &B,
     key: KeySet,
@@ -49,20 +49,10 @@ pub async fn process_deposit<V: ValidityProverClientInterface, B: BalanceProverC
     full_private_state: &mut FullPrivateState,
     new_salt: Salt,
     prev_balance_proof: &Option<ProofWithPublicInputs<F, C, D>>,
-    receive_block_number: u32,
     deposit_data: &DepositData,
 ) -> Result<ProofWithPublicInputs<F, C, D>, ClientError> {
-    // update balance proof up to the deposit block
-    let before_balance_proof = update_no_send(
-        validity_prover,
-        balance_prover,
-        key,
-        pubkey,
-        prev_balance_proof,
-        receive_block_number,
-    )
-    .await?;
-
+    let prev_balance_pis = get_prev_balance_pis(pubkey, prev_balance_proof);
+    let receive_block_number = prev_balance_pis.public_state.block_number;
     // Generate witness
     let deposit_info = validity_prover
         .get_deposit_info(deposit_data.deposit_hash().unwrap())
@@ -70,7 +60,7 @@ pub async fn process_deposit<V: ValidityProverClientInterface, B: BalanceProverC
         .ok_or(ClientError::InternalError(
             "Deposit index and block number not found".to_string(),
         ))?;
-    if deposit_info.block_number > receive_block_number {
+    if receive_block_number < deposit_info.block_number {
         return Err(ClientError::InternalError(
             "Deposit block number is greater than receive block number".to_string(),
         ));
@@ -101,18 +91,13 @@ pub async fn process_deposit<V: ValidityProverClientInterface, B: BalanceProverC
 
     // prove deposit
     let balance_proof = balance_prover
-        .prove_receive_deposit(
-            key,
-            pubkey,
-            &receive_deposit_witness,
-            &Some(before_balance_proof),
-        )
+        .prove_receive_deposit(key, pubkey, &receive_deposit_witness, &prev_balance_proof)
         .await?;
 
     Ok(balance_proof)
 }
 
-pub async fn process_transfer<V: ValidityProverClientInterface, B: BalanceProverClientInterface>(
+pub async fn receive_transfer<V: ValidityProverClientInterface, B: BalanceProverClientInterface>(
     validity_prover: &V,
     balance_prover: &B,
     key: KeySet,
@@ -123,27 +108,16 @@ pub async fn process_transfer<V: ValidityProverClientInterface, B: BalanceProver
                                                             * applying tx */
     prev_balance_proof: &Option<ProofWithPublicInputs<F, C, D>>, /* receiver's prev balance
                                                                   * proof */
-    receive_block_number: u32,
     transfer_data: &TransferData<F, C, D>,
 ) -> Result<ProofWithPublicInputs<F, C, D>, ClientError> {
+    let prev_balance_pis = get_prev_balance_pis(pubkey, prev_balance_proof);
+    let receive_block_number = prev_balance_pis.public_state.block_number;
     let sender_balance_pis = BalancePublicInputs::from_pis(&sender_balance_proof.public_inputs);
-    if sender_balance_pis.public_state.block_number > receive_block_number {
+    if receive_block_number < prev_balance_pis.public_state.block_number {
         return Err(ClientError::InternalError(
-            "Sender's block number is greater than receive block number".to_string(),
+            "receive block number is not greater than prev balance proof".to_string(),
         ));
     }
-
-    // update balance proof up to the deposit block
-    let before_balance_proof = update_no_send(
-        validity_prover,
-        balance_prover,
-        key,
-        pubkey,
-        prev_balance_proof,
-        receive_block_number,
-    )
-    .await?;
-
     // Generate witness
     let transfer_witness = TransferWitness {
         tx: transfer_data.tx_data.tx.clone(),
@@ -175,12 +149,7 @@ pub async fn process_transfer<V: ValidityProverClientInterface, B: BalanceProver
 
     // prove transfer
     let balance_proof = balance_prover
-        .prove_receive_transfer(
-            key,
-            pubkey,
-            &receive_transfer_witness,
-            &Some(before_balance_proof),
-        )
+        .prove_receive_transfer(key, pubkey, &receive_transfer_witness, &prev_balance_proof)
         .await?;
 
     Ok(balance_proof)
@@ -357,28 +326,27 @@ pub async fn update_send_by_receiver<
 
 /// Update prev_balance_proof to block_number or do noting if already synced later than block_number.
 /// Assumes that there are no send transactions between the block_number of prev_balance_proof and block_number.
-async fn update_no_send<V: ValidityProverClientInterface, B: BalanceProverClientInterface>(
+pub async fn update_no_send<V: ValidityProverClientInterface, B: BalanceProverClientInterface>(
     validity_prover: &V,
     balance_prover: &B,
     key: KeySet,
-    pubkey: U256,
     prev_balance_proof: &Option<ProofWithPublicInputs<F, C, D>>,
-    block_number: u32,
+    to_block_number: u32,
 ) -> Result<ProofWithPublicInputs<F, C, D>, ClientError> {
     // sync check
-    if block_number > validity_prover.get_block_number().await? {
+    if to_block_number > validity_prover.get_block_number().await? {
         return Err(ClientError::InternalError(
             "Validity prover is not up to date".to_string(),
         ));
     }
-    if block_number == 0 {
+    if to_block_number == 0 {
         return Err(ClientError::InternalError(
             "Block number should be greater than 0".to_string(),
         ));
     }
-    let prev_balance_pis = get_prev_balance_pis(pubkey, prev_balance_proof);
+    let prev_balance_pis = get_prev_balance_pis(key.pubkey, prev_balance_proof);
     let prev_block_number = prev_balance_pis.public_state.block_number;
-    if block_number <= prev_block_number {
+    if to_block_number <= prev_block_number {
         // no need to update balance proof
         return Ok(prev_balance_proof.clone().unwrap());
     }
@@ -386,8 +354,8 @@ async fn update_no_send<V: ValidityProverClientInterface, B: BalanceProverClient
     // get update witness
     let update_witness = validity_prover
         .get_update_witness(
-            pubkey,
-            block_number,
+            key.pubkey,
+            to_block_number,
             prev_balance_pis.public_state.block_number,
             false,
         )
@@ -399,7 +367,7 @@ async fn update_no_send<V: ValidityProverClientInterface, B: BalanceProverClient
         ));
     }
     let balance_proof = balance_prover
-        .prove_update(key, pubkey, &update_witness, &prev_balance_proof)
+        .prove_update(key, key.pubkey, &update_witness, &prev_balance_proof)
         .await?;
     Ok(balance_proof)
 }

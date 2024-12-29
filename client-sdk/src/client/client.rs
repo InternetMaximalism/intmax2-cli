@@ -42,7 +42,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     client::{
-        balance_logic::{process_transfer, update_send_by_receiver},
+        balance_logic::{receive_transfer, update_send_by_receiver},
         utils::generate_salt,
     },
     external_api::{
@@ -52,7 +52,7 @@ use crate::{
 };
 
 use super::{
-    balance_logic::{generate_spent_witness, process_deposit},
+    balance_logic::{generate_spent_witness, receive_deposit},
     config::ClientConfig,
     error::ClientError,
     history::{fetch_history, HistoryEntry},
@@ -464,7 +464,7 @@ where
             .await?;
 
         let new_salt = generate_salt();
-        let new_balance_proof = process_deposit(
+        let new_balance_proof = receive_deposit(
             &self.validity_prover,
             &self.balance_prover,
             key,
@@ -472,7 +472,6 @@ where
             &mut user_data.full_private_state,
             new_salt,
             &prev_balance_proof,
-            meta.block_number.unwrap(),
             deposit_data,
         )
         .await?;
@@ -522,7 +521,7 @@ where
             .await?;
 
         let new_salt = generate_salt();
-        let new_balance_proof = process_transfer(
+        let new_balance_proof = receive_transfer(
             &self.validity_prover,
             &self.balance_prover,
             key,
@@ -531,7 +530,6 @@ where
             new_salt,
             &new_sender_balance_proof,
             &prev_balance_proof,
-            meta.block_number.unwrap(),
             &transfer_data,
         )
         .await?;
