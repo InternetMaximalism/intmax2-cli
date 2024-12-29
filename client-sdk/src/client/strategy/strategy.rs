@@ -79,6 +79,7 @@ pub async fn determine_next_action<
         validity_prover,
         key,
         user_data.tx_lpt,
+        &user_data.processed_tx_uuids,
         tx_timeout,
     )
     .await?;
@@ -109,6 +110,7 @@ pub async fn determine_next_action<
         liquidity_contract,
         key,
         user_data.deposit_lpt,
+        &user_data.processed_deposit_uuids,
         deposit_timeout,
     )
     .await?;
@@ -118,6 +120,7 @@ pub async fn determine_next_action<
         validity_prover,
         key,
         user_data.transfer_lpt,
+        &user_data.processed_transfer_uuids,
         tx_timeout,
     )
     .await?;

@@ -119,7 +119,8 @@ pub async fn fetch_history<
         &client.validity_prover,
         &client.liquidity_contract,
         key,
-        0, // set to 0 to get all deposits
+        0,   // set to 0 to get all deposits
+        &[], // no processed deposit uuids to get all deposits
         client.config.deposit_timeout,
     )
     .await?;
@@ -164,7 +165,8 @@ pub async fn fetch_history<
         &client.store_vault_server,
         &client.validity_prover,
         key,
-        0, // set to 0 to get all transfers
+        0,   // set to 0 to get all transfers
+        &[], // no processed transfer uuids to get all transfers
         client.config.tx_timeout,
     )
     .await?;
@@ -206,7 +208,8 @@ pub async fn fetch_history<
         &client.store_vault_server,
         &client.validity_prover,
         key,
-        0, // set to 0 to get all txs
+        0,   // set to 0 to get all txs
+        &[], // no processed tx uuids to get all txs
         client.config.tx_timeout,
     )
     .await?;
