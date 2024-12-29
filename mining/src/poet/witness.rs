@@ -1,8 +1,8 @@
-use crate::poet::client::get_client;
-use intmax2_client_sdk::client::{
-    client::Client,
-    history::{fetch_history, GenericTransfer, HistoryEntry},
+use crate::{
+    common::history::{fetch_deposit_history, fetch_tx_history, DepositEntry, SendEntry},
+    poet::client::get_client,
 };
+use intmax2_client_sdk::client::{client::Client, history::GenericTransfer};
 use intmax2_interfaces::{
     api::{
         balance_prover::interface::BalanceProverClientInterface,
@@ -126,6 +126,12 @@ fn prove_withdrawal(witness: &PoetWitness, withdrawal_destination: Address) -> a
         withdrawal_destination
     );
 
+    // let ethereum_private_key = "0x";
+    // let ethereum_transaction_count: u64 = 0;
+    // let actual_deposit_salt =
+    //     generate_deterministic_salt(ethereum_private_key, ethereum_transaction_count);
+    // let deposit_hash = deposit_nullifier_hash;
+
     witness
         .account_membership_proof_just_before_withdrawal
         .verify(
@@ -171,7 +177,7 @@ fn get_last_sent_tx_block_number(witness: &PoetWitness) -> u32 {
 }
 
 fn prove_not_to_transfer(witness: &PoetWitness) -> anyhow::Result<()> {
-    println!("Proving to stay...");
+    println!("Proving not to transfer...");
     let last_sent_tx_block_number = get_last_sent_tx_block_number(&witness);
 
     anyhow::ensure!(
@@ -198,6 +204,10 @@ fn extract_withdrawal_transfer(
     is_included: bool,
     meta: MetaData,
 ) -> Option<Withdrawal> {
+    println!(
+        "Withdrawal: Included: {:?}, Block number: {:?}",
+        is_included, meta.block_number
+    );
     if let GenericTransfer::Withdrawal {
         recipient,
         token_index,
@@ -220,26 +230,23 @@ fn extract_withdrawal_transfer(
     None
 }
 
-fn filter_withdrawals_from_history(history: &[HistoryEntry]) -> anyhow::Result<Vec<Withdrawal>> {
-    let processed_withdrawals = history
+fn filter_withdrawals_from_history(tx_history: &[SendEntry]) -> anyhow::Result<Vec<Withdrawal>> {
+    let processed_withdrawals = tx_history
         .into_iter()
         .map(|transition| {
-            if let HistoryEntry::Send {
+            let SendEntry {
                 transfers,
                 is_included,
                 meta,
                 ..
-            } = transition
-            {
-                return transfers
-                    .into_iter()
-                    .filter_map(|transfer| {
-                        extract_withdrawal_transfer(transfer, *is_included, meta.clone())
-                    })
-                    .collect();
-            }
+            } = transition;
 
-            vec![]
+            transfers
+                .iter()
+                .filter_map(|transfer| {
+                    extract_withdrawal_transfer(transfer, *is_included, meta.clone())
+                })
+                .collect::<Vec<_>>()
         })
         .flatten()
         .collect::<Vec<_>>();
@@ -247,43 +254,48 @@ fn filter_withdrawals_from_history(history: &[HistoryEntry]) -> anyhow::Result<V
     Ok(processed_withdrawals)
 }
 
-/// Select the most recent deposit transaction that meets the specified conditions.
-pub fn select_most_recent_deposit_from_history(
-    history: &[HistoryEntry],
+pub fn extract_deposit(
+    transition: DepositEntry,
     withdrawal: &Withdrawal,
     from_block: u32,
     to_block: u32,
 ) -> Option<u32> {
-    println!("from_block: {:?}, to_block: {:?}", from_block, to_block);
-    let processed_deposits = history
+    let DepositEntry {
+        token_index,
+        amount,
+        is_included,
+        meta,
+        ..
+    } = transition;
+
+    // TODO: Check deposit nullifier from contract
+    println!(
+        "Deposit: Token index: {:?}, Amount: {:?}, Included: {:?}, Block number: {:?}",
+        token_index, amount, is_included, meta.block_number
+    );
+    if token_index == Some(withdrawal.token_index)
+        && amount == withdrawal.amount
+        && is_included
+        && meta.block_number > Some(from_block)
+        && meta.block_number <= Some(to_block)
+    {
+        return meta.block_number; // TODO: deposit index
+    }
+
+    None
+}
+
+/// Select the most recent deposit transaction that meets the specified conditions.
+pub fn select_most_recent_deposit_from_history(
+    deposit_history: &[DepositEntry],
+    withdrawal: &Withdrawal,
+    from_block: u32,
+    to_block: u32,
+) -> Option<u32> {
+    let processed_deposits = deposit_history
         .iter()
         .cloned()
-        .filter_map(|transition| {
-            if let HistoryEntry::Deposit {
-                token_index,
-                amount,
-                is_included,
-                meta,
-                ..
-            } = transition
-            {
-                // TODO: Check deposit nullifier from contract
-                println!(
-                    "Token index: {:?}, Amount: {:?}, Is included: {:?}, Block number: {:?}",
-                    token_index, amount, is_included, meta.block_number
-                );
-                if token_index == Some(withdrawal.token_index)
-                    && amount == withdrawal.amount
-                    && is_included
-                    && meta.block_number > Some(from_block)
-                    && meta.block_number <= Some(to_block)
-                {
-                    return meta.block_number; // TODO: deposit index
-                }
-            }
-
-            None
-        })
+        .filter_map(|transition| extract_deposit(transition, withdrawal, from_block, to_block))
         .collect::<Vec<_>>();
 
     processed_deposits.first().cloned()
@@ -298,7 +310,7 @@ fn calculate_from_block<
     W: WithdrawalServerClientInterface,
 >(
     _client: &Client<BB, S, V, B, W>,
-    _history: &[HistoryEntry],
+    _tx_history: &[SendEntry],
     _withdrawal_block: u32,
 ) -> u32 {
     let from_block = 0;
@@ -313,10 +325,19 @@ pub async fn generate_witness_of_elapsed_time(
 ) -> anyhow::Result<PoetWitness> {
     println!("Generating proof of elapsed time...");
     let client = get_client()?;
-    let history = fetch_history(&client, intermediate_account).await?;
+    let user_data = client.get_user_data(intermediate_account).await?;
+    // let history = fetch_history(&client, intermediate_account).await?;
+    let deposit_history = fetch_deposit_history(
+        &client,
+        intermediate_account,
+        user_data.processed_deposit_uuids,
+    )
+    .await?;
+    let tx_history =
+        fetch_tx_history(&client, intermediate_account, user_data.processed_tx_uuids).await?;
 
     // prove_withdrawal(&witness, witness.withdrawal_destination)?;
-    let withdrawals = filter_withdrawals_from_history(&history)?;
+    let withdrawals = filter_withdrawals_from_history(&tx_history)?;
     let withdrawal_transfer = withdrawals.first().unwrap();
     println!("Withdrawal: {:?}", withdrawal_transfer);
 
@@ -337,9 +358,9 @@ pub async fn generate_witness_of_elapsed_time(
 
     // let last_seen_block_number: u32 = prev_account_info.block_number;
 
-    let from_block = calculate_from_block(&client, &history, processed_withdrawal_block);
+    let from_block = calculate_from_block(&client, &tx_history, processed_withdrawal_block);
     let processed_deposit_block = select_most_recent_deposit_from_history(
-        &history,
+        &deposit_history,
         withdrawal_transfer,
         from_block,
         to_block,
