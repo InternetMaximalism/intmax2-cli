@@ -37,7 +37,6 @@ pub enum Action {
     Tx(MetaData, TxData<F, C, D>),              // Send tx
     PendingReceives(MetaData, TxData<F, C, D>), // Pending receives to proceed the next tx
     PendingTx(MetaData, TxData<F, C, D>),       // Pending tx
-    None,
 }
 
 #[derive(Debug, Clone)]

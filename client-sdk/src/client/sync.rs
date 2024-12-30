@@ -29,17 +29,11 @@ type F = GoldilocksField;
 type C = PoseidonGoldilocksConfig;
 const D: usize = 2;
 
-#[derive(Debug, Clone)]
-pub enum SyncStatus {
-    Continue,                             // continue syncing
-    Complete(PendingInfo),                // sync completed but there are possibly pending actions
-    PendingTx(MetaData, TxData<F, C, D>), // there are pending txs
-}
-
 use crate::client::{
     balance_logic::{
         receive_transfer, update_no_send, update_send_by_receiver, update_send_by_sender,
     },
+    strategy::strategy::ReceiveAction,
     utils::generate_salt,
 };
 
@@ -48,7 +42,7 @@ use super::{
     client::Client,
     error::ClientError,
     strategy::{
-        strategy::{determine_next_action, Action, PendingInfo},
+        strategy::{determine_sequence, Action, PendingInfo},
         withdrawal::fetch_withdrawal_info,
     },
 };
@@ -63,23 +57,7 @@ where
 {
     /// Sync the client's balance proof with the latest block
     pub async fn sync(&self, key: KeySet) -> Result<PendingInfo, ClientError> {
-        let mut sync_status = SyncStatus::Continue;
-        while matches!(sync_status, SyncStatus::Continue) {
-            sync_status = self.sync_single(key).await?;
-        }
-
-        match sync_status {
-            SyncStatus::Complete(pending_info) => Ok(pending_info),
-            SyncStatus::PendingTx(meta, _tx_data) => Err(ClientError::PendingTxError(format!(
-                "pending tx: {:?}",
-                meta.uuid
-            ))),
-            SyncStatus::Continue => unreachable!(),
-        }
-    }
-
-    pub async fn sync_single(&self, key: KeySet) -> Result<SyncStatus, ClientError> {
-        let (next_action, pending_info) = determine_next_action(
+        let (sequence, pending) = determine_sequence(
             &self.store_vault_server,
             &self.validity_prover,
             &self.liquidity_contract,
@@ -88,19 +66,52 @@ where
             self.config.tx_timeout,
         )
         .await?;
-
-        match next_action {
-            Action::PendingTx(meta, tx_data) => return Ok(SyncStatus::PendingTx(meta, tx_data)),
-            Action::None => return Ok(SyncStatus::Complete(pending_info)),
-            Action::Deposit(meta, deposit_data) => {
-                self.sync_deposit(key, &meta, &deposit_data).await?;
+        for action in sequence {
+            match action {
+                Action::Receive {
+                    receives,
+                    new_deposit_lpt,
+                    new_transfer_lpt,
+                } => {
+                    let largest_block_number = receives
+                        .iter()
+                        .map(|r| r.meta().block_number.unwrap())
+                        .max()
+                        .ok_or_else(|| {
+                            ClientError::InternalError("receive is empty".to_string())
+                        })?;
+                    self.update_no_send(key, largest_block_number).await?;
+                    for receive in receives {
+                        match receive {
+                            ReceiveAction::Deposit(meta, data) => {
+                                self.sync_deposit(key, &meta, &data).await?;
+                            }
+                            ReceiveAction::Transfer(meta, data) => {
+                                self.sync_transfer(key, &meta, &data).await?;
+                            }
+                        }
+                    }
+                    self.update_deposit_lpt(key, new_deposit_lpt).await?;
+                    self.update_transfer_lpt(key, new_transfer_lpt).await?;
+                }
+                Action::Tx(meta, tx_data) => {
+                    self.sync_tx(key, &meta, &tx_data).await?;
+                }
+                Action::PendingReceives(meta, _tx_data) => {
+                    return Err(ClientError::PendingReceivesError(format!(
+                        "pending receives to proceed tx: {:?}",
+                        meta.uuid
+                    )));
+                }
+                Action::PendingTx(meta, _tx_data) => {
+                    return Err(ClientError::PendingTxError(format!(
+                        "pending tx: {:?}",
+                        meta.uuid
+                    )));
+                }
             }
-            Action::Transfer(meta, transfer_data) => {
-                self.sync_transfer(key, &meta, &transfer_data).await?;
-            }
-            Action::Tx(meta, tx_data) => self.sync_tx(key, &meta, &tx_data).await?,
         }
-        Ok(SyncStatus::Continue)
+        Ok(pending)
     }
 
     pub async fn sync_withdrawals(&self, key: KeySet) -> Result<(), ClientError> {
