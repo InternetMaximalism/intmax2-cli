@@ -41,14 +41,14 @@ pub enum SyncError {
         block_number: u32,
     },
 
-    #[error("Sender's balance_proof_block_number: {balance_proof_block_number} < last_block_number: {last_block_number}")]
-    SenderLastBlockNumberError {
-        balance_proof_block_number: u64,
-        last_block_number: u64,
-    },
-
     #[error("Deposit info not found: {0}")]
     DepositInfoNotFound(Bytes32),
+
+    #[error("Sender's balance_proof_block_number: {balance_proof_block_number} < last_block_number: {last_block_number}")]
+    SenderLastBlockNumberError {
+        balance_proof_block_number: u32,
+        last_block_number: u32,
+    },
 
     #[error("Block number mismatch balance_proof_block_number: {balance_proof_block_number} != block_number: {block_number}")]
     BalanceProofBlockNumberMismatch {

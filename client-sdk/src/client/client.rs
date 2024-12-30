@@ -141,10 +141,12 @@ where
     ) -> Result<TxRequestMemo, ClientError> {
         // input validation
         if transfers.len() == 0 {
-            return Err(ClientError::InternalError("transfers is empty".to_string()));
+            return Err(ClientError::TransferLenError(
+                "transfers is empty".to_string(),
+            ));
         }
         if transfers.len() > NUM_TRANSFERS_IN_TX {
-            return Err(ClientError::InternalError(
+            return Err(ClientError::TransferLenError(
                 "transfers is too long".to_string(),
             ));
         }

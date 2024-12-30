@@ -1,6 +1,7 @@
 use envy::Error as EnvyError;
 use intmax2_client_sdk::{
-    client::error::ClientError, external_api::contract::error::BlockchainError,
+    client::{error::ClientError, sync::error::SyncError},
+    external_api::contract::error::BlockchainError,
 };
 use intmax2_interfaces::api::error::ServerError;
 
@@ -10,6 +11,9 @@ use crate::format::FormatTokenInfoError;
 pub enum CliError {
     #[error("Env error:{0}")]
     EnvError(#[from] EnvyError),
+
+    #[error("Sync error: {0}")]
+    SyncError(#[from] SyncError),
 
     #[error("Client error: {0}")]
     ClientError(#[from] ClientError),

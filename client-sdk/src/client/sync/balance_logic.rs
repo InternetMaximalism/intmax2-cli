@@ -336,10 +336,10 @@ pub async fn update_send_by_receiver<
         tx_block_number
     );
     if prev_block_number < last_block_number {
-        return Err(SyncError::InternalError(format!(
-            "Sender's prev_block_number {} is less than last_block_number {}",
-            prev_block_number, last_block_number
-        )));
+        return Err(SyncError::SenderLastBlockNumberError {
+            balance_proof_block_number: prev_block_number,
+            last_block_number,
+        });
     }
     // prove tx send
     let balance_proof = balance_prover
