@@ -177,17 +177,6 @@ where
             }
         }
 
-        // balance proof existence check
-        let _balance_proof = self
-            .store_vault_server
-            .get_balance_proof(
-                key.pubkey,
-                user_data.block_number,
-                user_data.private_commitment(),
-            )
-            .await?
-            .ok_or_else(|| ClientError::BalanceProofNotFound)?;
-
         // generate spent proof
         let tx_nonce = user_data.full_private_state.nonce;
         let spent_witness =
@@ -352,21 +341,6 @@ where
         };
 
         Ok(result)
-    }
-
-    /// Get the latest user data from the data store server
-    pub async fn get_user_data(&self, key: KeySet) -> Result<UserData, ClientError> {
-        let user_data = self
-            .store_vault_server
-            .get_user_data(key.pubkey)
-            .await?
-            .map(|encrypted| UserData::decrypt(&encrypted, key))
-            .transpose()
-            .map_err(|e| {
-                ClientError::DecryptionError(format!("failed to decrypt user data: {}", e))
-            })?
-            .unwrap_or(UserData::new(key.pubkey));
-        Ok(user_data)
     }
 
     pub async fn get_withdrawal_info(

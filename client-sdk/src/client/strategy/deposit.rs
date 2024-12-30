@@ -7,9 +7,9 @@ use intmax2_interfaces::{
 };
 use intmax2_zkp::common::signature::key_set::KeySet;
 
-use crate::{
-    client::error::ClientError, external_api::contract::liquidity_contract::LiquidityContract,
-};
+use crate::external_api::contract::liquidity_contract::LiquidityContract;
+
+use super::error::StrategyError;
 
 #[derive(Debug, Clone)]
 pub struct DepositInfo {
@@ -26,7 +26,7 @@ pub async fn fetch_deposit_info<S: StoreVaultClientInterface, V: ValidityProverC
     deposit_lpt: u64,
     processed_deposit_uuids: &[String],
     deposit_timeout: u64,
-) -> Result<DepositInfo, ClientError> {
+) -> Result<DepositInfo, StrategyError> {
     let mut settled = Vec::new();
     let mut pending = Vec::new();
     let mut timeout = Vec::new();

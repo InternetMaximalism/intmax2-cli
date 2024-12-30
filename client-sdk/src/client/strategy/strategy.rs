@@ -20,7 +20,10 @@ use crate::{
     client::error::ClientError, external_api::contract::liquidity_contract::LiquidityContract,
 };
 
-use super::{deposit::fetch_deposit_info, transfer::fetch_transfer_info, tx::fetch_tx_info};
+use super::{
+    deposit::fetch_deposit_info, error::StrategyError, transfer::fetch_transfer_info,
+    tx::fetch_tx_info,
+};
 
 type F = GoldilocksField;
 type C = PoseidonGoldilocksConfig;
@@ -79,20 +82,18 @@ pub async fn determine_sequence<S: StoreVaultClientInterface, V: ValidityProverC
     key: KeySet,
     deposit_timeout: u64,
     tx_timeout: u64,
-) -> Result<(Vec<Action>, PendingInfo), ClientError> {
+) -> Result<(Vec<Action>, PendingInfo), StrategyError> {
     log::info!("determine_sequence");
     let user_data = store_vault_server
         .get_user_data(key.pubkey)
         .await?
         .map(|encrypted| UserData::decrypt(&encrypted, key))
         .transpose()
-        .map_err(|e| ClientError::DecryptionError(e.to_string()))?
+        .map_err(|e| StrategyError::UserDataDecryptionError(e.to_string()))?
         .unwrap_or(UserData::new(key.pubkey));
     let mut balances = user_data.balances();
     if balances.is_insufficient() {
-        return Err(ClientError::BalanceError(
-            "Balance is insufficient before sync".to_string(),
-        ));
+        return Err(StrategyError::BalanceInsufficientBeforeSync);
     }
     let mut current_timestamp = chrono::Utc::now().timestamp() as u64;
     // Add some buffer to the current timestamp
@@ -172,9 +173,7 @@ pub async fn determine_sequence<S: StoreVaultClientInterface, V: ValidityProverC
         if is_insufficient {
             if deposit_info.pending.is_empty() && transfer_info.pending.is_empty() {
                 // Unresolved balance shortage
-                return Err(ClientError::BalanceError(
-                    "Insufficient balance during sync".to_string(),
-                ));
+                return Err(StrategyError::BalanceInsufficientDuringSync);
             } else {
                 // To incorporate the tx, you need to incorporate the pending deposit/transfer to solve the balance shortage.
                 // TODO: Processing when the balance shortage is not resolved even if the pending deposit/transfer is incorporated
@@ -237,7 +236,7 @@ async fn collect_receives(
     tx: &Option<(MetaData, TxData<F, C, D>)>,
     deposits: &mut Vec<(MetaData, DepositData)>,
     transfers: &mut Vec<(MetaData, TransferData<F, C, D>)>,
-) -> Result<Vec<ReceiveAction>, ClientError> {
+) -> Result<Vec<ReceiveAction>, StrategyError> {
     let mut receives: Vec<ReceiveAction> = Vec::new();
     if let Some((meta, _tx_data)) = tx {
         let block_number = meta.block_number.unwrap();

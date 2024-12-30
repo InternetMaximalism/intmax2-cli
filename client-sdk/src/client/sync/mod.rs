@@ -8,7 +8,7 @@ use intmax2_interfaces::{
     },
     data::{
         common_tx_data::CommonTxData, deposit_data::DepositData, meta_data::MetaData,
-        transfer_data::TransferData, tx_data::TxData,
+        transfer_data::TransferData, tx_data::TxData, user_data::UserData,
     },
 };
 use intmax2_zkp::{
@@ -40,7 +40,7 @@ use crate::client::{
 use super::{
     balance_logic::receive_deposit,
     client::Client,
-    error::ClientError,
+    error::{ClientError, SyncError},
     strategy::{
         strategy::{determine_sequence, Action, PendingInfo},
         withdrawal::fetch_withdrawal_info,
@@ -56,7 +56,7 @@ where
     W: WithdrawalServerClientInterface,
 {
     /// Sync the client's balance proof with the latest block
-    pub async fn sync(&self, key: KeySet) -> Result<PendingInfo, ClientError> {
+    pub async fn sync(&self, key: KeySet) -> Result<PendingInfo, SyncError> {
         let (sequence, pending) = determine_sequence(
             &self.store_vault_server,
             &self.validity_prover,
@@ -98,13 +98,13 @@ where
                     self.sync_tx(key, &meta, &tx_data).await?;
                 }
                 Action::PendingReceives(meta, _tx_data) => {
-                    return Err(ClientError::PendingReceivesError(format!(
+                    return Err(SyncError::PendingReceivesError(format!(
                         "pending receives to proceed tx: {:?}",
                         meta.uuid
                     )));
                 }
                 Action::PendingTx(meta, _tx_data) => {
-                    return Err(ClientError::PendingTxError(format!(
+                    return Err(SyncError::PendingTxError(format!(
                         "pending tx: {:?}",
                         meta.uuid
                     )));
@@ -114,7 +114,7 @@ where
         Ok(pending)
     }
 
-    pub async fn sync_withdrawals(&self, key: KeySet) -> Result<(), ClientError> {
+    pub async fn sync_withdrawals(&self, key: KeySet) -> Result<(), SyncError> {
         // sync balance proof
         self.sync(key).await?;
 
@@ -129,7 +129,7 @@ where
         )
         .await?;
         if withdrawal_info.pending.len() > 0 {
-            return Err(ClientError::PendingWithdrawalError(format!(
+            return Err(SyncError::PendingWithdrawalError(format!(
                 "pending withdrawal: {:?}",
                 withdrawal_info.pending.len()
             )));
@@ -146,12 +146,10 @@ where
         key: KeySet,
         meta: &MetaData,
         deposit_data: &DepositData,
-    ) -> Result<(), ClientError> {
+    ) -> Result<(), SyncError> {
         log::info!("sync_deposit: {:?}", meta);
         if meta.block_number.is_none() {
-            return Err(ClientError::InternalError(
-                "block number is not set".to_string(),
-            ));
+            return Err(SyncError::BlockNumberIsNotSetForMetaData);
         }
         let mut user_data = self.get_user_data(key).await?;
 
@@ -465,7 +463,7 @@ where
         Ok(new_sender_balance_proof)
     }
 
-    async fn update_no_send(&self, key: KeySet, to_block_number: u32) -> Result<(), ClientError> {
+    async fn update_no_send(&self, key: KeySet, to_block_number: u32) -> Result<(), SyncError> {
         log::info!("update_no_send: {:?}", to_block_number);
         let mut user_data = self.get_user_data(key).await?;
         log::info!(
@@ -483,7 +481,7 @@ where
             .await?;
         if user_data.block_number != 0 {
             if prev_balance_proof.is_none() {
-                return Err(ClientError::BalanceProofNotFound);
+                return Err(SyncError::BalanceProofNotFound);
             }
         }
         let new_balance_proof = update_no_send(
@@ -497,10 +495,10 @@ where
         let new_balance_pis = BalancePublicInputs::from_pis(&new_balance_proof.public_inputs);
         let new_block_number = new_balance_pis.public_state.block_number;
         if new_block_number != to_block_number {
-            return Err(ClientError::SyncError(format!(
-                "block number mismatch balance pis: {}, to_block_number: {}",
-                new_block_number, to_block_number
-            )));
+            return Err(SyncError::BlockNumberMismatch {
+                balance_proof_block_number: new_block_number,
+                block_number: to_block_number,
+            });
         }
 
         // save balance proof
@@ -515,5 +513,18 @@ where
             .await?;
 
         Ok(())
+    }
+
+    /// Get the latest user data from the data store server
+    pub async fn get_user_data(&self, key: KeySet) -> Result<UserData, SyncError> {
+        let user_data = self
+            .store_vault_server
+            .get_user_data(key.pubkey)
+            .await?
+            .map(|encrypted| UserData::decrypt(&encrypted, key))
+            .transpose()
+            .map_err(|e| SyncError::DecryptionError(format!("failed to decrypt user data: {}", e)))?
+            .unwrap_or(UserData::new(key.pubkey));
+        Ok(user_data)
     }
 }

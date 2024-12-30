@@ -33,7 +33,7 @@ use plonky2::{
 };
 
 use super::{
-    error::ClientError,
+    error::{ClientError, SyncError},
     utils::{generate_salt, generate_transfer_tree},
 };
 
@@ -49,7 +49,7 @@ pub async fn receive_deposit<V: ValidityProverClientInterface, B: BalanceProverC
     new_salt: Salt,
     prev_balance_proof: &Option<ProofWithPublicInputs<F, C, D>>,
     deposit_data: &DepositData,
-) -> Result<ProofWithPublicInputs<F, C, D>, ClientError> {
+) -> Result<ProofWithPublicInputs<F, C, D>, SyncError> {
     let prev_balance_pis = get_prev_balance_pis(key.pubkey, prev_balance_proof);
     let receive_block_number = prev_balance_pis.public_state.block_number;
     // Generate witness

@@ -10,6 +10,8 @@ use plonky2::{field::goldilocks_field::GoldilocksField, plonk::config::PoseidonG
 
 use crate::client::error::ClientError;
 
+use super::error::StrategyError;
+
 type F = GoldilocksField;
 type C = PoseidonGoldilocksConfig;
 const D: usize = 2;
@@ -28,7 +30,7 @@ pub async fn fetch_transfer_info<S: StoreVaultClientInterface, V: ValidityProver
     transfer_lpt: u64,
     processed_transfer_uuids: &[String],
     tx_timeout: u64,
-) -> Result<TransferInfo, ClientError> {
+) -> Result<TransferInfo, StrategyError> {
     let mut settled = Vec::new();
     let mut pending = Vec::new();
     let mut timeout = Vec::new();
