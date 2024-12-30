@@ -394,9 +394,10 @@ pub async fn update_no_send<V: ValidityProverClientInterface, B: BalanceProverCl
         .await?;
     let last_block_number = update_witness.get_last_block_number();
     if prev_block_number < last_block_number {
-        return Err(ClientError::InternalError(
-            "There is a sent tx after prev balance proof".to_string(),
-        ));
+        return Err(ClientError::InternalError(format!(
+            "prev_block_number {} is less than last_block_number {}",
+            prev_block_number, last_block_number
+        )));
     }
     let balance_proof = balance_prover
         .prove_update(key, key.pubkey, &update_witness, &prev_balance_proof)
