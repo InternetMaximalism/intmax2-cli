@@ -494,6 +494,14 @@ where
             to_block_number,
         )
         .await?;
+        let new_balance_pis = BalancePublicInputs::from_pis(&new_balance_proof.public_inputs);
+        let new_block_number = new_balance_pis.public_state.block_number;
+        if new_block_number != to_block_number {
+            return Err(ClientError::SyncError(format!(
+                "block number mismatch balance pis: {}, to_block_number: {}",
+                new_block_number, to_block_number
+            )));
+        }
 
         // save balance proof
         self.store_vault_server
