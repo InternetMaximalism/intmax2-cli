@@ -27,12 +27,13 @@ const D: usize = 2;
 #[derive(Debug, Clone)]
 pub enum Action {
     Receive {
-        receive_actions: Vec<ReceiveAction>,
+        receives: Vec<ReceiveAction>,
         new_deposit_lpt: u64,
         new_transfer_lpt: u64,
     },
-    Tx(MetaData, TxData<F, C, D>),        // Send tx
-    PendingTx(MetaData, TxData<F, C, D>), // Pending tx
+    Tx(MetaData, TxData<F, C, D>), // Send tx
+    PendingReceives(MetaData, TxData<F, C, D>, Vec<ReceiveAction>), // Pending receives to proceed the next tx
+    PendingTx(MetaData, TxData<F, C, D>),                           // Pending tx
     None,
 }
 
@@ -42,12 +43,22 @@ pub enum ReceiveAction {
     Transfer(MetaData, TransferData<F, C, D>),
 }
 
+impl ReceiveAction {
+    pub fn meta(&self) -> &MetaData {
+        match self {
+            ReceiveAction::Deposit(meta, _) => meta,
+            ReceiveAction::Transfer(meta, _) => meta,
+        }
+    }
+}
+
 #[derive(Debug, Clone, Default)]
 pub struct PendingInfo {
     pub pending_deposits: Vec<(MetaData, DepositData)>,
     pub pending_transfers: Vec<(MetaData, TransferData<F, C, D>)>,
 }
 
+/// Determine the sequence of receives/send tx to be incorporated into the balance proof
 pub async fn determine_sequence<S: StoreVaultClientInterface, V: ValidityProverClientInterface>(
     store_vault_server: &S,
     validity_prover: &V,
@@ -55,7 +66,7 @@ pub async fn determine_sequence<S: StoreVaultClientInterface, V: ValidityProverC
     key: KeySet,
     deposit_timeout: u64,
     tx_timeout: u64,
-) -> Result<(Action, PendingInfo), ClientError> {
+) -> Result<(Vec<Action>, PendingInfo), ClientError> {
     let user_data = store_vault_server
         .get_user_data(key.pubkey)
         .await?
@@ -77,7 +88,7 @@ pub async fn determine_sequence<S: StoreVaultClientInterface, V: ValidityProverC
     //  First, if there is a pending tx, return a pending error
     if let Some((meta, tx_data)) = tx_info.pending.first() {
         return Ok((
-            Action::PendingTx(meta.clone(), tx_data.clone()),
+            vec![Action::PendingTx(meta.clone(), tx_data.clone())],
             PendingInfo::default(),
         ));
     }
@@ -103,13 +114,62 @@ pub async fn determine_sequence<S: StoreVaultClientInterface, V: ValidityProverC
     )
     .await?;
 
-    // settleされたtxそれぞれについて、そのtxのblock numberよりもも厳密に小さいものを取得
+    // Get the timestamp of the oldest pending deposit
+    let oldest_pending_deposit_timestamp = deposit_info
+        .pending
+        .iter()
+        .map(|(meta, _)| meta.timestamp)
+        .min();
+
+    // Get the timestamp of the oldest pending transfer
+    let oldest_pending_transfer_timestamp = transfer_info
+        .pending
+        .iter()
+        .map(|(meta, _)| meta.timestamp)
+        .min();
+
+    let mut deposits = deposit_info.settled;
+    let mut transfers = transfer_info.settled;
+
+    // Next, for each settled tx, take deposits and transfers that are strictly smaller than the block number of the tx
+    let mut sequence = Vec::new();
+    for (tx_meta, tx_data) in tx_info.settled.iter() {
+        let receives = collect_receives(
+            &Some((tx_meta.clone(), tx_data.clone())),
+            &mut deposits,
+            &mut transfers,
+        )
+        .await?;
+
+        // The smallest timestamp among the remaining deposits and pending deposits is 1 less than the new lpt.
+        let new_deposit_lpt = deposits
+            .iter()
+            .map(|(meta, _)| meta.timestamp)
+            .chain(oldest_pending_deposit_timestamp)
+            .min()
+            .map(|timestamp| timestamp - 1)
+            .unwrap_or(user_data.deposit_lpt);
+        // The smallest timestamp among the remaining transfers and pending transfers is 1 less than the new lpt.
+        let new_transfer_lpt = transfers
+            .iter()
+            .map(|(meta, _)| meta.timestamp)
+            .chain(oldest_pending_transfer_timestamp)
+            .min()
+            .map(|timestamp| timestamp - 1)
+            .unwrap_or(user_data.transfer_lpt);
+
+        sequence.push(Action::Receive {
+            receives,
+            new_deposit_lpt,
+            new_transfer_lpt,
+        });
+    }
 
     todo!()
 }
 
-// For each settled tx, take deposits and transfers that are strictly smaller than the block number of the tx
-// If there is no tx, take all deposit and transfer data
+/// For each settled tx, take deposits and transfers that are strictly smaller than the block number of the tx
+/// If there is no tx, take all deposit and transfer data
 async fn collect_receives(
     tx: &Option<(MetaData, TxData<F, C, D>)>,
     deposits: &mut Vec<(MetaData, DepositData)>,
@@ -157,9 +217,9 @@ async fn collect_receives(
     }
 
     // sort by block number first, then by uuid to make the order deterministic
-    receives.sort_by_key(|action| match action {
-        ReceiveAction::Deposit(meta, _) => (meta.block_number.unwrap(), meta.uuid.clone()),
-        ReceiveAction::Transfer(meta, _) => (meta.block_number.unwrap(), meta.uuid.clone()),
+    receives.sort_by_key(|action| {
+        let meta = action.meta();
+        (meta.block_number.unwrap(), meta.uuid.clone())
     });
 
     Ok(receives)
