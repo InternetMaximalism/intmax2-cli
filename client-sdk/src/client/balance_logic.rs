@@ -289,7 +289,8 @@ pub async fn update_send_by_receiver<
         ));
     }
     let prev_balance_pis = get_prev_balance_pis(sender, prev_balance_proof);
-    if tx_block_number <= prev_balance_pis.public_state.block_number {
+    let prev_block_number = prev_balance_pis.public_state.block_number;
+    if tx_block_number <= prev_block_number {
         return Err(ClientError::InternalError(
             "tx block number is not greater than prev balance proof".to_string(),
         ));
@@ -327,12 +328,19 @@ pub async fn update_send_by_receiver<
             true,
         )
         .await?;
+    let last_block_number = update_witness.get_last_block_number();
     log::info!(
-        "last_block_number: {}, tx_block_number: {}",
-        update_witness.get_last_block_number(),
+        "prev_block_number: {}, update_witness.last_block_number: {}, tx_block_number: {}",
+        prev_block_number,
+        last_block_number,
         tx_block_number
     );
-
+    if prev_block_number < last_block_number {
+        return Err(ClientError::InternalError(format!(
+            "Sender's prev_block_number {} is less than last_block_number {}",
+            prev_block_number, last_block_number
+        )));
+    }
     // prove tx send
     let balance_proof = balance_prover
         .prove_send(
