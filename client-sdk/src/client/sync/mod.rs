@@ -57,6 +57,19 @@ where
     B: BalanceProverClientInterface,
     W: WithdrawalServerClientInterface,
 {
+    /// Get the latest user data from the data store server
+    pub async fn get_user_data(&self, key: KeySet) -> Result<UserData, SyncError> {
+        let user_data = self
+            .store_vault_server
+            .get_user_data(key.pubkey)
+            .await?
+            .map(|encrypted| UserData::decrypt(&encrypted, key))
+            .transpose()
+            .map_err(|e| SyncError::DecryptionError(format!("failed to decrypt user data: {}", e)))?
+            .unwrap_or(UserData::new(key.pubkey));
+        Ok(user_data)
+    }
+
     /// Sync the client's balance proof with the latest block
     pub async fn sync(&self, key: KeySet) -> Result<PendingInfo, SyncError> {
         let (sequence, pending) = determine_sequence(
@@ -226,14 +239,26 @@ where
             .await?;
 
         // sender balance proof after applying the tx
-        let new_sender_balance_proof = self
+        let new_sender_balance_proof = match self
             .update_send_by_receiver(
                 key,
                 transfer_data.sender,
                 meta.block_number.unwrap(),
                 &transfer_data.tx_data,
             )
-            .await?;
+            .await
+        {
+            Ok(proof) => proof,
+            Err(SyncError::SenderLastBlockNumberError {
+                balance_proof_block_number,
+                last_block_number,
+            }) => {
+                log::error!("Ignore tx: {} because of sender last block number error: balance_proof_block_number: {}, last_block_number: {}",meta.uuid, balance_proof_block_number, last_block_number);
+                // TODO: handle this error
+                return Ok(());
+            }
+            Err(e) => return Err(e),
+        };
 
         let new_salt = generate_salt();
         let new_balance_proof = receive_transfer(
@@ -514,18 +539,5 @@ where
             .await?;
 
         Ok(())
-    }
-
-    /// Get the latest user data from the data store server
-    pub async fn get_user_data(&self, key: KeySet) -> Result<UserData, SyncError> {
-        let user_data = self
-            .store_vault_server
-            .get_user_data(key.pubkey)
-            .await?
-            .map(|encrypted| UserData::decrypt(&encrypted, key))
-            .transpose()
-            .map_err(|e| SyncError::DecryptionError(format!("failed to decrypt user data: {}", e)))?
-            .unwrap_or(UserData::new(key.pubkey));
-        Ok(user_data)
     }
 }
