@@ -16,25 +16,26 @@ pub struct ReceivedDeposit {
     pub amount: U256,
     pub salt: Salt,
     pub block_number: u32,
-    pub timestamp: u64,
+    pub block_timestamp: u64, // UNIX timestamp seconds when the deposit was received
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct Withdrawal {
+pub struct ProcessedWithdrawal {
     // pub sender: U256,
     pub recipient: Address,
     pub token_index: u32,
     pub amount: U256,
     pub salt: Salt,
-    pub meta: MetaData,
+    pub block_number: u32,
+    pub block_timestamp: u64, // UNIX timestamp seconds when the withdrawal was processed
 }
 
 fn extract_withdrawal_transfer(
     transfer: &GenericTransfer,
     is_included: bool,
     meta: MetaData,
-) -> Option<Withdrawal> {
+) -> Option<ProcessedWithdrawal> {
     println!(
         "Withdrawal: Included: {:?}, Block number: {:?}",
         is_included, meta.block_number
@@ -47,13 +48,14 @@ fn extract_withdrawal_transfer(
     } = transfer.clone()
     {
         let target_amount = is_mining_target(token_index, amount);
-        if target_amount != U256::default() && is_included {
-            return Some(Withdrawal {
+        if meta.block_number.is_some() && target_amount != U256::default() && is_included {
+            return Some(ProcessedWithdrawal {
                 recipient,
                 token_index,
                 amount,
                 salt: Salt::default(), // TODO
-                meta: meta.clone(),
+                block_number: meta.block_number.unwrap(),
+                block_timestamp: meta.timestamp, // TODO
             });
         }
     }
@@ -63,7 +65,7 @@ fn extract_withdrawal_transfer(
 
 pub fn filter_withdrawals_from_history(
     tx_history: &[SendEntry],
-) -> anyhow::Result<Vec<Withdrawal>> {
+) -> anyhow::Result<Vec<ProcessedWithdrawal>> {
     let processed_withdrawals = tx_history
         .into_iter()
         .map(|transition| {
@@ -89,7 +91,7 @@ pub fn filter_withdrawals_from_history(
 
 fn extract_deposit(
     transition: DepositEntry,
-    withdrawal: &Withdrawal,
+    withdrawal: &ProcessedWithdrawal,
     from_block: u32,
     to_block: u32,
 ) -> Option<DepositEntry> {
@@ -121,7 +123,7 @@ fn extract_deposit(
 /// Select the most recent deposit transaction that meets the specified conditions.
 pub fn select_most_recent_deposit_from_history(
     deposit_history: &[DepositEntry],
-    withdrawal: &Withdrawal,
+    withdrawal: &ProcessedWithdrawal,
     from_block: u32,
     to_block: u32,
 ) -> Option<DepositEntry> {

@@ -20,15 +20,12 @@ use intmax2_client_sdk::{
         utils::retry::with_retry,
     },
 };
-use intmax2_interfaces::{
-    api::{
-        balance_prover::interface::BalanceProverClientInterface,
-        block_builder::interface::BlockBuilderClientInterface,
-        store_vault_server::interface::StoreVaultClientInterface,
-        validity_prover::interface::ValidityProverClientInterface,
-        withdrawal_server::interface::WithdrawalServerClientInterface,
-    },
-    data::meta_data::MetaData,
+use intmax2_interfaces::api::{
+    balance_prover::interface::BalanceProverClientInterface,
+    block_builder::interface::BlockBuilderClientInterface,
+    store_vault_server::interface::StoreVaultClientInterface,
+    validity_prover::interface::ValidityProverClientInterface,
+    withdrawal_server::interface::WithdrawalServerClientInterface,
 };
 use intmax2_zkp::{
     common::{salt::Salt, signature::key_set::KeySet, trees::account_tree::AccountTree},
@@ -39,10 +36,10 @@ use serde::{Deserialize, Serialize};
 
 use super::{
     blockchain::{get_rpc_url, get_start_block_number},
-    history::Withdrawal,
+    history::ProcessedWithdrawal,
 };
 
-const MIN_ELAPSED_TIME: u32 = 1;
+const MIN_ELAPSED_TIME: u32 = 60 * 60 * 48; // 2 days
 
 /// A proof of elapsed time from deposit_source to withdrawal_destination
 #[derive(Debug, Clone)]
@@ -58,7 +55,7 @@ pub struct PoetValue {
     pub withdrawal_destination: Address,
     pub proof_data: ValidationData,
     pub deposit_transfer: ReceivedDeposit,
-    pub withdrawal_transfer: Withdrawal,
+    pub withdrawal_transfer: ProcessedWithdrawal,
     pub account_membership_proof_just_before_withdrawal: MembershipProof,
 }
 
@@ -73,16 +70,13 @@ impl Default for PoetValue {
             withdrawal_destination: Address::default(),
             proof_data: ValidationData::default(),
             deposit_transfer: ReceivedDeposit::default(),
-            withdrawal_transfer: Withdrawal {
+            withdrawal_transfer: ProcessedWithdrawal {
                 recipient: Address::default(),
                 token_index: 0,
                 amount: U256::default(),
                 salt: Salt::default(),
-                meta: MetaData {
-                    uuid: "00000000-0000-0000-0000-000000000000".to_string(),
-                    block_number: Some(0),
-                    timestamp: 0,
-                },
+                block_number: 0,
+                block_timestamp: 0,
             },
             account_membership_proof_just_before_withdrawal,
         }
@@ -165,13 +159,12 @@ impl PoetValue {
         let withdrawal_transfer = withdrawals.first().unwrap();
         println!("Withdrawal: {:?}", withdrawal_transfer);
 
-        let processed_withdrawal_block = withdrawal_transfer
-            .meta
-            .block_number
-            .ok_or(anyhow::anyhow!("The withdrawal block number is missing"))?;
+        // let processed_withdrawal_block_time = withdrawal_transfer.block_timestamp;
+        let processed_withdrawal_block_number = withdrawal_transfer.block_number;
 
-        let from_block = calculate_from_block(&client, &tx_history, processed_withdrawal_block);
-        let to_block = processed_withdrawal_block - MIN_ELAPSED_TIME;
+        let from_block =
+            calculate_from_block(&client, &tx_history, processed_withdrawal_block_number);
+        let to_block = processed_withdrawal_block_number - 1;
         let processed_deposit_transition = select_most_recent_deposit_from_history(
             &deposit_history,
             withdrawal_transfer,
@@ -183,9 +176,12 @@ impl PoetValue {
         ))?;
 
         let processed_deposit_block = processed_deposit_transition.block_number;
-        let proof_data =
-            fetch_validation_data(&client, processed_deposit_block, processed_withdrawal_block)
-                .await?;
+        let proof_data = fetch_validation_data(
+            &client,
+            processed_deposit_block,
+            processed_withdrawal_block_number,
+        )
+        .await?;
 
         let recipient_salt_hash =
             H256::from_slice(&processed_deposit_transition.pubkey_salt_hash.to_bytes_be());
@@ -215,7 +211,7 @@ impl PoetValue {
         let prev_account_info = client
             .validity_prover
             .get_account_info_by_block_number(
-                processed_withdrawal_block - 1,
+                processed_withdrawal_block_number - 1,
                 intermediate_account.pubkey,
             )
             .await?;
@@ -238,7 +234,7 @@ impl PoetValue {
             amount: processed_deposit_transition.amount,
             salt: processed_deposit_transition.salt,
             block_number: processed_deposit_transition.block_number,
-            timestamp: processed_deposit_transition.timestamp,
+            block_timestamp: processed_deposit_transition.timestamp, // TODO
         };
         Ok(Self {
             deposit_source,

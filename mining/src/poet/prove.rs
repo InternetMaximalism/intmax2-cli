@@ -1,12 +1,19 @@
 use intmax2_zkp::{
     circuits::validity::validity_pis::ValidityPublicInputsTarget,
-    common::{salt::SaltTarget, trees::block_hash_tree::BlockHashMerkleProofTarget},
+    common::{
+        generic_address::{GenericAddress, GenericAddressTarget},
+        salt::SaltTarget,
+        transfer::TransferTarget,
+        trees::block_hash_tree::BlockHashMerkleProofTarget,
+        withdrawal::{get_withdrawal_nullifier_circuit, WithdrawalTarget},
+    },
     ethereum_types::{
         address::{Address, AddressTarget},
         u256::{U256Target, U256},
         u32limb_trait::U32LimbTargetTrait,
     },
     utils::{
+        poseidon_hash_out::PoseidonHashOutTarget,
         recursively_verifiable::add_proof_target_and_verify,
         trees::indexed_merkle_tree::membership::MembershipProofTarget,
     },
@@ -27,7 +34,7 @@ use plonky2::{
 };
 
 use super::{
-    history::{ReceivedDeposit, Withdrawal},
+    history::{ProcessedWithdrawal, ReceivedDeposit},
     validation::ValidationData,
     witness::PoetValue,
 };
@@ -42,6 +49,7 @@ pub struct ReceivedDepositTarget {
     pub token_index: Target,
     pub amount: U256Target,
     pub salt: SaltTarget,
+    pub block_timestamp: Target, // UNIX timestamp seconds when transferring this token
 }
 
 impl ReceivedDepositTarget {
@@ -54,6 +62,7 @@ impl ReceivedDepositTarget {
         let token_index = builder.add_virtual_target();
         let amount = U256Target::new(builder, is_checked);
         let salt = SaltTarget::new(builder);
+        let block_timestamp = builder.add_virtual_target();
 
         Self {
             sender,
@@ -61,6 +70,7 @@ impl ReceivedDepositTarget {
             token_index,
             amount,
             salt,
+            block_timestamp,
         }
     }
 
@@ -71,50 +81,65 @@ impl ReceivedDepositTarget {
     ) {
         self.sender.set_witness::<F, Address>(witness, value.sender);
         // self.recipient.set_witness::<F, U256>(witness, target.recipient);
+        let token_index = F::from_canonical_u64(value.token_index as u64);
+        witness.set_target(self.token_index, token_index);
         self.amount.set_witness::<F, U256>(witness, value.amount);
         self.salt.0.set_witness(witness, value.salt.0);
+        let block_timestamp = F::from_canonical_u64(value.block_timestamp);
+        witness.set_target(self.block_timestamp, block_timestamp);
     }
 }
 
 #[derive(Debug, Clone)]
-pub struct WithdrawalTarget {
+pub struct ProcessedWithdrawalTarget {
     // pub sender: U256Target,
-    pub recipient: AddressTarget,
+    pub recipient: GenericAddressTarget, // NOTE: AddressTarget
     pub token_index: Target,
     pub amount: U256Target,
     pub salt: SaltTarget,
+    pub block_hash: PoseidonHashOutTarget, // INTMAX block
+    pub block_timestamp: Target,           // UNIX timestamp seconds when transferring this token
 }
 
-impl WithdrawalTarget {
+impl ProcessedWithdrawalTarget {
     pub(crate) fn new<F: RichField + Extendable<D>, const D: usize>(
         builder: &mut CircuitBuilder<F, D>,
         is_checked: bool,
     ) -> Self {
         // let sender = U256Target::new(builder, true);
-        let recipient = AddressTarget::new(builder, is_checked);
+        let hint_recipient = GenericAddressTarget::new(builder, is_checked);
+        // let recipient = hint_recipient.to_address(builder);
         let token_index = builder.add_virtual_target();
         let amount = U256Target::new(builder, is_checked);
         let salt = SaltTarget::new(builder);
+        let block_hash = PoseidonHashOutTarget::new(builder);
+        let block_timestamp = builder.add_virtual_target();
 
         Self {
             // sender,
-            recipient,
+            recipient: hint_recipient,
             token_index,
             amount,
             salt,
+            block_hash,
+            block_timestamp,
         }
     }
 
     pub(crate) fn set_witness<F: Field>(
         &self,
         witness: &mut impl WitnessWrite<F>,
-        value: &Withdrawal,
+        value: &ProcessedWithdrawal,
     ) {
         // self.sender.set_witness::<F, U256>(witness, target.sender);
-        self.recipient
-            .set_witness::<F, Address>(witness, value.recipient);
+        let recipient = GenericAddress::from_address(value.recipient);
+        self.recipient.set_witness::<F, _>(witness, recipient);
+        let token_index = F::from_canonical_u64(value.token_index as u64);
+        witness.set_target(self.token_index, token_index);
         self.amount.set_witness::<F, U256>(witness, value.amount);
         self.salt.0.set_witness(witness, value.salt.0);
+        let block_timestamp = F::from_canonical_u64(value.block_timestamp);
+        witness.set_target(self.block_timestamp, block_timestamp);
     }
 }
 
@@ -174,7 +199,7 @@ pub struct PoetTarget {
     pub withdrawal_destination: AddressTarget,
     pub proof_data: ValidationDataTarget,
     pub deposit_transfer: ReceivedDepositTarget,
-    pub withdrawal_transfer: WithdrawalTarget,
+    pub withdrawal_transfer: ProcessedWithdrawalTarget,
     pub account_membership_proof_just_before_withdrawal: MembershipProofTarget,
 }
 
@@ -188,7 +213,7 @@ impl PoetTarget {
         let withdrawal_destination = AddressTarget::new(builder, is_checked);
         let proof_data = ValidationDataTarget::new(builder, is_checked);
         let deposit_transfer = ReceivedDepositTarget::new(builder, is_checked);
-        let withdrawal_transfer = WithdrawalTarget::new(builder, is_checked);
+        let withdrawal_transfer = ProcessedWithdrawalTarget::new(builder, is_checked);
         let account_membership_proof_just_before_withdrawal =
             MembershipProofTarget::new(builder, ACCOUNT_TREE_HEIGHT, is_checked);
 
@@ -295,7 +320,7 @@ pub struct PoetWithPlonky2ProofCircuit<
     const D: usize,
 > {
     pub(crate) data: CircuitData<F, C, D>,
-    pub poet_target: PoetWithPlonky2ProofTarget<D>,
+    pub target: PoetWithPlonky2ProofTarget<D>,
 }
 
 impl<F: RichField + Extendable<D>, C: GenericConfig<D, F = F> + 'static, const D: usize>
@@ -310,12 +335,45 @@ impl<F: RichField + Extendable<D>, C: GenericConfig<D, F = F> + 'static, const D
         let poet_target =
             PoetWithPlonky2ProofTarget::new(&mut builder, single_withdrawal_circuit_vd, true);
 
+        let withdrawal =
+            WithdrawalTarget::from_slice(&poet_target.single_withdrawal_proof.public_inputs);
+        // let {
+        //     recipient: AddressTarget,
+        //     token_index: Target,
+        //     amount: U256Target,
+        //     nullifier: Bytes32Target,
+        //     block_hash: Bytes32Target,
+        //     block_number: Target,
+        // } = withdrawal;
+        let withdrawal_transfer = &poet_target.proof_of_elapsed_time.withdrawal_transfer;
+        let nullifier = get_withdrawal_nullifier_circuit(
+            &mut builder,
+            &TransferTarget {
+                recipient: withdrawal_transfer.recipient,
+                token_index: withdrawal_transfer.token_index,
+                amount: withdrawal_transfer.amount.clone(),
+                salt: withdrawal_transfer.salt.clone(),
+            },
+        );
+        let block_hash = todo!();
+
+        // let {
+        //     // pub sender: U256Target,
+        //     pub recipient: AddressTarget,
+        //     pub token_index: Target,
+        //     pub amount: U256Target,
+        //     pub salt: SaltTarget,
+        // } = withdrawal_transfer;
+
         let public_inputs = PoetPublicInputTarget {};
         builder.register_public_inputs(&public_inputs.to_vec());
 
         let data = builder.build();
 
-        Self { data, poet_target }
+        Self {
+            data,
+            target: poet_target,
+        }
     }
 
     pub fn prove(
@@ -327,11 +385,11 @@ impl<F: RichField + Extendable<D>, C: GenericConfig<D, F = F> + 'static, const D
         <C as GenericConfig<D>>::Hasher: AlgebraicHasher<F>,
     {
         let mut witness = PartialWitness::new();
-        self.poet_target
+        self.target
             .proof_of_elapsed_time
             .set_witness(&mut witness, poet_value);
         witness.set_proof_with_pis_target(
-            &self.poet_target.single_withdrawal_proof,
+            &self.target.single_withdrawal_proof,
             single_withdrawal_proof,
         );
 
