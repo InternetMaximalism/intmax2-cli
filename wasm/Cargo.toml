@@ -1,27 +1,29 @@
 [package]
 name = "intmax2-wasm-lib"
-version = "0.1.0"
+version.workspace = true
 edition = "2021"
 
 [dependencies]
-plonky2 = {workspace = true} 
-intmax2-zkp = {workspace = true}
-intmax2-client-sdk = {path="../client-sdk"}
-intmax2-interfaces = {path = "../interfaces"}
-reqwest = { workspace = true}
-ethers = {workspace = true}
-serde_json ={workspace = true}
-serde = { workspace = true}
+plonky2 = { workspace = true }
+intmax2-zkp = { workspace = true }
+intmax2-client-sdk = { path = "../client-sdk" }
+intmax2-interfaces = { path = "../interfaces" }
+reqwest = { workspace = true }
+ethers = { workspace = true }
+serde_json = { workspace = true }
+serde = { workspace = true }
+log = { workspace = true }
 anyhow = "1.0.93"
 num-bigint = "0.4.6"
 rand = "0.8.5"
-getrandom = { version = "0.2", features = ["js"]}
+getrandom = { version = "0.2", features = ["js"] }
 web-sys = { version = "0.3", features = ["console"] }
-wasm-bindgen = { version = "0.2.81", features = ["serde-serialize"]}
+wasm-bindgen = { version = "0.2.81", features = ["serde-serialize"] }
 wasm-bindgen-futures = "0.4"
 hex = "0.4.3"
 wasm-logger = "0.2.0"
 console_error_panic_hook = "0.1.7"
+
 
 [dev-dependencies]
 wasm-bindgen-test = "0.3"
