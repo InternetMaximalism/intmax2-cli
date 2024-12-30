@@ -99,9 +99,6 @@ where
                 self.sync_transfer(key, &meta, &transfer_data).await?;
             }
             Action::Tx(meta, tx_data) => self.sync_tx(key, &meta, &tx_data).await?,
-            Action::UpdateNoSend(to_block_number) => {
-                self.update_no_send(key, to_block_number).await?;
-            }
         }
         Ok(SyncStatus::Continue)
     }
@@ -132,6 +129,7 @@ where
         Ok(())
     }
 
+    // sync deposit without updating the timestamp
     async fn sync_deposit(
         &self,
         key: KeySet,
@@ -170,7 +168,6 @@ where
 
         // update user data
         user_data.block_number = meta.block_number.unwrap();
-        user_data.deposit_lpt = meta.timestamp;
         user_data.processed_deposit_uuids.push(meta.uuid.clone());
 
         // save proof and user data
@@ -184,6 +181,7 @@ where
         Ok(())
     }
 
+    // sync deposit without updating the timestamp
     async fn sync_transfer(
         &self,
         key: KeySet,
@@ -232,7 +230,6 @@ where
 
         // update user data
         user_data.block_number = meta.block_number.unwrap();
-        user_data.transfer_lpt = meta.timestamp;
         user_data.processed_transfer_uuids.push(meta.uuid.clone());
 
         // save proof and user data
@@ -243,6 +240,24 @@ where
             .save_user_data(key.pubkey, user_data.encrypt(key.pubkey))
             .await?;
 
+        Ok(())
+    }
+
+    async fn update_deposit_lpt(&self, key: KeySet, timestamp: u64) -> Result<(), ClientError> {
+        let mut user_data = self.get_user_data(key).await?;
+        user_data.deposit_lpt = timestamp;
+        self.store_vault_server
+            .save_user_data(key.pubkey, user_data.encrypt(key.pubkey))
+            .await?;
+        Ok(())
+    }
+
+    async fn update_transfer_lpt(&self, key: KeySet, timestamp: u64) -> Result<(), ClientError> {
+        let mut user_data = self.get_user_data(key).await?;
+        user_data.transfer_lpt = timestamp;
+        self.store_vault_server
+            .save_user_data(key.pubkey, user_data.encrypt(key.pubkey))
+            .await?;
         Ok(())
     }
 

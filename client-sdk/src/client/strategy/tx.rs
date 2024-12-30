@@ -81,6 +81,9 @@ pub async fn fetch_tx_info<S: StoreVaultClientInterface, V: ValidityProverClient
     // sort by block number
     settled.sort_by_key(|(meta, _)| meta.block_number.unwrap());
 
+    // sort by timestamp
+    pending.sort_by_key(|(meta, _)| meta.timestamp);
+
     Ok(TxInfo {
         settled,
         pending,
