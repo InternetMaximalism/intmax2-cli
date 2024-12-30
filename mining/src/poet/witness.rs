@@ -35,6 +35,7 @@ use intmax2_zkp::{
     ethereum_types::{address::Address, u256::U256, u32limb_trait::U32LimbTrait},
     utils::trees::indexed_merkle_tree::membership::MembershipProof,
 };
+use serde::{Deserialize, Serialize};
 
 use super::{
     blockchain::{get_rpc_url, get_start_block_number},
@@ -49,7 +50,8 @@ pub struct PoetProof {
     pub poet_witness: PoetWitness,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct PoetWitness {
     pub deposit_source: Address,
     pub intermediate: U256,

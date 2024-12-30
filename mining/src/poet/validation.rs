@@ -10,8 +10,10 @@ use intmax2_zkp::{
     circuits::validity::validity_pis::ValidityPublicInputs,
     common::trees::block_hash_tree::BlockHashMerkleProof,
 };
+use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct ValidationData {
     pub latest_validity_pis: ValidityPublicInputs,
     pub deposit_validity_pis: ValidityPublicInputs,

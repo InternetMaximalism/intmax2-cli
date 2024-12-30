@@ -13,5 +13,7 @@ intmax2-client-sdk = { path = "../client-sdk" }
 intmax2-interfaces = { path = "../interfaces" }
 intmax2-zkp.workspace = true
 num-bigint = "0.4.6"
+plonky2 = { workspace = true }
 serde.workspace = true
+serde_json.workspace = true
 tokio = { workspace = true, features = ["rt-multi-thread"] }

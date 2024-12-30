@@ -1,12 +1,14 @@
 use crate::common::history::{DepositEntry, SendEntry};
 use intmax2_client_sdk::client::history::GenericTransfer;
-use intmax2_interfaces::data::{deposit_data::DepositData, meta_data::MetaData};
+use intmax2_interfaces::data::meta_data::MetaData;
 use intmax2_zkp::{
     common::salt::Salt,
     ethereum_types::{address::Address, u256::U256},
 };
+use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct ReceivedDeposit {
     pub sender: Address,
     // pub recipient: U256,
@@ -17,7 +19,8 @@ pub struct ReceivedDeposit {
     pub timestamp: u64,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct Withdrawal {
     // pub sender: U256,
     pub recipient: Address,
