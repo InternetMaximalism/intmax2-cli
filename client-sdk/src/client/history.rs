@@ -110,6 +110,7 @@ pub async fn fetch_history<
     key: KeySet,
 ) -> Result<Vec<HistoryEntry>, ClientError> {
     let user_data = client.get_user_data(key).await?;
+    log::info!("user_data.block_number: {}", user_data.block_number);
 
     let mut history = Vec::new();
 

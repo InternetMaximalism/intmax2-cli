@@ -177,8 +177,17 @@ where
         )
         .await?;
 
+        let new_block_number = meta.block_number.unwrap().max(user_data.block_number);
+        let new_balance_pis = BalancePublicInputs::from_pis(&new_balance_proof.public_inputs);
+        if new_balance_pis.public_state.block_number != new_block_number {
+            return Err(ClientError::SyncError(format!(
+                "block number mismatch balance pis: {}, meta.block_number.unwrap().max(user_data.block_number): {}",
+                new_balance_pis.public_state.block_number, new_block_number
+            )));
+        }
+
         // update user data
-        user_data.block_number = meta.block_number.unwrap();
+        user_data.block_number = new_block_number;
         user_data.processed_deposit_uuids.push(meta.uuid.clone());
 
         // save proof and user data
@@ -239,8 +248,17 @@ where
         )
         .await?;
 
+        let new_block_number = meta.block_number.unwrap().max(user_data.block_number);
+        let new_balance_pis = BalancePublicInputs::from_pis(&new_balance_proof.public_inputs);
+        if new_balance_pis.public_state.block_number != new_block_number {
+            return Err(ClientError::SyncError(format!(
+                "block number mismatch balance pis: {}, meta.block_number.unwrap().max(user_data.block_number): {}",
+                new_balance_pis.public_state.block_number, new_block_number
+            )));
+        }
+
         // update user data
-        user_data.block_number = meta.block_number.unwrap();
+        user_data.block_number = new_block_number;
         user_data.processed_transfer_uuids.push(meta.uuid.clone());
 
         // save proof and user data
@@ -314,11 +332,6 @@ where
             )));
         }
 
-        // save balance proof
-        self.store_vault_server
-            .save_balance_proof(key.pubkey, &balance_proof)
-            .await?;
-
         // update user data
         user_data.block_number = meta.block_number.unwrap();
         user_data.tx_lpt = meta.timestamp;
@@ -331,6 +344,10 @@ where
             ));
         }
 
+        // save balance proof
+        self.store_vault_server
+            .save_balance_proof(key.pubkey, &balance_proof)
+            .await?;
         // save user data
         self.store_vault_server
             .save_user_data(key.pubkey, user_data.encrypt(key.pubkey))
@@ -451,6 +468,11 @@ where
     async fn update_no_send(&self, key: KeySet, to_block_number: u32) -> Result<(), ClientError> {
         log::info!("update_no_send: {:?}", to_block_number);
         let mut user_data = self.get_user_data(key).await?;
+        log::info!(
+            "update_no_send: user_data.block_number {},  to_block_number {}",
+            user_data.block_number,
+            to_block_number
+        );
         let prev_balance_proof = self
             .store_vault_server
             .get_balance_proof(
@@ -459,6 +481,11 @@ where
                 user_data.private_commitment(),
             )
             .await?;
+        if user_data.block_number != 0 {
+            if prev_balance_proof.is_none() {
+                return Err(ClientError::BalanceProofNotFound);
+            }
+        }
         let new_balance_proof = update_no_send(
             &self.validity_prover,
             &self.balance_prover,
