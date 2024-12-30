@@ -80,6 +80,7 @@ pub async fn determine_sequence<S: StoreVaultClientInterface, V: ValidityProverC
     deposit_timeout: u64,
     tx_timeout: u64,
 ) -> Result<(Vec<Action>, PendingInfo), ClientError> {
+    log::info!("determine_sequence");
     let user_data = store_vault_server
         .get_user_data(key.pubkey)
         .await?
@@ -93,6 +94,9 @@ pub async fn determine_sequence<S: StoreVaultClientInterface, V: ValidityProverC
             "Balance is insufficient before sync".to_string(),
         ));
     }
+    let mut current_timestamp = chrono::Utc::now().timestamp() as u64;
+    // Add some buffer to the current timestamp
+    current_timestamp = current_timestamp.saturating_sub(tx_timeout);
 
     let tx_info = fetch_tx_info(
         store_vault_server,
@@ -180,12 +184,6 @@ pub async fn determine_sequence<S: StoreVaultClientInterface, V: ValidityProverC
 
         // Here tx can be incorporated
 
-        // If there are no receives, just proceed with the tx
-        if receives.is_empty() {
-            sequence.push(Action::Tx(tx_meta.clone(), tx_data.clone()));
-            continue;
-        }
-
         // The smallest timestamp among the remaining deposits and pending deposits is 1 less than the new lpt.
         let new_deposit_lpt = deposits
             .iter()
@@ -193,7 +191,7 @@ pub async fn determine_sequence<S: StoreVaultClientInterface, V: ValidityProverC
             .chain(oldest_pending_deposit_timestamp)
             .min()
             .map(|timestamp| timestamp - 1)
-            .unwrap_or(user_data.deposit_lpt);
+            .unwrap_or(current_timestamp);
         // The smallest timestamp among the remaining transfers and pending transfers is 1 less than the new lpt.
         let new_transfer_lpt = transfers
             .iter()
@@ -201,7 +199,7 @@ pub async fn determine_sequence<S: StoreVaultClientInterface, V: ValidityProverC
             .chain(oldest_pending_transfer_timestamp)
             .min()
             .map(|timestamp| timestamp - 1)
-            .unwrap_or(user_data.transfer_lpt);
+            .unwrap_or(current_timestamp);
 
         sequence.push(Action::Receive {
             receives,
@@ -215,10 +213,10 @@ pub async fn determine_sequence<S: StoreVaultClientInterface, V: ValidityProverC
     let receives = collect_receives(&None, &mut deposits, &mut transfers).await?;
     let new_deposit_lpt = oldest_pending_deposit_timestamp
         .map(|timestamp| timestamp - 1)
-        .unwrap_or(user_data.deposit_lpt);
+        .unwrap_or(current_timestamp);
     let new_transfer_lpt = oldest_pending_transfer_timestamp
         .map(|timestamp| timestamp - 1)
-        .unwrap_or(user_data.transfer_lpt);
+        .unwrap_or(current_timestamp);
     sequence.push(Action::Receive {
         receives,
         new_deposit_lpt,

@@ -217,12 +217,11 @@ pub async fn update_send_by_sender<
             true,
         )
         .await?;
-    let last_block_number = update_witness.get_last_block_number();
-    if last_block_number != tx_block_number {
-        return Err(ClientError::InternalError(
-            "last block number should be tx_block_number".to_string(),
-        ));
-    }
+    log::info!(
+        "update_witness.last_block_number: {}, tx_block_number: {}",
+        update_witness.get_last_block_number(),
+        tx_block_number
+    );
     let spent_proof =
         if tx_data.spent_witness.prev_private_state == full_private_state.to_private_state() {
             // We can use the original spent proof if prev_private_state matches
@@ -328,12 +327,11 @@ pub async fn update_send_by_receiver<
             true,
         )
         .await?;
-    let last_block_number = update_witness.get_last_block_number();
-    if last_block_number != tx_block_number {
-        return Err(ClientError::InternalError(
-            "last block number should be tx_block_number".to_string(),
-        ));
-    }
+    log::info!(
+        "last_block_number: {}, tx_block_number: {}",
+        update_witness.get_last_block_number(),
+        tx_block_number
+    );
 
     // prove tx send
     let balance_proof = balance_prover

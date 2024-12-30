@@ -73,21 +73,21 @@ where
                     new_deposit_lpt,
                     new_transfer_lpt,
                 } => {
-                    let largest_block_number = receives
-                        .iter()
-                        .map(|r| r.meta().block_number.unwrap())
-                        .max()
-                        .ok_or_else(|| {
-                            ClientError::InternalError("receive is empty".to_string())
-                        })?;
-                    self.update_no_send(key, largest_block_number).await?;
-                    for receive in receives {
-                        match receive {
-                            ReceiveAction::Deposit(meta, data) => {
-                                self.sync_deposit(key, &meta, &data).await?;
-                            }
-                            ReceiveAction::Transfer(meta, data) => {
-                                self.sync_transfer(key, &meta, &data).await?;
+                    if !receives.is_empty() {
+                        let largest_block_number = receives
+                            .iter()
+                            .map(|r| r.meta().block_number.unwrap())
+                            .max()
+                            .unwrap(); // safe to unwrap
+                        self.update_no_send(key, largest_block_number).await?;
+                        for receive in receives {
+                            match receive {
+                                ReceiveAction::Deposit(meta, data) => {
+                                    self.sync_deposit(key, &meta, &data).await?;
+                                }
+                                ReceiveAction::Transfer(meta, data) => {
+                                    self.sync_transfer(key, &meta, &data).await?;
+                                }
                             }
                         }
                     }
@@ -255,6 +255,7 @@ where
     }
 
     async fn update_deposit_lpt(&self, key: KeySet, timestamp: u64) -> Result<(), ClientError> {
+        log::info!("update_deposit_lpt: {:?}", timestamp);
         let mut user_data = self.get_user_data(key).await?;
         user_data.deposit_lpt = timestamp;
         self.store_vault_server
@@ -264,6 +265,7 @@ where
     }
 
     async fn update_transfer_lpt(&self, key: KeySet, timestamp: u64) -> Result<(), ClientError> {
+        log::info!("update_transfer_lpt: {:?}", timestamp);
         let mut user_data = self.get_user_data(key).await?;
         user_data.transfer_lpt = timestamp;
         self.store_vault_server
