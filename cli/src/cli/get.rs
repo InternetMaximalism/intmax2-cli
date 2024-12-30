@@ -24,7 +24,7 @@ pub async fn balance(key: KeySet) -> Result<(), CliError> {
     );
 
     let user_data = client.get_user_data(key).await?;
-    let mut balances: Vec<(u64, AssetLeaf)> = user_data.balances().into_iter().collect();
+    let mut balances: Vec<(u32, AssetLeaf)> = user_data.balances().0.into_iter().collect();
     balances.sort_by_key(|(i, _leaf)| *i);
 
     println!("Balances:");
