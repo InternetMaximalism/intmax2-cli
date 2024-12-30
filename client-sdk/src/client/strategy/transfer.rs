@@ -26,6 +26,7 @@ pub async fn fetch_transfer_info<S: StoreVaultClientInterface, V: ValidityProver
     validity_prover: &V,
     key: KeySet,
     transfer_lpt: u64,
+    processed_transfer_uuids: &[String],
     tx_timeout: u64,
 ) -> Result<TransferInfo, ClientError> {
     let mut settled = Vec::new();
@@ -36,6 +37,10 @@ pub async fn fetch_transfer_info<S: StoreVaultClientInterface, V: ValidityProver
         .get_data_all_after(DataType::Transfer, key.pubkey, transfer_lpt)
         .await?;
     for (meta, encrypted_data) in encrypted_data {
+        if processed_transfer_uuids.contains(&meta.uuid) {
+            log::info!("Transfer {} is already processed", meta.uuid);
+            continue;
+        }
         match TransferData::decrypt(&encrypted_data, key) {
             Ok(transfer_data) => {
                 let tx_tree_root = transfer_data.tx_data.tx_tree_root;
@@ -50,7 +55,7 @@ pub async fn fetch_transfer_info<S: StoreVaultClientInterface, V: ValidityProver
                 } else {
                     if meta.timestamp + tx_timeout < chrono::Utc::now().timestamp() as u64 {
                         // timeout
-                        log::error!("Transfer {} is timeouted", meta.uuid);
+                        log::error!("Transfer {} is timeout", meta.uuid);
                         timeout.push((meta, transfer_data));
                     } else {
                         // pending

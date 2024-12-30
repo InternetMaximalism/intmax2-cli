@@ -37,7 +37,7 @@ pub async fn fetch_withdrawal_info<
     store_vault_server: &S,
     validity_prover: &V,
     key: KeySet,
-    withdrwal_lpt: u64,
+    withdrawal_lpt: u64,
     tx_timeout: u64,
 ) -> Result<WithdrawalInfo<F, C, D>, ClientError> {
     let mut settled = Vec::new();
@@ -45,7 +45,7 @@ pub async fn fetch_withdrawal_info<
     let mut rejected = Vec::new();
 
     let encrypted_data = store_vault_server
-        .get_data_all_after(DataType::Withdrawal, key.pubkey, withdrwal_lpt)
+        .get_data_all_after(DataType::Withdrawal, key.pubkey, withdrawal_lpt)
         .await?;
     for (meta, encrypted_data) in encrypted_data {
         match TransferData::decrypt(&encrypted_data, key) {
@@ -62,7 +62,7 @@ pub async fn fetch_withdrawal_info<
                 } else {
                     if meta.timestamp + tx_timeout < chrono::Utc::now().timestamp() as u64 {
                         // timeout
-                        log::error!("Withdrawal {} is timeouted", meta.uuid);
+                        log::error!("Withdrawal {} is timeout", meta.uuid);
                         rejected.push(meta);
                     } else {
                         // pending

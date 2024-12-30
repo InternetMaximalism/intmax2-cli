@@ -24,6 +24,7 @@ pub async fn fetch_deposit_info<S: StoreVaultClientInterface, V: ValidityProverC
     liquidity_contract: &LiquidityContract,
     key: KeySet,
     deposit_lpt: u64,
+    processed_deposit_uuids: &[String],
     deposit_timeout: u64,
 ) -> Result<DepositInfo, ClientError> {
     let mut settled = Vec::new();
@@ -34,6 +35,10 @@ pub async fn fetch_deposit_info<S: StoreVaultClientInterface, V: ValidityProverC
         .get_data_all_after(DataType::Deposit, key.pubkey, deposit_lpt)
         .await?;
     for (meta, encrypted_data) in encrypted_data {
+        if processed_deposit_uuids.contains(&meta.uuid) {
+            log::info!("Deposit {} is already processed", meta.uuid);
+            continue;
+        }
         match DepositData::decrypt(&encrypted_data, key) {
             Ok(deposit_data) => {
                 let token_index = liquidity_contract
@@ -61,7 +66,7 @@ pub async fn fetch_deposit_info<S: StoreVaultClientInterface, V: ValidityProverC
                     if meta.timestamp + deposit_timeout < chrono::Utc::now().timestamp() as u64 {
                         // timeout
                         log::error!(
-                            "Deposit uuid: {}, hash: {} is timeouted",
+                            "Deposit uuid: {}, hash: {} is timeout",
                             meta.uuid,
                             deposit_hash
                         );

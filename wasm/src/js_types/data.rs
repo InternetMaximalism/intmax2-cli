@@ -152,12 +152,13 @@ impl JsUserData {
     pub fn from_user_data(user_data: &UserData) -> Self {
         let balances = user_data
             .balances()
+            .0
             .iter()
             .map(|(token_index, leaf)| {
                 let amount = leaf.amount.to_string();
                 let is_insufficient = leaf.is_insufficient;
                 TokenBalance {
-                    token_index: *token_index as u32,
+                    token_index: *token_index,
                     amount,
                     is_insufficient,
                 }

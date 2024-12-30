@@ -34,6 +34,9 @@ pub enum ClientError {
     #[error("Invalid block proposal: {0}")]
     InvalidBlockProposal(String),
 
+    #[error("Pending receives error: {0}")]
+    PendingReceivesError(String),
+
     #[error("Pending tx error: {0}")]
     PendingTxError(String),
 

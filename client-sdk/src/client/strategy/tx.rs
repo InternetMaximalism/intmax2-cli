@@ -33,6 +33,7 @@ pub async fn fetch_tx_info<S: StoreVaultClientInterface, V: ValidityProverClient
     validity_prover: &V,
     key: KeySet,
     tx_lpt: u64,
+    processed_tx_uuids: &[String],
     tx_timeout: u64,
 ) -> Result<TxInfo<F, C, D>, ClientError> {
     let mut settled = Vec::new();
@@ -43,6 +44,10 @@ pub async fn fetch_tx_info<S: StoreVaultClientInterface, V: ValidityProverClient
         .get_data_all_after(DataType::Tx, key.pubkey, tx_lpt)
         .await?;
     for (meta, encrypted_data) in encrypted_data {
+        if processed_tx_uuids.contains(&meta.uuid) {
+            log::info!("Tx {} is already processed", meta.uuid);
+            continue;
+        }
         match TxData::decrypt(&encrypted_data, key) {
             Ok(tx_data) => {
                 let tx_tree_root = tx_data.common.tx_tree_root;
@@ -75,6 +80,9 @@ pub async fn fetch_tx_info<S: StoreVaultClientInterface, V: ValidityProverClient
 
     // sort by block number
     settled.sort_by_key(|(meta, _)| meta.block_number.unwrap());
+
+    // sort by timestamp
+    pending.sort_by_key(|(meta, _)| meta.timestamp);
 
     Ok(TxInfo {
         settled,
