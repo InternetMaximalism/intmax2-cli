@@ -8,8 +8,6 @@ use intmax2_interfaces::{
 use intmax2_zkp::common::signature::key_set::KeySet;
 use plonky2::{field::goldilocks_field::GoldilocksField, plonk::config::PoseidonGoldilocksConfig};
 
-use crate::client::error::ClientError;
-
 use super::error::StrategyError;
 
 type F = GoldilocksField;

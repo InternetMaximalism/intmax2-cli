@@ -11,7 +11,6 @@ use intmax2_interfaces::{
         deposit_data::{DepositData, TokenType},
         transfer_data::TransferData,
         tx_data::TxData,
-        user_data::UserData,
     },
 };
 use intmax2_zkp::{
@@ -32,7 +31,7 @@ use plonky2::{
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    client::utils::generate_salt,
+    client::sync::utils::generate_salt,
     external_api::{
         contract::{liquidity_contract::LiquidityContract, rollup_contract::RollupContract},
         utils::time::sleep_for,
@@ -40,10 +39,10 @@ use crate::{
 };
 
 use super::{
-    balance_logic::generate_spent_witness,
     config::ClientConfig,
     error::ClientError,
     history::{fetch_history, HistoryEntry},
+    sync::balance_logic::generate_spent_witness,
 };
 
 type F = GoldilocksField;

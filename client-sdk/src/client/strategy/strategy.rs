@@ -16,9 +16,7 @@ use plonky2::{field::goldilocks_field::GoldilocksField, plonk::config::PoseidonG
 
 use intmax2_zkp::common::signature::key_set::KeySet;
 
-use crate::{
-    client::error::ClientError, external_api::contract::liquidity_contract::LiquidityContract,
-};
+use crate::external_api::contract::liquidity_contract::LiquidityContract;
 
 use super::{
     deposit::fetch_deposit_info, error::StrategyError, transfer::fetch_transfer_info,

@@ -13,8 +13,6 @@ use plonky2::{
 
 use intmax2_zkp::common::signature::key_set::KeySet;
 
-use crate::client::error::ClientError;
-
 use super::error::StrategyError;
 
 type F = GoldilocksField;

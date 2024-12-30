@@ -33,7 +33,7 @@ use plonky2::{
 };
 
 use super::{
-    error::{ClientError, SyncError},
+    error::SyncError,
     utils::{generate_salt, generate_transfer_tree},
 };
 
@@ -56,11 +56,11 @@ pub async fn receive_deposit<V: ValidityProverClientInterface, B: BalanceProverC
     let deposit_info = validity_prover
         .get_deposit_info(deposit_data.deposit_hash().unwrap())
         .await?
-        .ok_or(ClientError::InternalError(
-            "Deposit index and block number not found".to_string(),
+        .ok_or(SyncError::DepositInfoNotFound(
+            deposit_data.deposit_hash().unwrap(),
         ))?;
     if receive_block_number < deposit_info.block_number {
-        return Err(ClientError::InternalError(
+        return Err(SyncError::InternalError(
             "Deposit block number is greater than receive block number".to_string(),
         ));
     }
@@ -82,7 +82,7 @@ pub async fn receive_deposit<V: ValidityProverClientInterface, B: BalanceProverC
         nullifier,
         new_salt,
     )
-    .map_err(|e| ClientError::WitnessGenerationError(format!("PrivateTransitionWitness {}", e)))?;
+    .map_err(|e| SyncError::WitnessGenerationError(format!("PrivateTransitionWitness {}", e)))?;
     let receive_deposit_witness = ReceiveDepositWitness {
         deposit_witness,
         private_transition_witness,
@@ -112,12 +112,12 @@ pub async fn receive_transfer<V: ValidityProverClientInterface, B: BalanceProver
     prev_balance_proof: &Option<ProofWithPublicInputs<F, C, D>>, /* receiver's prev balance
                                                                   * proof */
     transfer_data: &TransferData<F, C, D>,
-) -> Result<ProofWithPublicInputs<F, C, D>, ClientError> {
+) -> Result<ProofWithPublicInputs<F, C, D>, SyncError> {
     let prev_balance_pis = get_prev_balance_pis(key.pubkey, prev_balance_proof);
     let receive_block_number = prev_balance_pis.public_state.block_number;
     let sender_balance_pis = BalancePublicInputs::from_pis(&sender_balance_proof.public_inputs);
     if receive_block_number < prev_balance_pis.public_state.block_number {
-        return Err(ClientError::InternalError(
+        return Err(SyncError::InternalError(
             "receive block number is not greater than prev balance proof".to_string(),
         ));
     }
@@ -136,7 +136,7 @@ pub async fn receive_transfer<V: ValidityProverClientInterface, B: BalanceProver
         nullifier,
         new_salt,
     )
-    .map_err(|e| ClientError::WitnessGenerationError(format!("PrivateTransitionWitness {}", e)))?;
+    .map_err(|e| SyncError::WitnessGenerationError(format!("PrivateTransitionWitness {}", e)))?;
     let block_merkle_proof = validity_prover
         .get_block_merkle_proof(
             receive_block_number,
@@ -174,16 +174,18 @@ pub async fn update_send_by_sender<
     prev_balance_proof: &Option<ProofWithPublicInputs<F, C, D>>,
     tx_block_number: u32,
     tx_data: &TxData<F, C, D>,
-) -> Result<ProofWithPublicInputs<F, C, D>, ClientError> {
+) -> Result<ProofWithPublicInputs<F, C, D>, SyncError> {
     // sync check
-    if tx_block_number > validity_prover.get_block_number().await? {
-        return Err(ClientError::InternalError(
-            "Validity prover is not up to date".to_string(),
-        ));
+    let validity_prover_block_number = validity_prover.get_block_number().await?;
+    if tx_block_number > validity_prover_block_number {
+        return Err(SyncError::ValidityProverIsNotUpToDate {
+            validity_prover_block_number,
+            block_number: tx_block_number,
+        });
     }
     let prev_balance_pis = get_prev_balance_pis(key.pubkey, prev_balance_proof);
     if tx_block_number <= prev_balance_pis.public_state.block_number {
-        return Err(ClientError::InternalError(
+        return Err(SyncError::InternalError(
             "tx block number is not greater than prev balance proof".to_string(),
         ));
     }
@@ -191,14 +193,14 @@ pub async fn update_send_by_sender<
     let validity_pis = validity_prover
         .get_validity_pis(tx_block_number)
         .await?
-        .ok_or(ClientError::InternalError(format!(
+        .ok_or(SyncError::InternalError(format!(
             "validity public inputs not found for block number {}",
             tx_block_number
         )))?;
     let sender_leaves = validity_prover
         .get_sender_leaves(tx_block_number)
         .await?
-        .ok_or(ClientError::InternalError(format!(
+        .ok_or(SyncError::InternalError(format!(
             "sender leaves not found for block number {}",
             tx_block_number
         )))?;
@@ -231,9 +233,7 @@ pub async fn update_send_by_sender<
             tx_data
                 .spent_witness
                 .update_private_state(full_private_state)
-                .map_err(|e| {
-                    ClientError::InternalError(format!("failed to update private state: {}", e))
-                })?;
+                .map_err(|e| SyncError::FailedToUpdatePrivateState(e.to_string()))?;
 
             spent_proof
         } else {
@@ -248,9 +248,7 @@ pub async fn update_send_by_sender<
             // update private state
             spent_witness
                 .update_private_state(full_private_state)
-                .map_err(|e| {
-                    ClientError::InternalError(format!("failed to update private state: {}", e))
-                })?;
+                .map_err(|e| SyncError::FailedToUpdatePrivateState(e.to_string()))?;
 
             balance_prover.prove_spent(key, &spent_witness).await?
         };
@@ -281,17 +279,19 @@ pub async fn update_send_by_receiver<
     prev_balance_proof: &Option<ProofWithPublicInputs<F, C, D>>,
     tx_block_number: u32,
     common_tx_data: &CommonTxData<F, C, D>,
-) -> Result<ProofWithPublicInputs<F, C, D>, ClientError> {
+) -> Result<ProofWithPublicInputs<F, C, D>, SyncError> {
     // sync check
-    if tx_block_number > validity_prover.get_block_number().await? {
-        return Err(ClientError::InternalError(
-            "Validity prover is not up to date".to_string(),
-        ));
+    let validity_prover_block_number = validity_prover.get_block_number().await?;
+    if tx_block_number > validity_prover_block_number {
+        return Err(SyncError::ValidityProverIsNotUpToDate {
+            validity_prover_block_number,
+            block_number: tx_block_number,
+        });
     }
     let prev_balance_pis = get_prev_balance_pis(sender, prev_balance_proof);
     let prev_block_number = prev_balance_pis.public_state.block_number;
     if tx_block_number <= prev_block_number {
-        return Err(ClientError::InternalError(
+        return Err(SyncError::InternalError(
             "tx block number is not greater than prev balance proof".to_string(),
         ));
     }
@@ -300,7 +300,7 @@ pub async fn update_send_by_receiver<
     let validity_pis = validity_prover
         .get_validity_pis(tx_block_number)
         .await?
-        .ok_or(ClientError::InternalError(format!(
+        .ok_or(SyncError::InternalError(format!(
             "validity public inputs not found for block number {}",
             tx_block_number
         )))?;
@@ -308,7 +308,7 @@ pub async fn update_send_by_receiver<
     let sender_leaves = validity_prover
         .get_sender_leaves(tx_block_number)
         .await?
-        .ok_or(ClientError::InternalError(format!(
+        .ok_or(SyncError::InternalError(format!(
             "sender leaves not found for block number {}",
             tx_block_number
         )))?;
@@ -336,7 +336,7 @@ pub async fn update_send_by_receiver<
         tx_block_number
     );
     if prev_block_number < last_block_number {
-        return Err(ClientError::InternalError(format!(
+        return Err(SyncError::InternalError(format!(
             "Sender's prev_block_number {} is less than last_block_number {}",
             prev_block_number, last_block_number
         )));
@@ -364,15 +364,17 @@ pub async fn update_no_send<V: ValidityProverClientInterface, B: BalanceProverCl
     key: KeySet,
     prev_balance_proof: &Option<ProofWithPublicInputs<F, C, D>>,
     to_block_number: u32,
-) -> Result<ProofWithPublicInputs<F, C, D>, ClientError> {
+) -> Result<ProofWithPublicInputs<F, C, D>, SyncError> {
     // sync check
-    if to_block_number > validity_prover.get_block_number().await? {
-        return Err(ClientError::InternalError(
-            "Validity prover is not up to date".to_string(),
-        ));
+    let validity_prover_block_number = validity_prover.get_block_number().await?;
+    if to_block_number > validity_prover_block_number {
+        return Err(SyncError::ValidityProverIsNotUpToDate {
+            validity_prover_block_number,
+            block_number: to_block_number,
+        });
     }
     if to_block_number == 0 {
-        return Err(ClientError::InternalError(
+        return Err(SyncError::InternalError(
             "Block number should be greater than 0".to_string(),
         ));
     }
@@ -394,7 +396,7 @@ pub async fn update_no_send<V: ValidityProverClientInterface, B: BalanceProverCl
         .await?;
     let last_block_number = update_witness.get_last_block_number();
     if prev_block_number < last_block_number {
-        return Err(ClientError::InternalError(format!(
+        return Err(SyncError::InternalError(format!(
             "prev_block_number {} is less than last_block_number {}",
             prev_block_number, last_block_number
         )));
@@ -409,7 +411,7 @@ pub async fn generate_spent_witness(
     full_private_state: &FullPrivateState,
     tx_nonce: u32,
     transfers: &[Transfer],
-) -> Result<SpentWitness, ClientError> {
+) -> Result<SpentWitness, SyncError> {
     let transfer_tree = generate_transfer_tree(&transfers);
     let tx = Tx {
         nonce: tx_nonce,
@@ -424,7 +426,7 @@ pub async fn generate_spent_witness(
         new_salt,
     )
     .map_err(|e| {
-        ClientError::WitnessGenerationError(format!("failed to generate spent witness: {}", e))
+        SyncError::WitnessGenerationError(format!("failed to generate spent witness: {}", e))
     })?;
     Ok(spent_witness)
 }

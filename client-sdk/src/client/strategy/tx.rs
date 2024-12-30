@@ -1,4 +1,3 @@
-use crate::client::error::ClientError;
 use intmax2_interfaces::{
     api::{
         store_vault_server::interface::{DataType, StoreVaultClientInterface},

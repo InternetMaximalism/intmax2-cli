@@ -1,3 +1,8 @@
+use balance_logic::{
+    receive_deposit, receive_transfer, update_no_send, update_send_by_receiver,
+    update_send_by_sender,
+};
+use error::SyncError;
 use intmax2_interfaces::{
     api::{
         balance_prover::interface::BalanceProverClientInterface,
@@ -24,23 +29,20 @@ use plonky2::{
     field::goldilocks_field::GoldilocksField,
     plonk::{config::PoseidonGoldilocksConfig, proof::ProofWithPublicInputs},
 };
+use utils::generate_salt;
+
+pub mod balance_logic;
+pub mod error;
+pub mod utils;
 
 type F = GoldilocksField;
 type C = PoseidonGoldilocksConfig;
 const D: usize = 2;
 
-use crate::client::{
-    balance_logic::{
-        receive_transfer, update_no_send, update_send_by_receiver, update_send_by_sender,
-    },
-    strategy::strategy::ReceiveAction,
-    utils::generate_salt,
-};
+use crate::client::strategy::strategy::ReceiveAction;
 
 use super::{
-    balance_logic::receive_deposit,
     client::Client,
-    error::{ClientError, SyncError},
     strategy::{
         strategy::{determine_sequence, Action, PendingInfo},
         withdrawal::fetch_withdrawal_info,
@@ -178,10 +180,10 @@ where
         let new_block_number = meta.block_number.unwrap().max(user_data.block_number);
         let new_balance_pis = BalancePublicInputs::from_pis(&new_balance_proof.public_inputs);
         if new_balance_pis.public_state.block_number != new_block_number {
-            return Err(ClientError::SyncError(format!(
-                "block number mismatch balance pis: {}, meta.block_number.unwrap().max(user_data.block_number): {}",
-                new_balance_pis.public_state.block_number, new_block_number
-            )));
+            return Err(SyncError::BalanceProofBlockNumberMismatch {
+                balance_proof_block_number: new_balance_pis.public_state.block_number,
+                block_number: new_block_number,
+            });
         }
 
         // update user data
@@ -205,10 +207,10 @@ where
         key: KeySet,
         meta: &MetaData,
         transfer_data: &TransferData<F, C, D>,
-    ) -> Result<(), ClientError> {
+    ) -> Result<(), SyncError> {
         log::info!("sync_transfer: {:?}", meta);
         if meta.block_number.is_none() {
-            return Err(ClientError::InternalError(
+            return Err(SyncError::InternalError(
                 "block number is not set".to_string(),
             ));
         }
@@ -249,10 +251,10 @@ where
         let new_block_number = meta.block_number.unwrap().max(user_data.block_number);
         let new_balance_pis = BalancePublicInputs::from_pis(&new_balance_proof.public_inputs);
         if new_balance_pis.public_state.block_number != new_block_number {
-            return Err(ClientError::SyncError(format!(
-                "block number mismatch balance pis: {}, meta.block_number.unwrap().max(user_data.block_number): {}",
-                new_balance_pis.public_state.block_number, new_block_number
-            )));
+            return Err(SyncError::BalanceProofBlockNumberMismatch {
+                balance_proof_block_number: new_balance_pis.public_state.block_number,
+                block_number: new_block_number,
+            });
         }
 
         // update user data
@@ -270,7 +272,7 @@ where
         Ok(())
     }
 
-    async fn update_deposit_lpt(&self, key: KeySet, timestamp: u64) -> Result<(), ClientError> {
+    async fn update_deposit_lpt(&self, key: KeySet, timestamp: u64) -> Result<(), SyncError> {
         log::info!("update_deposit_lpt: {:?}", timestamp);
         let mut user_data = self.get_user_data(key).await?;
         user_data.deposit_lpt = timestamp;
@@ -280,7 +282,7 @@ where
         Ok(())
     }
 
-    async fn update_transfer_lpt(&self, key: KeySet, timestamp: u64) -> Result<(), ClientError> {
+    async fn update_transfer_lpt(&self, key: KeySet, timestamp: u64) -> Result<(), SyncError> {
         log::info!("update_transfer_lpt: {:?}", timestamp);
         let mut user_data = self.get_user_data(key).await?;
         user_data.transfer_lpt = timestamp;
@@ -295,10 +297,10 @@ where
         key: KeySet,
         meta: &MetaData,
         tx_data: &TxData<F, C, D>,
-    ) -> Result<(), ClientError> {
+    ) -> Result<(), SyncError> {
         log::info!("sync_tx: {:?}", meta);
         if meta.block_number.is_none() {
-            return Err(ClientError::InternalError(
+            return Err(SyncError::InternalError(
                 "block number is not set".to_string(),
             ));
         }
@@ -323,11 +325,10 @@ where
         .await?;
         let balance_pis = BalancePublicInputs::from_pis(&balance_proof.public_inputs);
         if balance_pis.public_state.block_number != meta.block_number.unwrap() {
-            return Err(ClientError::SyncError(format!(
-                "block number mismatch balance pis: {}, meta: {}",
-                balance_pis.public_state.block_number,
-                meta.block_number.unwrap()
-            )));
+            return Err(SyncError::BalanceProofBlockNumberMismatch {
+                balance_proof_block_number: balance_pis.public_state.block_number,
+                block_number: meta.block_number.unwrap(),
+            });
         }
 
         // update user data
@@ -337,7 +338,7 @@ where
 
         // validation
         if balance_pis.private_commitment != user_data.private_commitment() {
-            return Err(ClientError::InternalError(
+            return Err(SyncError::InternalError(
                 "private commitment mismatch".to_string(),
             ));
         }
@@ -358,10 +359,10 @@ where
         key: KeySet,
         meta: &MetaData,
         withdrawal_data: &TransferData<F, C, D>,
-    ) -> Result<(), ClientError> {
+    ) -> Result<(), SyncError> {
         log::info!("sync_withdrawal: {:?}", meta);
         if meta.block_number.is_none() {
-            return Err(ClientError::InternalError(
+            return Err(SyncError::InternalError(
                 "block number is not set".to_string(),
             ));
         }
@@ -416,7 +417,7 @@ where
         sender: U256,
         block_number: u32,
         common_tx_data: &CommonTxData<F, C, D>,
-    ) -> Result<ProofWithPublicInputs<F, C, D>, ClientError> {
+    ) -> Result<ProofWithPublicInputs<F, C, D>, SyncError> {
         log::info!(
             "update_send_by_receiver: sender {}, block_number {}",
             sender,
@@ -442,7 +443,7 @@ where
                 spent_proof_pis.prev_private_commitment,
             )
             .await?
-            .ok_or_else(|| ClientError::BalanceProofNotFound)?;
+            .ok_or_else(|| SyncError::BalanceProofNotFound)?;
 
         let new_sender_balance_proof = update_send_by_receiver(
             &self.validity_prover,
@@ -495,7 +496,7 @@ where
         let new_balance_pis = BalancePublicInputs::from_pis(&new_balance_proof.public_inputs);
         let new_block_number = new_balance_pis.public_state.block_number;
         if new_block_number != to_block_number {
-            return Err(SyncError::BlockNumberMismatch {
+            return Err(SyncError::BalanceProofBlockNumberMismatch {
                 balance_proof_block_number: new_block_number,
                 block_number: to_block_number,
             });
