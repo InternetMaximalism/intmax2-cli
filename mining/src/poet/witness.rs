@@ -47,12 +47,12 @@ const MIN_ELAPSED_TIME: u32 = 1;
 /// A proof of elapsed time from deposit_source to withdrawal_destination
 #[derive(Debug, Clone)]
 pub struct PoetProof {
-    pub poet_witness: PoetWitness,
+    pub poet_witness: PoetValue,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct PoetWitness {
+pub struct PoetValue {
     pub deposit_source: Address,
     pub intermediate: U256,
     pub withdrawal_destination: Address,
@@ -62,7 +62,7 @@ pub struct PoetWitness {
     pub account_membership_proof_just_before_withdrawal: MembershipProof,
 }
 
-impl Default for PoetWitness {
+impl Default for PoetValue {
     fn default() -> Self {
         let account_tree = AccountTree::new(32);
         let account_membership_proof_just_before_withdrawal =
@@ -149,7 +149,7 @@ async fn fetch_deposited_event<
     Ok((events, senders))
 }
 
-impl PoetWitness {
+impl PoetValue {
     /// Generate a proof of the flow of funds from deposit_source to withdrawal_destination
     /// and the elapsed time between the two transactions
     pub async fn generate(intermediate_account: KeySet) -> anyhow::Result<Self> {
