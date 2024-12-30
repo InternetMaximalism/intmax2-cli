@@ -1,7 +1,7 @@
 use crate::js_types::common::JsTx;
 use client::{get_client, Config};
 use intmax2_client_sdk::{
-    client::account::generate_intmax_account_from_eth_key as inner_generate_intmax_account_from_eth_key,
+    client::key_from_eth::generate_intmax_account_from_eth_key as inner_generate_intmax_account_from_eth_key,
     external_api::utils::time::sleep_for,
 };
 use intmax2_interfaces::data::{

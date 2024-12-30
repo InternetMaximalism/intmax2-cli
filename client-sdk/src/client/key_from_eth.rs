@@ -24,7 +24,7 @@ mod test {
     use ethers::types::H256;
     use intmax2_zkp::ethereum_types::u32limb_trait::U32LimbTrait;
 
-    use crate::client::account::generate_intmax_account_from_eth_key;
+    use crate::client::key_from_eth::generate_intmax_account_from_eth_key;
 
     struct TestCase {
         private_key: H256,

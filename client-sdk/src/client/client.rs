@@ -159,7 +159,8 @@ where
         let balances = user_data.balances();
         for transfer in &transfers {
             let balance = balances
-                .get(&(transfer.token_index as u64))
+                .0
+                .get(&transfer.token_index)
                 .cloned()
                 .unwrap_or_default();
             if balance.is_insufficient {

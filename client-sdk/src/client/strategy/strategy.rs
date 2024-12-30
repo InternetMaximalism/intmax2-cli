@@ -4,8 +4,11 @@ use intmax2_interfaces::{
         validity_prover::interface::ValidityProverClientInterface,
     },
     data::{
-        deposit_data::DepositData, meta_data::MetaData, transfer_data::TransferData,
-        tx_data::TxData, user_data::UserData,
+        deposit_data::DepositData,
+        meta_data::MetaData,
+        transfer_data::TransferData,
+        tx_data::TxData,
+        user_data::{Balances, UserData},
     },
 };
 use itertools::Itertools;
@@ -31,9 +34,9 @@ pub enum Action {
         new_deposit_lpt: u64,
         new_transfer_lpt: u64,
     },
-    Tx(MetaData, TxData<F, C, D>), // Send tx
-    PendingReceives(MetaData, TxData<F, C, D>, Vec<ReceiveAction>), // Pending receives to proceed the next tx
-    PendingTx(MetaData, TxData<F, C, D>),                           // Pending tx
+    Tx(MetaData, TxData<F, C, D>),              // Send tx
+    PendingReceives(MetaData, TxData<F, C, D>), // Pending receives to proceed the next tx
+    PendingTx(MetaData, TxData<F, C, D>),       // Pending tx
     None,
 }
 
@@ -48,6 +51,17 @@ impl ReceiveAction {
         match self {
             ReceiveAction::Deposit(meta, _) => meta,
             ReceiveAction::Transfer(meta, _) => meta,
+        }
+    }
+
+    pub fn apply_to_balances(&self, balances: &mut Balances) {
+        match self {
+            ReceiveAction::Deposit(_, data) => {
+                balances.add_deposit(data);
+            }
+            ReceiveAction::Transfer(_, data) => {
+                balances.add_transfer(data);
+            }
         }
     }
 }
@@ -74,6 +88,12 @@ pub async fn determine_sequence<S: StoreVaultClientInterface, V: ValidityProverC
         .transpose()
         .map_err(|e| ClientError::DecryptionError(e.to_string()))?
         .unwrap_or(UserData::new(key.pubkey));
+    let mut balances = user_data.balances();
+    if balances.is_insufficient() {
+        return Err(ClientError::BalanceError(
+            "Balance is insufficient before sync".to_string(),
+        ));
+    }
 
     let tx_info = fetch_tx_info(
         store_vault_server,
@@ -141,6 +161,32 @@ pub async fn determine_sequence<S: StoreVaultClientInterface, V: ValidityProverC
         )
         .await?;
 
+        // Apply receives to balances
+        for receive in &receives {
+            receive.apply_to_balances(&mut balances);
+        }
+        let is_insufficient = balances.sub_tx(tx_data);
+        if is_insufficient {
+            if deposit_info.pending.is_empty() && transfer_info.pending.is_empty() {
+                // Unresolved balance shortage
+                return Err(ClientError::BalanceError(
+                    "Insufficient balance during sync".to_string(),
+                ));
+            } else {
+                // To incorporate the tx, you need to incorporate the pending deposit/transfer to solve the balance shortage.
+                // TODO: Processing when the balance shortage is not resolved even if the pending deposit/transfer is incorporated
+                sequence.push(Action::PendingReceives(tx_meta.clone(), tx_data.clone()));
+            }
+        }
+
+        // Here tx can be incorporated
+
+        // If there are no receives, just proceed with the tx
+        if receives.is_empty() {
+            sequence.push(Action::Tx(tx_meta.clone(), tx_data.clone()));
+            continue;
+        }
+
         // The smallest timestamp among the remaining deposits and pending deposits is 1 less than the new lpt.
         let new_deposit_lpt = deposits
             .iter()
@@ -163,9 +209,29 @@ pub async fn determine_sequence<S: StoreVaultClientInterface, V: ValidityProverC
             new_deposit_lpt,
             new_transfer_lpt,
         });
+        sequence.push(Action::Tx(tx_meta.clone(), tx_data.clone()));
     }
 
-    todo!()
+    // Finally, take all deposits and transfers
+    let receives = collect_receives(&None, &mut deposits, &mut transfers).await?;
+    let new_deposit_lpt = oldest_pending_deposit_timestamp
+        .map(|timestamp| timestamp - 1)
+        .unwrap_or(user_data.deposit_lpt);
+    let new_transfer_lpt = oldest_pending_transfer_timestamp
+        .map(|timestamp| timestamp - 1)
+        .unwrap_or(user_data.transfer_lpt);
+    sequence.push(Action::Receive {
+        receives,
+        new_deposit_lpt,
+        new_transfer_lpt,
+    });
+    Ok((
+        sequence,
+        PendingInfo {
+            pending_deposits: deposit_info.pending,
+            pending_transfers: transfer_info.pending,
+        },
+    ))
 }
 
 /// For each settled tx, take deposits and transfers that are strictly smaller than the block number of the tx

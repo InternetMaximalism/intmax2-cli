@@ -1,4 +1,4 @@
-pub mod account;
+pub mod key_from_eth;
 pub mod balance_logic;
 pub mod client;
 pub mod config;
