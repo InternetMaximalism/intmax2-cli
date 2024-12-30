@@ -13,8 +13,6 @@ use super::error::CliError;
 
 pub async fn balance(key: KeySet) -> Result<(), CliError> {
     let client = get_client()?;
-
-    client.sync(key.clone()).await?;
     let pending_info = client.sync(key.clone()).await?;
 
     println!("Pending deposits: {}", pending_info.pending_deposits.len());
