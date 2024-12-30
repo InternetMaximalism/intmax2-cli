@@ -40,6 +40,7 @@ pub struct IntmaxAccount {
 pub async fn generate_intmax_account_from_eth_key(
     eth_private_key: &str,
 ) -> Result<IntmaxAccount, JsError> {
+    init_logger();
     let eth_private_key = parse_h256(eth_private_key)?;
     let key_set = inner_generate_intmax_account_from_eth_key(eth_private_key);
     let private_key: U256 = BigUint::from(key_set.privkey).try_into().unwrap();
@@ -60,6 +61,7 @@ pub async fn prepare_deposit(
     token_address: &str,
     token_id: &str,
 ) -> Result<String, JsError> {
+    init_logger();
     let recipient = parse_h256_as_u256(recipient)?;
     let amount = parse_u256(amount)?;
     let token_type = TokenType::try_from(token_type).map_err(|e| JsError::new(&e))?;
@@ -86,6 +88,7 @@ pub async fn send_tx_request(
     private_key: &str,
     transfers: Vec<JsTransfer>,
 ) -> Result<JsTxRequestMemo, JsError> {
+    init_logger();
     if transfers.len() > NUM_TRANSFERS_IN_TX {
         return Err(JsError::new(&format!(
             "Number of transfers in a tx must be less than or equal to {}",
@@ -118,6 +121,7 @@ pub async fn query_proposal(
     is_registration_block: bool,
     tx: &JsTx,
 ) -> Result<Option<JsBlockProposal>, JsError> {
+    init_logger();
     let key = str_privkey_to_keyset(private_key)?;
     let tx = tx.to_tx()?;
 
@@ -140,6 +144,7 @@ pub async fn finalize_tx(
     tx_request_memo: &JsTxRequestMemo,
     proposal: &JsBlockProposal,
 ) -> Result<JsTxResult, JsError> {
+    init_logger();
     let key = str_privkey_to_keyset(private_key)?;
     let tx_request_memo = tx_request_memo.to_tx_request_memo()?;
     let proposal = proposal.to_block_proposal()?;
@@ -158,6 +163,7 @@ pub async fn query_and_finalize(
     private_key: &str,
     tx_request_memo: &JsTxRequestMemo,
 ) -> Result<JsTxResult, JsError> {
+    init_logger();
     let key = str_privkey_to_keyset(private_key)?;
     let client = get_client(config);
     let tx_request_memo = tx_request_memo.to_tx_request_memo()?;
@@ -186,6 +192,7 @@ pub async fn query_and_finalize(
 /// Synchronize the user's balance proof. It may take a long time to generate ZKP.
 #[wasm_bindgen]
 pub async fn sync(config: &Config, private_key: &str) -> Result<(), JsError> {
+    init_logger();
     let key = str_privkey_to_keyset(private_key)?;
     let client = get_client(config);
     client.sync(key).await?;
@@ -196,6 +203,7 @@ pub async fn sync(config: &Config, private_key: &str) -> Result<(), JsError> {
 /// It may take a long time to generate ZKP.
 #[wasm_bindgen]
 pub async fn sync_withdrawals(config: &Config, private_key: &str) -> Result<(), JsError> {
+    init_logger();
     let key = str_privkey_to_keyset(private_key)?;
     let client = get_client(config);
     client.sync_withdrawals(key).await?;
@@ -205,6 +213,7 @@ pub async fn sync_withdrawals(config: &Config, private_key: &str) -> Result<(), 
 /// Get the user's data. It is recommended to sync before calling this function.
 #[wasm_bindgen]
 pub async fn get_user_data(config: &Config, private_key: &str) -> Result<JsUserData, JsError> {
+    init_logger();
     let key = str_privkey_to_keyset(private_key)?;
     let client = get_client(config);
     let user_data = client.get_user_data(key).await?;
@@ -217,6 +226,7 @@ pub async fn decrypt_deposit_data(
     private_key: &str,
     data: &[u8],
 ) -> Result<JsDepositData, JsError> {
+    init_logger();
     let key = str_privkey_to_keyset(private_key)?;
     let deposit_data =
         DepositData::decrypt(data, key).map_err(|e| JsError::new(&format!("{}", e)))?;
@@ -229,6 +239,7 @@ pub async fn decrypt_transfer_data(
     private_key: &str,
     data: &[u8],
 ) -> Result<JsTransferData, JsError> {
+    init_logger();
     let key = str_privkey_to_keyset(private_key)?;
     let transfer_data =
         TransferData::decrypt(data, key).map_err(|e| JsError::new(&format!("{}", e)))?;
@@ -238,7 +249,13 @@ pub async fn decrypt_transfer_data(
 /// Decrypt the tx data.
 #[wasm_bindgen]
 pub async fn decrypt_tx_data(private_key: &str, data: &[u8]) -> Result<JsTxData, JsError> {
+    init_logger();
     let key = str_privkey_to_keyset(private_key)?;
     let tx_data = TxData::decrypt(data, key).map_err(|e| JsError::new(&format!("{}", e)))?;
     Ok(JsTxData::from_tx_data(&tx_data))
+}
+
+fn init_logger() {
+    std::panic::set_hook(Box::new(console_error_panic_hook::hook));
+    wasm_logger::init(wasm_logger::Config::default());
 }

@@ -20,6 +20,8 @@ web-sys = { version = "0.3", features = ["console"] }
 wasm-bindgen = { version = "0.2.81", features = ["serde-serialize"]}
 wasm-bindgen-futures = "0.4"
 hex = "0.4.3"
+wasm-logger = "0.2.0"
+console_error_panic_hook = "0.1.7"
 
 [dev-dependencies]
 wasm-bindgen-test = "0.3"
