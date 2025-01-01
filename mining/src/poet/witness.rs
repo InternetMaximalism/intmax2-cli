@@ -6,6 +6,7 @@ use crate::{
             filter_withdrawals_from_history, select_most_recent_deposit_from_history,
             ReceivedDeposit,
         },
+        nullifier::get_common_nullifier,
         validation::{fetch_validation_data, ValidationData},
     },
 };
@@ -28,9 +29,10 @@ use intmax2_interfaces::api::{
     withdrawal_server::interface::WithdrawalServerClientInterface,
 };
 use intmax2_zkp::{
+    circuits::balance::send::tx_inclusion_circuit::TxInclusionPublicInputs,
     common::{
         block::Block,
-        generic_address::GenericAddress,
+        generic_address::{self, GenericAddress},
         signature::key_set::KeySet,
         transfer::Transfer,
         withdrawal::{get_withdrawal_nullifier, Withdrawal},
@@ -311,24 +313,37 @@ impl PoetValue {
         &self,
         withdrawal_destination: Address,
         single_withdrawal_proof: &ProofWithPublicInputs<F, C, D>,
+        withdrawal_tx_inclusion_proof: &ProofWithPublicInputs<F, C, D>,
     ) -> anyhow::Result<()> {
         println!("Proving withdraw...");
         let ValidationData {
-            withdrawal_block_merkle_proof,
+            // withdrawal_block_merkle_proof,
             withdrawal_validity_pis,
-            latest_validity_pis,
+            // latest_validity_pis,
             ..
         } = &self.proof_data;
 
-        withdrawal_block_merkle_proof
-            .verify(
-                &withdrawal_validity_pis.public_state.block_hash,
-                withdrawal_validity_pis.public_state.block_number as u64,
-                latest_validity_pis.public_state.block_tree_root,
-            )
-            .map_err(|e| {
-                anyhow::anyhow!("Failed to verify withdrawal block merkle proof: {:?}", e)
-            })?;
+        let withdrawal_tx_inclusion_pis = TxInclusionPublicInputs::from_u64_slice(
+            &withdrawal_tx_inclusion_proof.public_inputs.to_u64_vec(),
+        );
+
+        let current_block_hash = withdrawal_tx_inclusion_pis.new_public_state.block_hash;
+        let withdrawal_tx = &withdrawal_tx_inclusion_pis.tx;
+        if current_block_hash == self.withdrawal_block.hash() {
+            println!("Withdrawal transaction is included in the block");
+        } else {
+            panic!("Withdrawal transaction is not included in the block");
+        }
+
+        // withdrawal_block_merkle_proof
+        //     .verify(
+        //         &withdrawal_validity_pis.public_state.block_hash,
+        //         withdrawal_validity_pis.public_state.block_number as u64,
+        //         latest_validity_pis.public_state.block_tree_root,
+        //     )
+        //     .map_err(|e| {
+        //         anyhow::anyhow!("Failed to verify withdrawal block merkle proof: {:?}", e)
+        //     })?;
 
         let generic_withdrawal_destination = self.withdrawal_transfer.recipient;
         anyhow::ensure!(
@@ -338,22 +353,21 @@ impl PoetValue {
             withdrawal_destination
         );
 
-        let recipient = GenericAddress::from_address(self.withdrawal_transfer.recipient);
-        let withdrawal_nullifier = get_withdrawal_nullifier(&Transfer {
-            recipient,
-            token_index: self.withdrawal_transfer.token_index,
-            amount: self.withdrawal_transfer.amount.clone(),
-            salt: self.withdrawal_transfer.salt.clone(),
-        });
+        let withdrawal_common_nullifier = get_common_nullifier(
+            self.withdrawal_transfer.recipient,
+            self.withdrawal_transfer.token_index,
+            self.withdrawal_transfer.amount.clone(),
+            self.withdrawal_transfer.salt.clone(),
+        );
         let withdrawal =
             Withdrawal::from_u64_slice(&single_withdrawal_proof.public_inputs.to_u64_vec());
         println!("Withdrawal_transfer: {:?}", self.withdrawal_transfer);
         println!("Withdrawal: {:?}", withdrawal);
         anyhow::ensure!(
-            withdrawal.nullifier == withdrawal_nullifier,
+            withdrawal.nullifier == withdrawal_common_nullifier,
             "The withdrawal nullifier is incorrect: {} != {}",
             withdrawal.nullifier,
-            withdrawal_nullifier
+            withdrawal_common_nullifier
         );
 
         // let ethereum_private_key = "0x";
@@ -391,7 +405,7 @@ impl PoetValue {
     pub fn prove_elapsed_time(
         self,
         single_withdrawal_proof: &ProofWithPublicInputs<F, C, D>,
-        // tx_inclusion_proof: &ProofWithPublicInputs<F, C, D>,
+        tx_inclusion_proof: &ProofWithPublicInputs<F, C, D>,
     ) -> anyhow::Result<PoetProof> {
         println!("Proving elapsed time...");
         assert_ne!(
@@ -408,7 +422,11 @@ impl PoetValue {
         );
 
         self.prove_deposit()?;
-        self.prove_withdrawal(self.withdrawal_destination, &single_withdrawal_proof)?;
+        self.prove_withdrawal(
+            self.withdrawal_destination,
+            &single_withdrawal_proof,
+            &tx_inclusion_proof,
+        )?;
         self.prove_not_to_transfer()?;
 
         Ok(PoetProof { poet_witness: self })

@@ -44,7 +44,13 @@ async fn main() -> anyhow::Result<()> {
     let single_withdrawal_proof: ProofWithPublicInputs<F, C, D> =
         serde_json::from_str(&single_withdrawal_proof_json).unwrap();
 
-    witness.prove_elapsed_time(&single_withdrawal_proof)?;
+    let dir_path = "data";
+    let file_path = format!("{}/tx_inclusion_proof.json", dir_path);
+    let tx_inclusion_proof_json = std::fs::read_to_string(&file_path).unwrap();
+    let tx_inclusion_proof: ProofWithPublicInputs<F, C, D> =
+        serde_json::from_str(&tx_inclusion_proof_json).unwrap();
+
+    witness.prove_elapsed_time(&single_withdrawal_proof, &tx_inclusion_proof)?;
 
     Ok(())
 }

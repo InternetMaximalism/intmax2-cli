@@ -1,6 +1,10 @@
+use intmax2_client_sdk::client::strategy::withdrawal;
 use intmax2_zkp::{
     circuits::{
-        balance::send::tx_inclusion_circuit::{TxInclusionCircuit, TxInclusionValue},
+        balance::send::tx_inclusion_circuit::{
+            TxInclusionCircuit, TxInclusionPublicInputs, TxInclusionPublicInputsTarget,
+            TxInclusionValue, TX_INCLUSION_PUBLIC_INPUTS_LEN,
+        },
         validity::validity_pis::ValidityPublicInputsTarget,
     },
     common::{
@@ -10,13 +14,14 @@ use intmax2_zkp::{
         salt::SaltTarget,
         transfer::TransferTarget,
         trees::block_hash_tree::BlockHashMerkleProofTarget,
-        withdrawal::{get_withdrawal_nullifier_circuit, WithdrawalTarget},
+        withdrawal::WithdrawalTarget,
         witness::{tx_witness::TxWitness, update_witness::UpdateWitness},
     },
     ethereum_types::{
         address::{Address, AddressTarget},
-        u256::{U256Target, U256},
-        u32limb_trait::U32LimbTargetTrait,
+        bytes32::{Bytes32, Bytes32Target},
+        u256::{U256Target, U256, U256_LEN},
+        u32limb_trait::{U32LimbTargetTrait, U32LimbTrait},
     },
     utils::{
         poseidon_hash_out::PoseidonHashOutTarget,
@@ -41,6 +46,7 @@ use plonky2::{
 
 use super::{
     history::{ProcessedWithdrawal, ReceivedDeposit},
+    nullifier::get_common_nullifier_circuit,
     validation::ValidationData,
     witness::PoetValue,
 };
@@ -99,7 +105,7 @@ impl ReceivedDepositTarget {
 #[derive(Debug, Clone)]
 pub struct ProcessedWithdrawalTarget {
     // pub sender: U256Target,
-    pub recipient: GenericAddressTarget, // NOTE: AddressTarget
+    pub recipient: AddressTarget, // NOTE: AddressTarget
     pub token_index: Target,
     pub amount: U256Target,
     pub salt: SaltTarget,
@@ -113,8 +119,7 @@ impl ProcessedWithdrawalTarget {
         is_checked: bool,
     ) -> Self {
         // let sender = U256Target::new(builder, true);
-        let hint_recipient = GenericAddressTarget::new(builder, is_checked);
-        // let recipient = hint_recipient.to_address(builder);
+        let recipient = AddressTarget::new(builder, is_checked);
         let token_index = builder.add_virtual_target();
         let amount = U256Target::new(builder, is_checked);
         let salt = SaltTarget::new(builder);
@@ -123,7 +128,7 @@ impl ProcessedWithdrawalTarget {
 
         Self {
             // sender,
-            recipient: hint_recipient,
+            recipient,
             token_index,
             amount,
             salt,
@@ -138,8 +143,7 @@ impl ProcessedWithdrawalTarget {
         value: &ProcessedWithdrawal,
     ) {
         // self.sender.set_witness::<F, U256>(witness, target.sender);
-        let recipient = GenericAddress::from_address(value.recipient);
-        self.recipient.set_witness::<F, _>(witness, recipient);
+        self.recipient.set_witness(witness, value.recipient);
         let token_index = F::from_canonical_u64(value.token_index as u64);
         witness.set_target(self.token_index, token_index);
         self.amount.set_witness::<F, U256>(witness, value.amount);
@@ -264,47 +268,112 @@ impl PoetTarget {
                 &value.account_membership_proof_just_before_withdrawal,
             );
     }
+
+    pub fn get_elapsed_time<F, const D: usize>(&self, builder: &mut CircuitBuilder<F, D>) -> Target
+    where
+        F: RichField + Extendable<D>,
+    {
+        let elapsed_time = builder.sub(
+            self.withdrawal_block.block_time_since_genesis,
+            self.deposit_block.block_time_since_genesis,
+        );
+        builder.range_check(elapsed_time, 32);
+
+        elapsed_time
+    }
 }
 
 #[derive(Debug, Clone)]
-pub struct PoetPublicInput {}
+pub struct PoetPublicInput {
+    pub block_hash: Bytes32,
+    pub elapsed_time_threshold: u32,
+    pub claimable_address: Address,
+    pub deposit_nullifier: Bytes32,
+    pub withdrawal_nullifier: Bytes32,
+}
 
 impl PoetPublicInput {
     pub fn to_u32_vec(&self) -> Vec<u32> {
-        // let result = [
-        //     self.recipient.to_u32_vec(),
-        //     vec![self.token_index],
-        //     self.amount.to_u32_vec(),
-        //     self.nullifier.to_u32_vec(),
-        //     self.block_hash.to_u32_vec(),
-        //     vec![self.block_number],
-        // ]
-        // .concat();
-        // assert_eq!(result.len(), WITHDRAWAL_LEN);
-        vec![]
+        let result = vec![
+            self.block_hash.to_u32_vec(),
+            self.deposit_nullifier.to_u32_vec(),
+            self.withdrawal_nullifier.to_u32_vec(),
+            self.claimable_address.to_u32_vec(),
+            vec![self.elapsed_time_threshold],
+        ]
+        .concat();
+        assert_eq!(result.len(), POET_PUBLIC_INPUT_LEN);
+
+        result
     }
 
     pub fn from_u32_slice(_slice: &[u32]) -> Self {
-        Self {}
+        assert!(_slice.len() >= POET_PUBLIC_INPUT_LEN);
+        let block_hash = Bytes32::from_u32_slice(&_slice[0..8]); // BYTES32_LEN
+        let deposit_nullifier = Bytes32::from_u32_slice(&_slice[8..16]); // BYTES32_LEN
+        let withdrawal_nullifier = Bytes32::from_u32_slice(&_slice[16..24]); // BYTES32_LEN
+        let claimable_address = Address::from_u32_slice(&_slice[24..29]); // ADDRESS_LEN
+        let elapsed_time_threshold = _slice[29];
+
+        Self {
+            block_hash,
+            elapsed_time_threshold,
+            claimable_address,
+            deposit_nullifier,
+            withdrawal_nullifier,
+        }
     }
 }
 
 #[derive(Debug, Clone)]
-pub struct PoetPublicInputTarget {}
+pub struct PoetPublicInputTarget {
+    pub block_hash: Bytes32Target,
+    pub elapsed_time_threshold: Target,
+    pub claimable_address: AddressTarget,
+    pub deposit_nullifier: Bytes32Target,
+    pub withdrawal_nullifier: Bytes32Target,
+}
+
+const POET_PUBLIC_INPUT_LEN: usize = 30;
 
 impl PoetPublicInputTarget {
     pub fn to_vec(&self) -> Vec<Target> {
-        vec![]
+        let result = vec![
+            self.block_hash.to_vec(),
+            self.deposit_nullifier.to_vec(),
+            self.withdrawal_nullifier.to_vec(),
+            self.claimable_address.to_vec(),
+            vec![self.elapsed_time_threshold],
+        ]
+        .concat();
+        assert_eq!(result.len(), POET_PUBLIC_INPUT_LEN);
+
+        result
     }
 
     pub fn from_slice(_slice: &[Target]) -> Self {
-        Self {}
+        assert!(_slice.len() >= POET_PUBLIC_INPUT_LEN);
+        let block_hash = Bytes32Target::from_slice(&_slice[0..8]); // BYTES32_LEN
+        let deposit_nullifier = Bytes32Target::from_slice(&_slice[8..16]); // BYTES32_LEN
+        let withdrawal_nullifier = Bytes32Target::from_slice(&_slice[16..24]); // BYTES32_LEN
+        let claimable_address = AddressTarget::from_slice(&_slice[24..29]); // ADDRESS_LEN
+        let elapsed_time_threshold = _slice[29];
+
+        Self {
+            block_hash,
+            deposit_nullifier,
+            withdrawal_nullifier,
+            claimable_address,
+            elapsed_time_threshold,
+        }
     }
 }
 
 #[derive(Debug, Clone)]
 pub struct PoetWithPlonky2ProofTarget<const D: usize> {
     pub proof_of_elapsed_time: PoetTarget,
+    pub claimable_address: AddressTarget,
+    pub elapsed_time_threshold: Target,
     pub single_withdrawal_proof: ProofWithPublicInputsTarget<D>,
     pub tx_inclusion_proof: ProofWithPublicInputsTarget<D>,
 }
@@ -320,6 +389,8 @@ impl<const D: usize> PoetWithPlonky2ProofTarget<D> {
         <C as GenericConfig<D>>::Hasher: AlgebraicHasher<F>,
     {
         let proof_of_elapsed_time = PoetTarget::new(builder, is_checked);
+        let claimable_address = AddressTarget::new(builder, is_checked);
+        let elapsed_time_threshold = builder.add_virtual_target();
         // let validity_proof = builder.add_virtual_proof_with_pis(validity_circuit_common_data);
         let single_withdrawal_proof =
             add_proof_target_and_verify(single_withdrawal_circuit_vd, builder);
@@ -327,9 +398,36 @@ impl<const D: usize> PoetWithPlonky2ProofTarget<D> {
 
         Self {
             proof_of_elapsed_time,
+            claimable_address,
+            elapsed_time_threshold,
             single_withdrawal_proof,
             tx_inclusion_proof,
         }
+    }
+
+    pub fn set_witness<F, C, W>(
+        &self,
+        witness: &mut W,
+        poet_value: &PoetValue,
+        claimable_address: Address,
+        elapsed_time_threshold: u32,
+        single_withdrawal_proof: ProofWithPublicInputs<F, C, D>,
+        tx_inclusion_proof: ProofWithPublicInputs<F, C, D>,
+    ) where
+        W: Witness<F>,
+        F: RichField + Extendable<D>,
+        C: GenericConfig<D, F = F> + 'static,
+        <C as GenericConfig<D>>::Hasher: AlgebraicHasher<F>,
+    {
+        self.proof_of_elapsed_time.set_witness(witness, poet_value);
+        self.claimable_address
+            .set_witness(witness, claimable_address);
+        witness.set_target(
+            self.elapsed_time_threshold,
+            F::from_canonical_u32(elapsed_time_threshold),
+        );
+        witness.set_proof_with_pis_target(&self.single_withdrawal_proof, &single_withdrawal_proof);
+        witness.set_proof_with_pis_target(&self.tx_inclusion_proof, &tx_inclusion_proof);
     }
 }
 
@@ -368,20 +466,12 @@ impl<F: RichField + Extendable<D>, C: GenericConfig<D, F = F> + 'static, const D
             WithdrawalTarget::from_slice(&poet_target.single_withdrawal_proof.public_inputs);
 
         let withdrawal_transfer = &poet_target.proof_of_elapsed_time.withdrawal_transfer;
-        let withdrawal_recipient = withdrawal_transfer.recipient.to_address(&mut builder);
-        withdrawal_recipient.conditional_assert_eq(&mut builder, withdrawal.recipient, _true);
-        let withdrawal_nullifier = get_withdrawal_nullifier_circuit(
+        let withdrawal_nullifier =
+            prove_withdrawal_circuit(&mut builder, withdrawal_transfer, &withdrawal);
+        let deposit_nullifier = prove_deposit_circuit(
             &mut builder,
-            &TransferTarget {
-                recipient: withdrawal_transfer.recipient,
-                token_index: withdrawal_transfer.token_index,
-                amount: withdrawal_transfer.amount.clone(),
-                salt: withdrawal_transfer.salt.clone(),
-            },
+            &poet_target.proof_of_elapsed_time.deposit_transfer,
         );
-        withdrawal
-            .nullifier
-            .conditional_assert_eq(&mut builder, withdrawal_nullifier, _true);
 
         builder.conditional_assert_eq(
             _true.target,
@@ -392,7 +482,30 @@ impl<F: RichField + Extendable<D>, C: GenericConfig<D, F = F> + 'static, const D
                 .block_number,
         );
 
-        let public_inputs = PoetPublicInputTarget {};
+        // elapsed_time = withdrawal_block_time - deposit_block_time
+        let elapsed_time = poet_target
+            .proof_of_elapsed_time
+            .get_elapsed_time(&mut builder);
+
+        // elapsed_time > elapsed_time_threshold
+        let elapsed_time_diff = builder.sub(elapsed_time, poet_target.elapsed_time_threshold);
+
+        let latest_block_hash = poet_target
+            .proof_of_elapsed_time
+            .proof_data
+            .latest_validity_pis
+            .public_state
+            .block_hash
+            .clone();
+        builder.range_check(elapsed_time_diff, 32);
+
+        let public_inputs = PoetPublicInputTarget {
+            block_hash: latest_block_hash,
+            elapsed_time_threshold: poet_target.elapsed_time_threshold,
+            claimable_address: poet_target.claimable_address,
+            deposit_nullifier,
+            withdrawal_nullifier,
+        };
         builder.register_public_inputs(&public_inputs.to_vec());
 
         let data = builder.build();
@@ -405,7 +518,9 @@ impl<F: RichField + Extendable<D>, C: GenericConfig<D, F = F> + 'static, const D
 
     pub fn prove(
         &self,
-        poet_value: &PoetValue,
+        proof_of_elapsed_time: &PoetValue,
+        claimable_address: Address,
+        elapsed_time_threshold: u32,
         single_withdrawal_proof: &ProofWithPublicInputs<F, C, D>,
         tx_inclusion_proof: &ProofWithPublicInputs<F, C, D>,
     ) -> anyhow::Result<ProofWithPublicInputs<F, C, D>>
@@ -415,7 +530,14 @@ impl<F: RichField + Extendable<D>, C: GenericConfig<D, F = F> + 'static, const D
         let mut witness = PartialWitness::new();
         self.target
             .proof_of_elapsed_time
-            .set_witness(&mut witness, poet_value);
+            .set_witness(&mut witness, proof_of_elapsed_time);
+        self.target
+            .claimable_address
+            .set_witness(&mut witness, claimable_address);
+        witness.set_target(
+            self.target.elapsed_time_threshold,
+            F::from_canonical_u32(elapsed_time_threshold),
+        );
         witness.set_proof_with_pis_target(
             &self.target.single_withdrawal_proof,
             single_withdrawal_proof,
@@ -434,6 +556,51 @@ impl<F: RichField + Extendable<D>, C: GenericConfig<D, F = F> + 'static, const D
     pub fn circuit_data(&self) -> &CircuitData<F, C, D> {
         &self.data
     }
+}
+
+pub fn prove_deposit_circuit<F, const D: usize>(
+    builder: &mut CircuitBuilder<F, D>,
+    deposit_transfer: &ReceivedDepositTarget,
+) -> Bytes32Target
+where
+    F: RichField + Extendable<D>,
+{
+    let deposit_nullifier = get_common_nullifier_circuit(
+        builder,
+        deposit_transfer.sender,
+        deposit_transfer.token_index,
+        deposit_transfer.amount.clone(),
+        deposit_transfer.salt.clone(),
+    );
+
+    deposit_nullifier
+}
+
+pub fn prove_withdrawal_circuit<F, const D: usize>(
+    builder: &mut CircuitBuilder<F, D>,
+    withdrawal_transfer: &ProcessedWithdrawalTarget,
+    withdrawal: &WithdrawalTarget,
+) -> Bytes32Target
+where
+    F: RichField + Extendable<D>,
+{
+    let _true = builder._true();
+
+    withdrawal_transfer
+        .recipient
+        .conditional_assert_eq(builder, withdrawal.recipient, _true);
+    let withdrawal_nullifier = get_common_nullifier_circuit(
+        builder,
+        withdrawal_transfer.recipient,
+        withdrawal_transfer.token_index,
+        withdrawal_transfer.amount.clone(),
+        withdrawal_transfer.salt.clone(),
+    );
+    withdrawal
+        .nullifier
+        .conditional_assert_eq(builder, withdrawal_nullifier, _true);
+
+    withdrawal_nullifier
 }
 
 // prev_public_state: &PublicState,
@@ -525,6 +692,13 @@ mod tests {
             &single_withdrawal_circuit_vd,
             &tx_inclusion_circuit_vd,
         );
+        println!(
+            "size of circuit: 2^{}",
+            poet_with_plonky2_proof_circuit
+                .circuit_data()
+                .common
+                .degree_bits()
+        );
 
         let dir_path = "data";
         let file_path = format!("{}/poet_witness.json", dir_path);
@@ -557,8 +731,16 @@ mod tests {
         let tx_inclusion_proof: ProofWithPublicInputs<F, C, D> =
             serde_json::from_str(&tx_inclusion_proof_json).unwrap();
 
+        let claimable_address = poet_value.withdrawal_destination;
+        let elapsed_time_threshold = 100;
         let proof = poet_with_plonky2_proof_circuit
-            .prove(&poet_value, &single_withdrawal_proof, &tx_inclusion_proof)
+            .prove(
+                &poet_value,
+                claimable_address,
+                elapsed_time_threshold,
+                &single_withdrawal_proof,
+                &tx_inclusion_proof,
+            )
             .unwrap();
 
         poet_with_plonky2_proof_circuit.verify(proof).unwrap();
