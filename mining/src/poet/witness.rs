@@ -28,24 +28,16 @@ use intmax2_interfaces::api::{
     withdrawal_server::interface::WithdrawalServerClientInterface,
 };
 use intmax2_zkp::{
-    circuits::validity::validity_pis::ValidityPublicInputs,
     common::{
         block::Block,
-        public_state::PublicState,
+        generic_address::GenericAddress,
         signature::key_set::KeySet,
-        trees::{
-            account_tree::{AccountMembershipProof, AccountTree},
-            block_hash_tree::BlockHashMerkleProof,
-            tx_tree::TxMerkleProof,
-        },
-        tx::Tx,
+        transfer::Transfer,
+        withdrawal::{get_withdrawal_nullifier, Withdrawal},
         witness::{tx_witness::TxWitness, update_witness::UpdateWitness},
     },
-    constants::{ACCOUNT_TREE_HEIGHT, BLOCK_HASH_TREE_HEIGHT, TX_TREE_HEIGHT},
     ethereum_types::{address::Address, u256::U256, u32limb_trait::U32LimbTrait},
-    utils::trees::indexed_merkle_tree::{
-        leaf::IndexedMerkleLeaf, membership::MembershipProof, IndexedMerkleProof,
-    },
+    utils::{conversion::ToU64, trees::indexed_merkle_tree::membership::MembershipProof},
 };
 use plonky2::{
     field::goldilocks_field::GoldilocksField,
@@ -56,7 +48,6 @@ use serde::{Deserialize, Serialize};
 use super::{
     blockchain::{get_rpc_url, get_start_block_number},
     history::ProcessedWithdrawal,
-    update_witness::UpdateWitnessWithoutValidityProof,
 };
 
 // const MIN_ELAPSED_TIME: u32 = 60 * 60 * 48; // 2 days
@@ -140,7 +131,6 @@ async fn fetch_deposited_event<
         let deposit_data = liquidity_contract
             .get_deposit_data(filter.deposit_id)
             .await?;
-        println!("Deposited event: {:?}", deposit_data);
         let deposit_sender = deposit_data.sender;
         senders.push(deposit_sender);
     }
@@ -317,7 +307,11 @@ impl PoetValue {
     }
 
     /// intermediate -> withdrawal_destination
-    fn prove_withdrawal(&self, withdrawal_destination: Address) -> anyhow::Result<()> {
+    fn prove_withdrawal(
+        &self,
+        withdrawal_destination: Address,
+        single_withdrawal_proof: &ProofWithPublicInputs<F, C, D>,
+    ) -> anyhow::Result<()> {
         println!("Proving withdraw...");
         let ValidationData {
             withdrawal_block_merkle_proof,
@@ -342,6 +336,24 @@ impl PoetValue {
             "The withdrawal destination is incorrect: {} != {}",
             generic_withdrawal_destination,
             withdrawal_destination
+        );
+
+        let recipient = GenericAddress::from_address(self.withdrawal_transfer.recipient);
+        let withdrawal_nullifier = get_withdrawal_nullifier(&Transfer {
+            recipient,
+            token_index: self.withdrawal_transfer.token_index,
+            amount: self.withdrawal_transfer.amount.clone(),
+            salt: self.withdrawal_transfer.salt.clone(),
+        });
+        let withdrawal =
+            Withdrawal::from_u64_slice(&single_withdrawal_proof.public_inputs.to_u64_vec());
+        println!("Withdrawal_transfer: {:?}", self.withdrawal_transfer);
+        println!("Withdrawal: {:?}", withdrawal);
+        anyhow::ensure!(
+            withdrawal.nullifier == withdrawal_nullifier,
+            "The withdrawal nullifier is incorrect: {} != {}",
+            withdrawal.nullifier,
+            withdrawal_nullifier
         );
 
         // let ethereum_private_key = "0x";
@@ -376,7 +388,11 @@ impl PoetValue {
     }
 
     /// Prove the elapsed time from deposit_source to withdrawal_destination
-    pub fn prove_elapsed_time(self) -> anyhow::Result<PoetProof> {
+    pub fn prove_elapsed_time(
+        self,
+        single_withdrawal_proof: &ProofWithPublicInputs<F, C, D>,
+        // tx_inclusion_proof: &ProofWithPublicInputs<F, C, D>,
+    ) -> anyhow::Result<PoetProof> {
         println!("Proving elapsed time...");
         assert_ne!(
             self.deposit_source, self.withdrawal_destination,
@@ -392,7 +408,7 @@ impl PoetValue {
         );
 
         self.prove_deposit()?;
-        self.prove_withdrawal(self.withdrawal_destination)?;
+        self.prove_withdrawal(self.withdrawal_destination, &single_withdrawal_proof)?;
         self.prove_not_to_transfer()?;
 
         Ok(PoetProof { poet_witness: self })

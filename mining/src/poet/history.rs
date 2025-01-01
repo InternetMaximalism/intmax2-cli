@@ -71,6 +71,7 @@ fn extract_withdrawal_transfer(
         recipient,
         token_index,
         amount,
+        salt,
         ..
     } = transfer.clone()
     {
@@ -80,7 +81,7 @@ fn extract_withdrawal_transfer(
                 recipient,
                 token_index,
                 amount,
-                salt: Salt::default(), // TODO
+                salt,
                 tx,
                 tx_index,
                 tx_merkle_proof,

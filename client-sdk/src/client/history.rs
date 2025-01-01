@@ -9,7 +9,7 @@ use intmax2_interfaces::{
     data::{deposit_data::TokenType, meta_data::MetaData, tx_data::TxData},
 };
 use intmax2_zkp::{
-    common::signature::key_set::KeySet,
+    common::{salt::Salt, signature::key_set::KeySet},
     ethereum_types::{address::Address, u256::U256, u32limb_trait::U32LimbTrait},
 };
 use plonky2::{field::goldilocks_field::GoldilocksField, plonk::config::PoseidonGoldilocksConfig};
@@ -62,11 +62,13 @@ pub enum GenericTransfer {
         recipient: U256,
         token_index: u32,
         amount: U256,
+        salt: Salt,
     },
     Withdrawal {
         recipient: Address,
         token_index: u32,
         amount: U256,
+        salt: Salt,
     },
 }
 
@@ -77,6 +79,7 @@ impl std::fmt::Display for GenericTransfer {
                 recipient,
                 token_index,
                 amount,
+                ..
             } => write!(
                 f,
                 "Transfer(recipient: {}, token_index: {}, amount: {})",
@@ -88,6 +91,7 @@ impl std::fmt::Display for GenericTransfer {
                 recipient,
                 token_index,
                 amount,
+                ..
             } => write!(
                 f,
                 "Withdrawal(recipient: {}, token_index: {}, amount: {})",
@@ -264,12 +268,14 @@ pub fn extract_generic_transfers(tx_data: TxData<F, C, D>) -> Vec<GenericTransfe
                 recipient: recipient.to_pubkey().unwrap(),
                 token_index: transfer.token_index,
                 amount: transfer.amount,
+                salt: transfer.salt,
             });
         } else {
             transfers.push(GenericTransfer::Withdrawal {
                 recipient: recipient.to_address().unwrap(),
                 token_index: transfer.token_index,
                 amount: transfer.amount,
+                salt: transfer.salt,
             });
         }
     }

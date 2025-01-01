@@ -370,27 +370,27 @@ impl<F: RichField + Extendable<D>, C: GenericConfig<D, F = F> + 'static, const D
         let withdrawal_transfer = &poet_target.proof_of_elapsed_time.withdrawal_transfer;
         let withdrawal_recipient = withdrawal_transfer.recipient.to_address(&mut builder);
         withdrawal_recipient.conditional_assert_eq(&mut builder, withdrawal.recipient, _true);
-        // let withdrawal_nullifier = get_withdrawal_nullifier_circuit(
-        //     &mut builder,
-        //     &TransferTarget {
-        //         recipient: withdrawal_transfer.recipient,
-        //         token_index: withdrawal_transfer.token_index,
-        //         amount: withdrawal_transfer.amount.clone(),
-        //         salt: withdrawal_transfer.salt.clone(),
-        //     },
-        // );
-        // withdrawal
-        //     .nullifier
-        //     .conditional_assert_eq(&mut builder, withdrawal_nullifier, _true);
+        let withdrawal_nullifier = get_withdrawal_nullifier_circuit(
+            &mut builder,
+            &TransferTarget {
+                recipient: withdrawal_transfer.recipient,
+                token_index: withdrawal_transfer.token_index,
+                amount: withdrawal_transfer.amount.clone(),
+                salt: withdrawal_transfer.salt.clone(),
+            },
+        );
+        withdrawal
+            .nullifier
+            .conditional_assert_eq(&mut builder, withdrawal_nullifier, _true);
 
-        // builder.conditional_assert_eq(
-        //     _true.target,
-        //     withdrawal.block_number,
-        //     poet_target
-        //         .proof_of_elapsed_time
-        //         .withdrawal_block
-        //         .block_number,
-        // );
+        builder.conditional_assert_eq(
+            _true.target,
+            withdrawal.block_number,
+            poet_target
+                .proof_of_elapsed_time
+                .withdrawal_block
+                .block_number,
+        );
 
         let public_inputs = PoetPublicInputTarget {};
         builder.register_public_inputs(&public_inputs.to_vec());

@@ -1,6 +1,14 @@
 use ethers::types::H256;
 use mining::{poet::witness::*, utils::h256_to_keyset};
+use plonky2::{
+    field::goldilocks_field::GoldilocksField,
+    plonk::{config::PoseidonGoldilocksConfig, proof::ProofWithPublicInputs},
+};
 use std::io::Write as _;
+
+type F = GoldilocksField;
+type C = PoseidonGoldilocksConfig;
+const D: usize = 2;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
@@ -30,7 +38,13 @@ async fn main() -> anyhow::Result<()> {
     // let witness_json = std::fs::read_to_string(&file_path)?;
     // let witness: PoetValue = serde_json::from_str(&witness_json)?;
 
-    witness.prove_elapsed_time()?;
+    let dir_path = "data";
+    let file_path = format!("{}/single_withdrawal_proof.json", dir_path);
+    let single_withdrawal_proof_json = std::fs::read_to_string(&file_path).unwrap();
+    let single_withdrawal_proof: ProofWithPublicInputs<F, C, D> =
+        serde_json::from_str(&single_withdrawal_proof_json).unwrap();
+
+    witness.prove_elapsed_time(&single_withdrawal_proof)?;
 
     Ok(())
 }
