@@ -1,4 +1,4 @@
 .env*
 !.env.example
 
-/data/single_withdrawal_proof.json
+/data

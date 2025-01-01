@@ -2,8 +2,9 @@ use crate::common::history::{DepositEntry, SendEntry};
 use intmax2_client_sdk::client::history::GenericTransfer;
 use intmax2_interfaces::data::meta_data::MetaData;
 use intmax2_zkp::{
-    common::salt::Salt,
-    ethereum_types::{address::Address, u256::U256},
+    common::{salt::Salt, trees::tx_tree::TxMerkleProof, tx::Tx},
+    constants::TX_TREE_HEIGHT,
+    ethereum_types::{address::Address, bytes32::Bytes32, u256::U256},
 };
 use serde::{Deserialize, Serialize};
 
@@ -27,12 +28,38 @@ pub struct ProcessedWithdrawal {
     pub token_index: u32,
     pub amount: U256,
     pub salt: Salt,
+    pub tx: Tx,
+    pub tx_index: u32,
+    pub tx_merkle_proof: TxMerkleProof,
+    pub tx_tree_root: Bytes32,
     pub block_number: u32,
     pub block_timestamp: u64, // UNIX timestamp seconds when the withdrawal was processed
 }
 
+impl Default for ProcessedWithdrawal {
+    fn default() -> Self {
+        Self {
+            // sender: U256::default(),
+            recipient: Address::default(),
+            token_index: 0,
+            amount: U256::default(),
+            salt: Salt::default(),
+            tx: Tx::default(),
+            tx_index: 0,
+            tx_merkle_proof: TxMerkleProof::dummy(TX_TREE_HEIGHT),
+            tx_tree_root: Bytes32::default(),
+            block_number: 0,
+            block_timestamp: 0,
+        }
+    }
+}
+
 fn extract_withdrawal_transfer(
     transfer: &GenericTransfer,
+    tx: Tx,
+    tx_index: u32,
+    tx_merkle_proof: TxMerkleProof,
+    tx_tree_root: Bytes32,
     is_included: bool,
     meta: MetaData,
 ) -> Option<ProcessedWithdrawal> {
@@ -54,6 +81,10 @@ fn extract_withdrawal_transfer(
                 token_index,
                 amount,
                 salt: Salt::default(), // TODO
+                tx,
+                tx_index,
+                tx_merkle_proof,
+                tx_tree_root,
                 block_number: meta.block_number.unwrap(),
                 block_timestamp: meta.timestamp, // TODO
             });
@@ -71,6 +102,10 @@ pub fn filter_withdrawals_from_history(
         .map(|transition| {
             let SendEntry {
                 transfers,
+                tx,
+                tx_index,
+                tx_merkle_proof,
+                tx_tree_root,
                 is_included,
                 meta,
                 ..
@@ -79,7 +114,15 @@ pub fn filter_withdrawals_from_history(
             transfers
                 .iter()
                 .filter_map(|transfer| {
-                    extract_withdrawal_transfer(transfer, *is_included, meta.clone())
+                    extract_withdrawal_transfer(
+                        transfer,
+                        *tx,
+                        *tx_index,
+                        tx_merkle_proof.clone(),
+                        *tx_tree_root,
+                        *is_included,
+                        meta.clone(),
+                    )
                 })
                 .collect::<Vec<_>>()
         })

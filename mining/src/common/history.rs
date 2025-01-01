@@ -15,7 +15,7 @@ use intmax2_interfaces::{
     data::{deposit_data::TokenType, meta_data::MetaData},
 };
 use intmax2_zkp::{
-    common::{salt::Salt, signature::key_set::KeySet},
+    common::{salt::Salt, signature::key_set::KeySet, trees::tx_tree::TxMerkleProof, tx::Tx},
     ethereum_types::{address::Address, bytes32::Bytes32, u256::U256},
 };
 use serde::{Deserialize, Serialize};
@@ -56,6 +56,10 @@ pub struct ReceiveEntry {
 #[serde(rename_all = "camelCase")]
 pub struct SendEntry {
     pub transfers: Vec<GenericTransfer>,
+    pub tx: Tx,
+    pub tx_index: u32,
+    pub tx_merkle_proof: TxMerkleProof,
+    pub tx_tree_root: Bytes32,
     pub is_included: bool,
     pub is_rejected: bool,
     pub meta: MetaData,
@@ -87,7 +91,7 @@ pub async fn fetch_deposit_history<
         &client.liquidity_contract,
         key,
         0, // set to 0 to get all deposits
-        &processed_deposit_uuids,
+        &[],
         client.config.deposit_timeout,
     )
     .await?;
@@ -221,12 +225,16 @@ pub async fn fetch_tx_history<
         &client.validity_prover,
         key,
         0, // set to 0 to get all txs
-        &processed_tx_uuids,
+        &[],
         client.config.tx_timeout,
     )
     .await?;
     for (meta, settled) in all_tx_info.settled {
         history.push(SendEntry {
+            tx: settled.common.tx,
+            tx_index: settled.common.tx_index,
+            tx_merkle_proof: settled.common.tx_merkle_proof.clone(),
+            tx_tree_root: settled.common.tx_tree_root,
             transfers: extract_generic_transfers(settled),
             is_included: processed_tx_uuids.contains(&meta.uuid),
             is_rejected: false,
@@ -235,6 +243,10 @@ pub async fn fetch_tx_history<
     }
     for (meta, pending) in all_tx_info.pending {
         history.push(SendEntry {
+            tx: pending.common.tx,
+            tx_index: pending.common.tx_index,
+            tx_merkle_proof: pending.common.tx_merkle_proof.clone(),
+            tx_tree_root: pending.common.tx_tree_root,
             transfers: extract_generic_transfers(pending),
             is_included: false,
             is_rejected: false,
@@ -243,6 +255,10 @@ pub async fn fetch_tx_history<
     }
     for (meta, timeout) in all_tx_info.timeout {
         history.push(SendEntry {
+            tx: timeout.common.tx,
+            tx_index: timeout.common.tx_index,
+            tx_merkle_proof: timeout.common.tx_merkle_proof.clone(),
+            tx_tree_root: timeout.common.tx_tree_root,
             transfers: extract_generic_transfers(timeout),
             is_included: false,
             is_rejected: true,

@@ -21,7 +21,7 @@ edition = "2021"
 
 [workspace.dependencies]
 plonky2 = { git = "https://github.com/InternetMaximalism/polygon-plonky2.git", branch = "intmax2-dev" }
-intmax2-zkp = { git = "https://github.com/InternetMaximalism/intmax2-zkp", branch = "cli" }
+intmax2-zkp = { git = "https://github.com/InternetMaximalism/intmax2-zkp", rev = "fd8a2cff291cefc05f700b4a70ba7d963d22738f" }
 plonky2_bn254 = { git = "https://github.com/InternetMaximalism/plonky2_bn254" }
 plonky2_keccak = { git = "https://github.com/InternetMaximalism/plonky2_keccak" }
 # Only features sync,macros,io-util,rt,time are supported on wasm.

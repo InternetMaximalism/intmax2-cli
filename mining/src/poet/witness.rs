@@ -28,18 +28,43 @@ use intmax2_interfaces::api::{
     withdrawal_server::interface::WithdrawalServerClientInterface,
 };
 use intmax2_zkp::{
-    common::{salt::Salt, signature::key_set::KeySet, trees::account_tree::AccountTree},
+    circuits::validity::validity_pis::ValidityPublicInputs,
+    common::{
+        block::Block,
+        public_state::PublicState,
+        signature::key_set::KeySet,
+        trees::{
+            account_tree::{AccountMembershipProof, AccountTree},
+            block_hash_tree::BlockHashMerkleProof,
+            tx_tree::TxMerkleProof,
+        },
+        tx::Tx,
+        witness::{tx_witness::TxWitness, update_witness::UpdateWitness},
+    },
+    constants::{ACCOUNT_TREE_HEIGHT, BLOCK_HASH_TREE_HEIGHT, TX_TREE_HEIGHT},
     ethereum_types::{address::Address, u256::U256, u32limb_trait::U32LimbTrait},
-    utils::trees::indexed_merkle_tree::membership::MembershipProof,
+    utils::trees::indexed_merkle_tree::{
+        leaf::IndexedMerkleLeaf, membership::MembershipProof, IndexedMerkleProof,
+    },
+};
+use plonky2::{
+    field::goldilocks_field::GoldilocksField,
+    plonk::{config::PoseidonGoldilocksConfig, proof::ProofWithPublicInputs},
 };
 use serde::{Deserialize, Serialize};
 
 use super::{
     blockchain::{get_rpc_url, get_start_block_number},
     history::ProcessedWithdrawal,
+    update_witness::UpdateWitnessWithoutValidityProof,
 };
 
-const MIN_ELAPSED_TIME: u32 = 60 * 60 * 48; // 2 days
+// const MIN_ELAPSED_TIME: u32 = 60 * 60 * 48; // 2 days
+const MIN_ELAPSED_TIME: u32 = 60; // 1 minutes
+
+type F = GoldilocksField;
+type C = PoseidonGoldilocksConfig;
+const D: usize = 2;
 
 /// A proof of elapsed time from deposit_source to withdrawal_destination
 #[derive(Debug, Clone)]
@@ -56,31 +81,11 @@ pub struct PoetValue {
     pub proof_data: ValidationData,
     pub deposit_transfer: ReceivedDeposit,
     pub withdrawal_transfer: ProcessedWithdrawal,
+    pub deposit_block: Block,
+    pub withdrawal_block: Block,
+    pub withdrawal_tx_witness: TxWitness,
+    pub withdrawal_update_witness: UpdateWitness<F, C, D>,
     pub account_membership_proof_just_before_withdrawal: MembershipProof,
-}
-
-impl Default for PoetValue {
-    fn default() -> Self {
-        let account_tree = AccountTree::new(32);
-        let account_membership_proof_just_before_withdrawal =
-            account_tree.prove_membership(U256::default());
-        Self {
-            deposit_source: Address::default(),
-            intermediate: U256::default(),
-            withdrawal_destination: Address::default(),
-            proof_data: ValidationData::default(),
-            deposit_transfer: ReceivedDeposit::default(),
-            withdrawal_transfer: ProcessedWithdrawal {
-                recipient: Address::default(),
-                token_index: 0,
-                amount: U256::default(),
-                salt: Salt::default(),
-                block_number: 0,
-                block_timestamp: 0,
-            },
-            account_membership_proof_just_before_withdrawal,
-        }
-    }
 }
 
 const EVENT_BLOCK_RANGE: u64 = 50000;
@@ -175,10 +180,10 @@ impl PoetValue {
             "No deposits were made between the withdrawal block and the specified block"
         ))?;
 
-        let processed_deposit_block = processed_deposit_transition.block_number;
+        let processed_deposit_block_number = processed_deposit_transition.block_number;
         let proof_data = fetch_validation_data(
             &client,
-            processed_deposit_block,
+            processed_deposit_block_number,
             processed_withdrawal_block_number,
         )
         .await?;
@@ -236,6 +241,47 @@ impl PoetValue {
             block_number: processed_deposit_transition.block_number,
             block_timestamp: processed_deposit_transition.timestamp, // TODO
         };
+        let (deposit_block, withdrawal_block) = get_deposit_and_withdrawal_block(
+            &client,
+            processed_deposit_block_number,
+            processed_withdrawal_block_number,
+        )
+        .await?;
+
+        let latest_block_number = client.validity_prover.get_block_number().await?;
+        let validity_pis = client
+            .validity_prover
+            .get_validity_pis(latest_block_number)
+            .await?
+            .ok_or(anyhow::anyhow!(format!(
+                "validity public inputs not found for block number {}",
+                latest_block_number
+            )))?;
+        let sender_leaves = client
+            .validity_prover
+            .get_sender_leaves(latest_block_number)
+            .await?
+            .ok_or(anyhow::anyhow!(format!(
+                "sender leaves not found for block number {}",
+                latest_block_number
+            )))?;
+        let withdrawal_tx_witness = TxWitness {
+            validity_pis,
+            sender_leaves,
+            tx: withdrawal_transfer.tx.clone(),
+            tx_index: withdrawal_transfer.tx_index,
+            tx_merkle_proof: withdrawal_transfer.tx_merkle_proof.clone(),
+        };
+        let withdrawal_update_witness = client
+            .validity_prover
+            .get_update_witness(
+                intermediate_account.pubkey,
+                latest_block_number,
+                withdrawal_block.block_number,
+                true,
+            )
+            .await?;
+
         Ok(Self {
             deposit_source,
             intermediate: intermediate_account.pubkey,
@@ -243,6 +289,10 @@ impl PoetValue {
             proof_data,
             deposit_transfer,
             withdrawal_transfer: withdrawal_transfer.clone(),
+            deposit_block,
+            withdrawal_block,
+            withdrawal_tx_witness,
+            withdrawal_update_witness,
             account_membership_proof_just_before_withdrawal: prev_account_info.membership_proof,
         })
     }
@@ -333,6 +383,7 @@ impl PoetValue {
             "The deposit address and the withdrawal address should be different"
         );
         let elapsed_time = self.get_elapsed_time();
+        println!("Elapsed time: {}", elapsed_time);
         assert!(
             elapsed_time >= MIN_ELAPSED_TIME,
             "Elapsed time is too short: elapsed block interval {} should be greater than or equal to {}",
@@ -348,19 +399,20 @@ impl PoetValue {
     }
 
     pub fn get_elapsed_time(&self) -> u32 {
-        let ValidationData {
-            deposit_validity_pis,
-            withdrawal_validity_pis,
-            ..
-        } = &self.proof_data;
+        let deposit_block_time = self.deposit_block.block_time_since_genesis;
+        let withdrawal_block_time = self.withdrawal_block.block_time_since_genesis;
 
-        let deposit_block_number = deposit_validity_pis.public_state.block_number;
-        let withdrawal_block_number = withdrawal_validity_pis.public_state.block_number;
-
-        withdrawal_block_number - deposit_block_number
+        withdrawal_block_time - deposit_block_time
     }
 
     pub fn get_last_sent_tx_block_number(&self) -> u32 {
+        if !self
+            .account_membership_proof_just_before_withdrawal
+            .is_included
+        {
+            return 0;
+        }
+
         let account_leaf = &self.account_membership_proof_just_before_withdrawal.leaf;
 
         account_leaf.value as u32
@@ -406,4 +458,52 @@ fn calculate_from_block<
     let from_block = 0;
 
     from_block
+}
+
+async fn get_deposit_and_withdrawal_block<
+    BB: BlockBuilderClientInterface,
+    S: StoreVaultClientInterface,
+    V: ValidityProverClientInterface,
+    B: BalanceProverClientInterface,
+    W: WithdrawalServerClientInterface,
+>(
+    client: &Client<BB, S, V, B, W>,
+    processed_deposit_block_number: u32,
+    processed_withdrawal_block_number: u32,
+) -> anyhow::Result<(Block, Block)> {
+    let rollup_deployed_block_number = client.rollup_contract.deployed_block_number;
+    let (posted_events, _) = client
+        .rollup_contract
+        .get_blocks_posted_event(rollup_deployed_block_number)
+        .await?;
+    let deposit_block_with_meta = posted_events
+        .iter()
+        .find(|event| event.block_number == processed_deposit_block_number)
+        .ok_or(anyhow::anyhow!(
+            "Deposit block not found: block number {}",
+            processed_deposit_block_number
+        ))?;
+    let deposit_block = Block {
+        prev_block_hash: deposit_block_with_meta.prev_block_hash,
+        deposit_tree_root: deposit_block_with_meta.deposit_tree_root,
+        signature_hash: deposit_block_with_meta.signature_hash,
+        block_number: deposit_block_with_meta.block_number,
+        block_time_since_genesis: deposit_block_with_meta.block_time_since_genesis,
+    };
+    let withdrawal_block_with_meta = posted_events
+        .iter()
+        .find(|event| event.block_number == processed_withdrawal_block_number)
+        .ok_or(anyhow::anyhow!(
+            "Withdrawal block not found: block number {}",
+            processed_withdrawal_block_number
+        ))?;
+    let withdrawal_block = Block {
+        prev_block_hash: withdrawal_block_with_meta.prev_block_hash,
+        deposit_tree_root: withdrawal_block_with_meta.deposit_tree_root,
+        signature_hash: withdrawal_block_with_meta.signature_hash,
+        block_number: withdrawal_block_with_meta.block_number,
+        block_time_since_genesis: withdrawal_block_with_meta.block_time_since_genesis,
+    };
+
+    Ok((deposit_block, withdrawal_block))
 }

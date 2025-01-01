@@ -19,7 +19,10 @@ use intmax2_zkp::{
     },
 };
 
-use crate::external_api::{contract::utils::get_latest_block_number, utils::retry::with_retry};
+use crate::external_api::{
+    contract::utils::{get_block, get_latest_block_number},
+    utils::retry::with_retry,
+};
 
 use super::{
     data_decoder::decode_post_block_calldata,
@@ -48,6 +51,7 @@ pub struct BlockPosted {
     pub prev_block_hash: Bytes32,
     pub block_builder: Address,
     pub block_number: u32,
+    pub block_time_since_genesis: u32,
     pub deposit_tree_root: Bytes32,
     pub signature_hash: Bytes32,
 
@@ -181,7 +185,7 @@ impl RollupContract {
         Ok((deposit_leaf_inserted_events, final_to_block))
     }
 
-    async fn get_blocks_posted_event(
+    pub async fn get_blocks_posted_event(
         &self,
         from_block: u64,
     ) -> Result<(Vec<BlockPosted>, u64), BlockchainError> {
@@ -226,10 +230,18 @@ impl RollupContract {
         };
         let mut blocks_posted_events = Vec::new();
         for (event, meta) in events {
+            let block_hash = meta.block_hash;
+            let block = get_block(&self.rpc_url, block_hash).await?;
+            if block.is_none() {
+                continue;
+            }
+            let block_time = block.unwrap().timestamp.as_u64();
+            let block_time_since_genesis = (block_time - self.deployed_block_number) as u32;
             blocks_posted_events.push(BlockPosted {
                 prev_block_hash: Bytes32::from_bytes_be(&event.prev_block_hash),
                 block_builder: Address::from_bytes_be(&event.block_builder.as_bytes()),
                 block_number: event.block_number.as_u32(),
+                block_time_since_genesis,
                 deposit_tree_root: Bytes32::from_bytes_be(&event.deposit_tree_root),
                 signature_hash: Bytes32::from_bytes_be(&event.signature_hash),
                 tx_hash: meta.transaction_hash,
@@ -258,6 +270,7 @@ impl RollupContract {
                 event.prev_block_hash,
                 event.deposit_tree_root,
                 event.block_number,
+                event.block_time_since_genesis,
                 &tx.input.to_vec(),
             )
             .map_err(|e| {

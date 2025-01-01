@@ -21,6 +21,7 @@ pub fn decode_post_block_calldata(
     prev_block_hash: Bytes32,
     deposit_tree_root: Bytes32,
     block_number: u32,
+    block_time_since_genesis: u32,
     data: &[u8],
 ) -> anyhow::Result<FullBlock> {
     let signature = &data[0..4];
@@ -42,6 +43,7 @@ pub fn decode_post_block_calldata(
             prev_block_hash,
             deposit_tree_root,
             block_number,
+            block_time_since_genesis,
             &decoded,
         )?,
         "postNonRegistrationBlock" => parse_block(
@@ -49,6 +51,7 @@ pub fn decode_post_block_calldata(
             prev_block_hash,
             deposit_tree_root,
             block_number,
+            block_time_since_genesis,
             &decoded,
         )?,
         _ => {
@@ -63,6 +66,7 @@ fn parse_block(
     prev_block_hash: Bytes32,
     deposit_tree_root: Bytes32,
     block_number: u32,
+    block_time_since_genesis: u32,
     decoded: &[Token],
 ) -> anyhow::Result<FullBlock> {
     let tx_tree_root = decoded
@@ -197,6 +201,7 @@ fn parse_block(
         deposit_tree_root,
         signature_hash: signature.hash(),
         block_number,
+        block_time_since_genesis,
     };
 
     Ok(FullBlock {
