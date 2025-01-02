@@ -93,6 +93,7 @@ impl JsDepositResult {
 pub struct JsTxResult {
     pub tx_tree_root: String,
     pub transfer_data_vec: Vec<JsTransferData>,
+    pub withdrawal_data_vec: Vec<JsTransferData>,
     pub transfer_uuids: Vec<String>,
     pub withdrawal_uuids: Vec<String>,
 }
@@ -105,9 +106,16 @@ impl JsTxResult {
             .iter()
             .map(JsTransferData::from_transfer_data)
             .collect::<Vec<_>>();
+        let withdrawal_data_vec = tx_result
+            .withdrawal_data_vec
+            .iter()
+            .map(JsTransferData::from_transfer_data)
+            .collect::<Vec<_>>();
+
         Self {
             tx_tree_root,
             transfer_data_vec,
+            withdrawal_data_vec,
             transfer_uuids: tx_result.transfer_uuids.clone(),
             withdrawal_uuids: tx_result.withdrawal_uuids.clone(),
         }

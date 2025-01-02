@@ -92,6 +92,7 @@ pub struct DepositResult {
 pub struct TxResult {
     pub tx_tree_root: Bytes32,
     pub transfer_data_vec: Vec<TransferData<F, C, D>>,
+    pub withdrawal_data_vec: Vec<TransferData<F, C, D>>,
     pub transfer_uuids: Vec<String>,
     pub withdrawal_uuids: Vec<String>,
 }
@@ -301,7 +302,7 @@ where
             transfer_tree.push(transfer.clone());
         }
 
-        let mut transfer_data_vec = Vec::new();
+        let mut all_transfer_data_vec = Vec::new();
         for (i, transfer) in memo.transfers.iter().enumerate() {
             let transfer_merkle_proof = transfer_tree.prove(i as u64);
             let transfer_data = TransferData {
@@ -313,22 +314,30 @@ where
                 transfer_index: i as u32,
                 transfer_merkle_proof,
             };
-            transfer_data_vec.push(transfer_data);
+            all_transfer_data_vec.push(transfer_data);
         }
+
+        let transfer_data_vec = all_transfer_data_vec
+            .clone()
+            .into_iter()
+            // filter out eth-address recipients (withdrawal)
+            .filter(|data| data.transfer.recipient.is_pubkey)
+            .collect::<Vec<_>>();
+        let withdrawal_data_vec = all_transfer_data_vec
+            .into_iter()
+            // filter out pubkey recipients (transfer)
+            .filter(|data| !data.transfer.recipient.is_pubkey)
+            .collect::<Vec<_>>();
 
         let encrypted_transfer_data_vec = transfer_data_vec
             .iter()
-            // filter out eth-address recipients (withdrawal)
-            .filter(|data| data.transfer.recipient.is_pubkey)
             .map(|data| {
                 let recipient = data.transfer.recipient.to_pubkey().unwrap();
                 (recipient, data.encrypt(recipient))
             })
             .collect::<Vec<_>>();
-        let encrypted_withdrawal_data_vec = transfer_data_vec
+        let encrypted_withdrawal_data_vec = withdrawal_data_vec
             .iter()
-            // filter out pubkey recipients (transfer)
-            .filter(|data| !data.transfer.recipient.is_pubkey)
             .map(|data| (key.pubkey, data.encrypt(key.pubkey)))
             .collect::<Vec<_>>();
 
@@ -356,6 +365,7 @@ where
         let result = TxResult {
             tx_tree_root: proposal.tx_tree_root,
             transfer_data_vec,
+            withdrawal_data_vec,
             transfer_uuids,
             withdrawal_uuids,
         };
