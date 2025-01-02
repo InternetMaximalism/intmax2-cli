@@ -1,4 +1,4 @@
-use super::store_vault_server::StoreVaultServer;
+use crate::app::store_vault_server::StoreVaultServer;
 
 pub struct State {
     pub store_vault_server: StoreVaultServer,
