@@ -6,9 +6,10 @@ use intmax2_interfaces::{
             interface::{DataType, StoreVaultClientInterface},
             types::{
                 BatchGetDataQuery, BatchGetDataResponse, BatchSaveDataRequest,
-                GetBalanceProofQuery, GetBalanceProofResponse, GetDataAllAfterQuery,
-                GetDataAllAfterResponse, GetDataQuery, GetDataResponse, GetUserDataQuery,
-                GetUserDataResponse, SaveBalanceProofRequest, SaveDataRequest,
+                BatchSaveDataResponse, GetBalanceProofQuery, GetBalanceProofResponse,
+                GetDataAllAfterQuery, GetDataAllAfterResponse, GetDataQuery, GetDataResponse,
+                GetUserDataQuery, GetUserDataResponse, SaveBalanceProofRequest, SaveDataRequest,
+                SaveDataResponse,
             },
         },
     },
@@ -83,31 +84,33 @@ impl StoreVaultClientInterface for StoreVaultServerClient {
         data_type: DataType,
         pubkey: U256,
         encrypted_data: &[u8],
-    ) -> Result<(), ServerError> {
+    ) -> Result<String, ServerError> {
         let request = SaveDataRequest {
             pubkey,
             data: encrypted_data.to_vec(),
         };
-        post_request::<_, ()>(
+        let response: SaveDataResponse = post_request(
             &self.base_url,
             &format!("/store-vault-server/{}/save", data_type.to_string()),
             &request,
         )
-        .await
+        .await?;
+        Ok(response.uuid)
     }
 
     async fn save_data_batch(
         &self,
         data_type: DataType,
         data: Vec<(U256, Vec<u8>)>,
-    ) -> Result<(), ServerError> {
+    ) -> Result<Vec<String>, ServerError> {
         let request = BatchSaveDataRequest { requests: data };
-        post_request::<_, ()>(
+        let response: BatchSaveDataResponse = post_request(
             &self.base_url,
             &format!("/store-vault-server/{}/batch-save", data_type.to_string()),
             &request,
         )
-        .await
+        .await?;
+        Ok(response.uuids)
     }
 
     async fn get_data(

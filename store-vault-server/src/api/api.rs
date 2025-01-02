@@ -8,10 +8,7 @@ use actix_web::{
 use intmax2_interfaces::api::store_vault_server::{
     interface::DataType,
     types::{
-        BatchGetDataQuery, BatchGetDataResponse, BatchSaveDataRequest, GetBalanceProofQuery,
-        GetBalanceProofResponse, GetDataAllAfterQuery, GetDataAllAfterResponse, GetDataQuery,
-        GetDataResponse, GetUserDataQuery, GetUserDataResponse, SaveBalanceProofRequest,
-        SaveDataRequest,
+        BatchGetDataQuery, BatchGetDataResponse, BatchSaveDataRequest, BatchSaveDataResponse, GetBalanceProofQuery, GetBalanceProofResponse, GetDataAllAfterQuery, GetDataAllAfterResponse, GetDataQuery, GetDataResponse, GetUserDataQuery, GetUserDataResponse, SaveBalanceProofRequest, SaveDataRequest, SaveDataResponse
     },
 };
 use serde_qs::actix::QsQuery;
@@ -51,17 +48,17 @@ pub async fn save_data(
     state: Data<State>,
     path: Path<String>,
     request: Json<SaveDataRequest>,
-) -> Result<Json<()>, Error> {
+) -> Result<Json<SaveDataResponse>, Error> {
     let data_type = path.into_inner();
     let data_type = DataType::from_str(data_type.as_str())
         .map_err(|e| actix_web::error::ErrorInternalServerError(format!("Invalid type: {}", e)))?;
     let request = request.into_inner();
-    state
+    let uuid = state
         .store_vault_server
         .save_data(data_type, request.pubkey, request.data)
         .await
         .map_err(|e| actix_web::error::ErrorInternalServerError(e))?;
-    Ok(Json(()))
+    Ok(Json(SaveDataResponse { uuid }))
 }
 
 #[post("/{type}/batch-save")]
@@ -69,7 +66,7 @@ pub async fn batch_save_data(
     state: Data<State>,
     path: Path<String>,
     request: Json<BatchSaveDataRequest>,
-) -> Result<Json<()>, Error> {
+) -> Result<Json<BatchSaveDataResponse>, Error> {
     const MAX_BATCH_SIZE: usize = 1000;
 
     let data_type = path.into_inner();
@@ -85,13 +82,13 @@ pub async fn batch_save_data(
         )));
     }
 
-    state
+    let uuids = state
         .store_vault_server
         .batch_save_data(data_type, requests)
         .await
         .map_err(|e| actix_web::error::ErrorInternalServerError(e))?;
 
-    Ok(Json(()))
+    Ok(Json(BatchSaveDataResponse { uuids }))
 }
 
 #[get("/{type}/get")]

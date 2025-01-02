@@ -68,13 +68,13 @@ pub trait StoreVaultClientInterface {
         data_type: DataType,
         pubkey: U256,
         encrypted_data: &[u8],
-    ) -> Result<(), ServerError>;
+    ) -> Result<String, ServerError>;
 
     async fn save_data_batch(
         &self,
         data_type: DataType,
         data: Vec<(U256, Vec<u8>)>,
-    ) -> Result<(), ServerError>;
+    ) -> Result<Vec<String>, ServerError>;
 
     async fn get_data(
         &self,

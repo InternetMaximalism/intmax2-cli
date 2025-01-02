@@ -160,7 +160,7 @@ impl StoreVaultServer {
         data_type: DataType,
         pubkey: U256,
         encrypted_data: Vec<u8>,
-    ) -> Result<()> {
+    ) -> Result<String> {
         let pubkey_hex = pubkey.to_hex();
         let uuid = Uuid::new_v4().to_string();
         let timestamp = chrono::Utc::now().timestamp() as i64;
@@ -180,14 +180,14 @@ impl StoreVaultServer {
         .execute(&self.pool)
         .await?;
 
-        Ok(())
+        Ok(uuid)
     }
 
     pub async fn batch_save_data(
         &self,
         data_type: DataType,
         requests: Vec<(U256, Vec<u8>)>,
-    ) -> Result<()> {
+    ) -> Result<Vec<String>> {
         let timestamp = chrono::Utc::now().timestamp() as i64;
 
         // Prepare values for bulk insert
@@ -222,7 +222,7 @@ impl StoreVaultServer {
         .execute(&self.pool)
         .await?;
 
-        Ok(())
+        Ok(uuids)
     }
 
     pub async fn get_data_all_after(
@@ -237,7 +237,7 @@ impl StoreVaultServer {
             r#"
             SELECT uuid, timestamp, block_number, encrypted_data
             FROM encrypted_data
-            WHERE data_type = $1 AND pubkey = $2 AND timestamp > $3
+            WHERE data_type = $1 AND pubkey = $2 AND timestamp >= $3
             ORDER BY timestamp ASC
             "#,
             data_type as i32,
