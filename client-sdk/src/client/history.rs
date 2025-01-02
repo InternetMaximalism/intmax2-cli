@@ -10,7 +10,7 @@ use intmax2_interfaces::{
 };
 use intmax2_zkp::{
     common::signature::key_set::KeySet,
-    ethereum_types::{address::Address, u256::U256, u32limb_trait::U32LimbTrait},
+    ethereum_types::{address::Address, bytes32::Bytes32, u256::U256, u32limb_trait::U32LimbTrait},
 };
 use plonky2::{field::goldilocks_field::GoldilocksField, plonk::config::PoseidonGoldilocksConfig};
 use serde::{Deserialize, Serialize};
@@ -34,6 +34,7 @@ pub enum HistoryEntry {
         token_id: U256,
         token_index: Option<u32>,
         amount: U256,
+        pubkey_salt_hash: Bytes32,
         is_included: bool,
         is_rejected: bool,
         meta: MetaData,
@@ -131,6 +132,7 @@ pub async fn fetch_history<
             token_id: settled.token_id,
             token_index: settled.token_index,
             amount: settled.amount,
+            pubkey_salt_hash: settled.pubkey_salt_hash,
             is_included: user_data.processed_deposit_uuids.contains(&meta.uuid),
             is_rejected: false,
             meta,
@@ -143,6 +145,7 @@ pub async fn fetch_history<
             token_id: pending.token_id,
             token_index: pending.token_index,
             amount: pending.amount,
+            pubkey_salt_hash: pending.pubkey_salt_hash,
             is_included: false,
             is_rejected: false,
             meta,
@@ -155,6 +158,7 @@ pub async fn fetch_history<
             token_id: timeout.token_id,
             token_index: timeout.token_index,
             amount: timeout.amount,
+            pubkey_salt_hash: timeout.pubkey_salt_hash,
             is_included: false,
             is_rejected: true,
             meta,
