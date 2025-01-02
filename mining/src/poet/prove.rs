@@ -648,21 +648,24 @@ where
 
 #[cfg(test)]
 mod tests {
-    use intmax2_client_sdk::client::strategy::tx;
+    use intmax2_client_sdk::{client::strategy::tx, utils::circuit_verifiers::CircuitVerifiers};
     use intmax2_zkp::{
         circuits::{
             balance::{
                 balance_processor::BalanceProcessor,
                 send::tx_inclusion_circuit::{self, TxInclusionCircuit},
             },
-            validity::validity_processor::ValidityProcessor,
+            validity::{validity_circuit, validity_processor::ValidityProcessor},
             withdrawal::single_withdrawal_circuit::SingleWithdrawalCircuit,
         },
         common::witness::update_witness::UpdateWitness,
     };
     use plonky2::{
         field::goldilocks_field::GoldilocksField,
-        plonk::{config::PoseidonGoldilocksConfig, proof::ProofWithPublicInputs},
+        plonk::{
+            circuit_data::VerifierCircuitData, config::PoseidonGoldilocksConfig,
+            proof::ProofWithPublicInputs,
+        },
     };
 
     use crate::poet::witness::PoetValue;
@@ -675,18 +678,10 @@ mod tests {
 
     #[test]
     fn test_poet_with_plonky2_proof_circuit() {
-        let validity_processor = ValidityProcessor::<F, C, D>::new();
-        let validity_vd = validity_processor.get_verifier_data();
-        let balance_processor = BalanceProcessor::new(&validity_vd);
-        let balance_validity_vd = balance_processor.get_verifier_data();
-        // let withdrawal_processor = WithdrawalProcessor::<F, C, D>::new(&balance_validity_vd.common);
-        let single_withdrawal_circuit =
-            SingleWithdrawalCircuit::<F, C, D>::new(&balance_validity_vd.common);
-        let single_withdrawal_circuit_vd = single_withdrawal_circuit.data.verifier_data();
-        let tx_inclusion_circuit = balance_processor
-            .balance_transition_processor
-            .sender_processor
-            .tx_inclusion_circuit;
+        let verifiers = CircuitVerifiers::construct();
+        let validity_vd = verifiers.get_validity_vd();
+        let single_withdrawal_circuit_vd = verifiers.get_single_withdrawal_vd();
+        let tx_inclusion_circuit = TxInclusionCircuit::<F, C, D>::new(&validity_vd);
         let tx_inclusion_circuit_vd = tx_inclusion_circuit.data.verifier_data();
         let poet_with_plonky2_proof_circuit = PoetWithPlonky2ProofCircuit::<F, C, D>::new(
             &single_withdrawal_circuit_vd,
@@ -733,6 +728,8 @@ mod tests {
 
         let claimable_address = poet_value.withdrawal_destination;
         let elapsed_time_threshold = 100;
+
+        let start = std::time::Instant::now();
         let proof = poet_with_plonky2_proof_circuit
             .prove(
                 &poet_value,
@@ -742,6 +739,7 @@ mod tests {
                 &tx_inclusion_proof,
             )
             .unwrap();
+        println!("prove elapsed time: {:?}", start.elapsed());
 
         poet_with_plonky2_proof_circuit.verify(proof).unwrap();
     }
