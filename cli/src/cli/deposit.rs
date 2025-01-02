@@ -41,9 +41,11 @@ pub async fn deposit(
     let token_address = convert_address(token_address);
     let token_id = convert_u256(token_id);
 
-    let deposit_data = client
+    let deposit_result = client
         .prepare_deposit(key.pubkey, amount, token_type, token_address, token_id)
         .await?;
+
+    let deposit_data = deposit_result.deposit_data;
 
     match token_type {
         TokenType::NATIVE => {

@@ -82,9 +82,18 @@ pub struct TxRequestMemo {
 
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+pub struct DepositResult {
+    pub deposit_data: DepositData,
+    pub deposit_uuid: String,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct TxResult {
     pub tx_tree_root: Bytes32,
     pub transfer_data_vec: Vec<TransferData<F, C, D>>,
+    pub transfer_uuids: Vec<String>,
+    pub withdrawal_uuids: Vec<String>,
 }
 
 impl<BB, S, V, B, W> Client<BB, S, V, B, W>
@@ -103,7 +112,7 @@ where
         token_type: TokenType,
         token_address: Address,
         token_id: U256,
-    ) -> Result<DepositData, ClientError> {
+    ) -> Result<DepositResult, ClientError> {
         log::info!(
             "prepare_deposit: pubkey {}, amount {}, token_type {:?}, token_address {}, token_id {}",
             pubkey,
@@ -125,11 +134,17 @@ where
             token_id,
             token_index: None,
         };
-        self.store_vault_server
+        let deposit_uuid = self
+            .store_vault_server
             .save_data(DataType::Deposit, pubkey, &deposit_data.encrypt(pubkey))
             .await?;
 
-        Ok(deposit_data)
+        let result = DepositResult {
+            deposit_data,
+            deposit_uuid,
+        };
+
+        Ok(result)
     }
 
     /// Send a transaction request to the block builder
@@ -317,10 +332,12 @@ where
             .map(|data| (key.pubkey, data.encrypt(key.pubkey)))
             .collect::<Vec<_>>();
 
-        self.store_vault_server
+        let transfer_uuids = self
+            .store_vault_server
             .save_data_batch(DataType::Transfer, encrypted_transfer_data_vec)
             .await?;
-        self.store_vault_server
+        let withdrawal_uuids = self
+            .store_vault_server
             .save_data_batch(DataType::Withdrawal, encrypted_withdrawal_data_vec)
             .await?;
 
@@ -339,6 +356,8 @@ where
         let result = TxResult {
             tx_tree_root: proposal.tx_tree_root,
             transfer_data_vec,
+            transfer_uuids,
+            withdrawal_uuids,
         };
 
         Ok(result)

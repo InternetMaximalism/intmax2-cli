@@ -16,7 +16,7 @@ use intmax2_zkp::{
 };
 use js_types::{
     common::JsTransfer,
-    data::{JsDepositData, JsTransferData, JsTxData, JsTxResult, JsUserData},
+    data::{JsDepositData, JsDepositResult, JsTransferData, JsTxData, JsTxResult, JsUserData},
     utils::{parse_address, parse_u256},
     wrapper::{JsBlockProposal, JsTxRequestMemo},
 };
@@ -60,7 +60,7 @@ pub async fn prepare_deposit(
     token_type: u8,
     token_address: &str,
     token_id: &str,
-) -> Result<String, JsError> {
+) -> Result<JsDepositResult, JsError> {
     init_logger();
     let recipient = parse_h256_as_u256(recipient)?;
     let amount = parse_u256(amount)?;
@@ -68,7 +68,7 @@ pub async fn prepare_deposit(
     let token_address = parse_address(token_address)?;
     let token_id = parse_u256(token_id)?;
     let client = get_client(config);
-    let deposit_data = client
+    let deposit_result = client
         .prepare_deposit(recipient, amount, token_type, token_address, token_id)
         .await
         .map_err(|e| {
@@ -77,7 +77,7 @@ pub async fn prepare_deposit(
                 e.to_string()
             ))
         })?;
-    Ok(deposit_data.pubkey_salt_hash.to_string())
+    Ok(JsDepositResult::from_deposit_result(&deposit_result))
 }
 
 /// Function to send a tx request to the block builder. The return value contains information to take a backup.
