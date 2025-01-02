@@ -3,8 +3,9 @@ use colored::{ColoredString, Colorize as _};
 use intmax2_client_sdk::client::history::HistoryEntry;
 use intmax2_interfaces::data::deposit_data::TokenType;
 use intmax2_zkp::{
-    common::{signature::key_set::KeySet, trees::asset_tree::AssetLeaf},
+    common::{deposit::Deposit, signature::key_set::KeySet, trees::asset_tree::AssetLeaf},
     ethereum_types::u32limb_trait::U32LimbTrait,
+    utils::leafable::Leafable as _,
 };
 
 use crate::cli::client::get_client;
@@ -102,12 +103,21 @@ fn print_history_entry(entry: &HistoryEntry) -> Result<(), CliError> {
             token_id,
             token_index,
             amount,
+            pubkey_salt_hash,
             is_included,
             is_rejected,
             meta,
         } => {
             let status = get_status_string(*is_included, *is_rejected);
             let time = format_timestamp(meta.timestamp);
+            let deposit_hash = token_index.map(|idx| {
+                let deposit = Deposit {
+                    pubkey_salt_hash: *pubkey_salt_hash,
+                    token_index: idx,
+                    amount: *amount,
+                };
+                deposit.hash()
+            });
 
             println!(
                 "{} [{}]",
@@ -134,6 +144,10 @@ fn print_history_entry(entry: &HistoryEntry) -> Result<(), CliError> {
                     .white()
             );
             println!("  Amount: {}", amount.to_string().bright_green());
+            println!(
+                "  Deposit Hash: {}",
+                deposit_hash.map_or("N/A".to_string(), |h| h.to_string())
+            );
             println!("  {}", status);
         }
         HistoryEntry::Receive {
