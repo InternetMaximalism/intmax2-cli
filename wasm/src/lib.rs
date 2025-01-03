@@ -257,5 +257,5 @@ pub async fn decrypt_tx_data(private_key: &str, data: &[u8]) -> Result<JsTxData,
 
 fn init_logger() {
     console_error_panic_hook::set_once();
-    wasm_logger::init(wasm_logger::Config::default());
+    // wasm_logger::init(wasm_logger::Config::default());
 }

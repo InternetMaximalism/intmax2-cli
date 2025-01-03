@@ -26,8 +26,8 @@ where
     C: GenericConfig<D, F = F>,
 {
     pub settled: Vec<(MetaData, TransferData<F, C, D>)>,
-    pub pending: Vec<MetaData>,
-    pub rejected: Vec<MetaData>,
+    pub pending: Vec<(MetaData, TransferData<F, C, D>)>,
+    pub timeout: Vec<(MetaData, TransferData<F, C, D>)>,
 }
 
 pub async fn fetch_withdrawal_info<
@@ -38,16 +38,21 @@ pub async fn fetch_withdrawal_info<
     validity_prover: &V,
     key: KeySet,
     withdrawal_lpt: u64,
+    processed_withdrawal_uuids: &[String],
     tx_timeout: u64,
 ) -> Result<WithdrawalInfo<F, C, D>, StrategyError> {
     let mut settled = Vec::new();
     let mut pending = Vec::new();
-    let mut rejected = Vec::new();
+    let mut timeout = Vec::new();
 
     let encrypted_data = store_vault_server
         .get_data_all_after(DataType::Withdrawal, key.pubkey, withdrawal_lpt)
         .await?;
     for (meta, encrypted_data) in encrypted_data {
+        if processed_withdrawal_uuids.contains(&meta.uuid) {
+            log::info!("Withdrawal {} is already processed", meta.uuid);
+            continue;
+        }
         match TransferData::decrypt(&encrypted_data, key) {
             Ok(transfer_data) => {
                 let tx_tree_root = transfer_data.tx_data.tx_tree_root;
@@ -63,17 +68,17 @@ pub async fn fetch_withdrawal_info<
                     if meta.timestamp + tx_timeout < chrono::Utc::now().timestamp() as u64 {
                         // timeout
                         log::error!("Withdrawal {} is timeout", meta.uuid);
-                        rejected.push(meta);
+                        timeout.push((meta, transfer_data));
                     } else {
                         // pending
                         log::info!("Withdrawal {} is pending", meta.uuid);
-                        pending.push(meta);
+                        pending.push((meta, transfer_data));
                     }
                 }
             }
             Err(e) => {
                 log::error!("failed to decrypt withdrawal data: {}", e);
-                rejected.push(meta);
+                // ignore this withdrawal
             }
         }
     }
@@ -81,6 +86,6 @@ pub async fn fetch_withdrawal_info<
     Ok(WithdrawalInfo {
         settled,
         pending,
-        rejected,
+        timeout,
     })
 }

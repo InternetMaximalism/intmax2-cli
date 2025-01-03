@@ -16,7 +16,10 @@ use plonky2::{field::goldilocks_field::GoldilocksField, plonk::config::PoseidonG
 
 use intmax2_zkp::common::signature::key_set::KeySet;
 
-use crate::external_api::contract::liquidity_contract::LiquidityContract;
+use crate::{
+    client::strategy::withdrawal::fetch_withdrawal_info,
+    external_api::contract::liquidity_contract::LiquidityContract,
+};
 
 use super::{
     deposit::fetch_deposit_info, error::StrategyError, transfer::fetch_transfer_info,
@@ -283,4 +286,53 @@ async fn collect_receives(
     });
 
     Ok(receives)
+}
+
+/// Determine the sequence of withdrawal tx
+pub async fn determine_withdrawals<
+    S: StoreVaultClientInterface,
+    V: ValidityProverClientInterface,
+>(
+    store_vault_server: &S,
+    validity_prover: &V,
+    key: KeySet,
+    tx_timeout: u64,
+) -> Result<(Vec<(MetaData, TransferData<F, C, D>)>, u64), StrategyError> {
+    log::info!("determine_withdrawals");
+    let user_data = store_vault_server
+        .get_user_data(key.pubkey)
+        .await?
+        .map(|encrypted| UserData::decrypt(&encrypted, key))
+        .transpose()
+        .map_err(|e| StrategyError::UserDataDecryptionError(e.to_string()))?
+        .unwrap_or(UserData::new(key.pubkey));
+
+    // Add some buffer to the current timestamp
+    let mut current_timestamp = chrono::Utc::now().timestamp() as u64;
+    current_timestamp = current_timestamp.saturating_sub(tx_timeout);
+
+    let withdrawal_info = fetch_withdrawal_info(
+        store_vault_server,
+        validity_prover,
+        key,
+        user_data.withdrawal_lpt,
+        &user_data.processed_withdrawal_uuids,
+        tx_timeout,
+    )
+    .await?;
+    let oldest_pending_withdrawal_timestamp = withdrawal_info
+        .pending
+        .iter()
+        .map(|(meta, _)| meta.timestamp)
+        .min();
+    let withdrawals = withdrawal_info.settled;
+    let new_withdrawal_lpt = withdrawals
+        .iter()
+        .map(|(meta, _)| meta.timestamp)
+        .chain(oldest_pending_withdrawal_timestamp)
+        .min()
+        .map(|timestamp| timestamp - 1)
+        .unwrap_or(current_timestamp);
+
+    Ok((withdrawals, new_withdrawal_lpt))
 }
