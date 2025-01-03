@@ -37,6 +37,7 @@ pub async fn fetch_withdrawal_info<
     store_vault_server: &S,
     validity_prover: &V,
     key: KeySet,
+    user_data_block_number: u32,
     withdrawal_lpt: u64,
     processed_withdrawal_uuids: &[String],
     tx_timeout: u64,
@@ -60,10 +61,19 @@ pub async fn fetch_withdrawal_info<
                     .get_block_number_by_tx_tree_root(tx_tree_root)
                     .await?;
                 if let Some(block_number) = block_number {
-                    // set block number
-                    let mut meta = meta;
-                    meta.block_number = Some(block_number);
-                    settled.push((meta, transfer_data));
+                    if block_number <= user_data_block_number {
+                        // set block number
+                        let mut meta = meta;
+                        meta.block_number = Some(block_number);
+                        settled.push((meta, transfer_data));
+                    } else {
+                        // pending because balance proof not synced yet
+                        log::info!(
+                            "Withdrawal {} is pending because balance proof not synced yet",
+                            meta.uuid
+                        );
+                        pending.push((meta, transfer_data));
+                    }
                 } else {
                     if meta.timestamp + tx_timeout < chrono::Utc::now().timestamp() as u64 {
                         // timeout

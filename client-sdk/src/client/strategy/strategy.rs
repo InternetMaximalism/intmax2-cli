@@ -315,6 +315,7 @@ pub async fn determine_withdrawals<
         store_vault_server,
         validity_prover,
         key,
+        user_data.block_number,
         user_data.withdrawal_lpt,
         &user_data.processed_withdrawal_uuids,
         tx_timeout,
