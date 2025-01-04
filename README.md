@@ -106,7 +106,6 @@ A server that receives withdrawal requests from users and writes them to the dat
 
 install [lefthook](https://github.com/evilmartians/lefthook):
 
-
 ```bash
 brew install lefthook
 ```
