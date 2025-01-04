@@ -42,7 +42,7 @@ use super::{
     config::ClientConfig,
     error::ClientError,
     history::{fetch_history, HistoryEntry},
-    sync::balance_logic::generate_spent_witness,
+    sync::{balance_logic::generate_spent_witness, error::SyncError},
 };
 
 type F = GoldilocksField;
@@ -171,6 +171,19 @@ where
         self.sync(key).await?;
 
         let user_data = self.get_user_data(key).await?;
+
+        if user_data.block_number != 0 {
+            // check balance proof existence
+            let _balance_proof = self
+                .store_vault_server
+                .get_balance_proof(
+                    key.pubkey,
+                    user_data.block_number,
+                    user_data.private_commitment(),
+                )
+                .await?
+                .ok_or(SyncError::BalanceProofNotFound)?;
+        }
 
         // balance check
         let balances = user_data.balances();
