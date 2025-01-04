@@ -1,0 +1,6 @@
+pre-commit:
+  commands:
+    cargo-fmt:
+      glob: "*.rs"
+      run: rustfmt --edition 2021 --emit files {staged_files}
+      stage_fixed: true
