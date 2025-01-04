@@ -151,13 +151,13 @@ mod tests {
     #[test]
     fn random_vec() {
         let mut rng = rand::thread_rng();
-        let mut poped_bits = (0..10).map(|_| rng.gen_bool(0.5)).collect::<Vec<_>>();
-        let mut poped_path = BitPath::from_bits_le(&poped_bits);
+        let mut popped_bits = (0..10).map(|_| rng.gen_bool(0.5)).collect::<Vec<_>>();
+        let mut popped_path = BitPath::from_bits_le(&popped_bits);
 
-        poped_bits.pop();
-        poped_path.pop();
+        popped_bits.pop();
+        popped_path.pop();
 
-        let poped_path_bits = poped_path.to_bits_le();
-        assert_eq!(poped_bits, poped_path_bits);
+        let popped_path_bits = popped_path.to_bits_le();
+        assert_eq!(popped_bits, popped_path_bits);
     }
 }
