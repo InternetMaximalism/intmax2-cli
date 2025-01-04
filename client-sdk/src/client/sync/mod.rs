@@ -533,6 +533,12 @@ where
             });
         }
 
+        if new_balance_pis.private_commitment != user_data.private_commitment() {
+            return Err(SyncError::InternalError(
+                "private commitment mismatch".to_string(),
+            ));
+        }
+
         // save balance proof
         self.store_vault_server
             .save_balance_proof(key.pubkey, &new_balance_proof)
