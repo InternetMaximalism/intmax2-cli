@@ -8,7 +8,10 @@ use intmax2_zkp::{
     ethereum_types::u256::U256,
 };
 
-use super::{common_tx_data::CommonTxData, encryption::{decrypt, encrypt}};
+use super::{
+    common_tx_data::CommonTxData,
+    encryption::{decrypt, encrypt},
+};
 
 // tx data for sender
 #[derive(Clone, Debug, Serialize, Deserialize)]
