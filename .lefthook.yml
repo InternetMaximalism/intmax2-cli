@@ -4,3 +4,5 @@ pre-commit:
       glob: "*.rs"
       run: rustfmt --edition 2021 --emit files {staged_files}
       stage_fixed: true
+    check-typos:
+      run: typos {staged_files}
