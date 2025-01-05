@@ -63,8 +63,12 @@ jobs:
     steps:
       - uses: actions/checkout@v3
       - name: Install Rust Toolchain
-        uses: dtolnay/rust-toolchain@stable
-      - uses: taiki-e/install-action@cargo-nextest
+        uses: dtolnay/rust-toolchain@v1
+        with:
+          toolchain: stable
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-nextest
       - uses: r7kamura/rust-problem-matchers@v1
       - name: Run tests
         run: cargo nextest run

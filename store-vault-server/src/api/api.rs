@@ -8,7 +8,10 @@ use actix_web::{
 use intmax2_interfaces::api::store_vault_server::{
     interface::DataType,
     types::{
-        BatchGetDataQuery, BatchGetDataResponse, BatchSaveDataRequest, BatchSaveDataResponse, GetBalanceProofQuery, GetBalanceProofResponse, GetDataAllAfterQuery, GetDataAllAfterResponse, GetDataQuery, GetDataResponse, GetUserDataQuery, GetUserDataResponse, SaveBalanceProofRequest, SaveDataRequest, SaveDataResponse
+        BatchGetDataQuery, BatchGetDataResponse, BatchSaveDataRequest, BatchSaveDataResponse,
+        GetBalanceProofQuery, GetBalanceProofResponse, GetDataAllAfterQuery,
+        GetDataAllAfterResponse, GetDataQuery, GetDataResponse, GetUserDataQuery,
+        GetUserDataResponse, SaveBalanceProofRequest, SaveDataRequest, SaveDataResponse,
     },
 };
 use serde_qs::actix::QsQuery;

@@ -99,3 +99,25 @@ A server that receives transactions from users and generates blocks.
 
 **withdrawal-server:**
 A server that receives withdrawal requests from users and writes them to the database.
+
+# For Developer
+
+## Set-up Local Environment
+
+install [lefthook](https://github.com/evilmartians/lefthook):
+
+```bash
+brew install lefthook
+```
+
+and initial setup:
+
+```bash
+lefthook install
+```
+
+install [typos-cli](https://github.com/crate-ci/typos):
+
+```bash
+brew install typos-cli
+```

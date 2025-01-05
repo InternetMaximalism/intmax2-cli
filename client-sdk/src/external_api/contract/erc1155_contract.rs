@@ -12,8 +12,8 @@ use ethers::{
 use crate::external_api::utils::retry::with_retry;
 
 use super::{
-    handlers::handle_contract_call,
     error::BlockchainError,
+    handlers::handle_contract_call,
     utils::{get_address, get_client, get_client_with_signer},
 };
 
