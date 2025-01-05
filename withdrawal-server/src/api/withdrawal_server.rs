@@ -49,10 +49,6 @@ impl WithdrawalServer {
             .verify(single_withdrawal_proof.clone())
             .map_err(|_| WithdrawalServerError::SingleWithdrawalVerificationError)?;
 
-        // Serialize the proof and public inputs
-        let proof_bytes =
-            encode_plonky2_proof(single_withdrawal_proof.clone(), &single_withdrawal_vd)
-                .map_err(|e| WithdrawalServerError::SerializationError(e.to_string()))?;
         let withdrawal =
             Withdrawal::from_u64_slice(&single_withdrawal_proof.public_inputs.to_u64_vec());
         let contract_withdrawal = ContractWithdrawal {
@@ -61,13 +57,35 @@ impl WithdrawalServer {
             amount: withdrawal.amount,
             nullifier: withdrawal.nullifier,
         };
+        let withdrawal_hash = contract_withdrawal.withdrawal_hash();
+        let withdrawal_hash_str = withdrawal_hash.to_hex();
+
+        // If there is already a request with the same withdrawal_hash, return early
+        let existing_request = sqlx::query!(
+            r#"
+            SELECT COUNT(*) as count
+            FROM withdrawals
+            WHERE withdrawal_hash = $1
+            "#,
+            withdrawal_hash_str
+        )
+        .fetch_one(&self.pool)
+        .await?;
+        let count = existing_request.count.unwrap_or(0);
+        if count > 0 {
+            return Ok(());
+        }
+
+        // Serialize the proof and public inputs
+        let proof_bytes =
+            encode_plonky2_proof(single_withdrawal_proof.clone(), &single_withdrawal_vd)
+                .map_err(|e| WithdrawalServerError::SerializationError(e.to_string()))?;
         let uuid_str = Uuid::new_v4().to_string();
-        let withdrawal_hash_str = contract_withdrawal.withdrawal_hash().to_hex();
+
         let pubkey_str = pubkey.to_hex();
-        let recipient = withdrawal.recipient.to_hex();
+        let recipient_str = withdrawal.recipient.to_hex();
         let withdrawal_value = serde_json::to_value(contract_withdrawal)
             .map_err(|e| WithdrawalServerError::SerializationError(e.to_string()))?;
-
         sqlx::query!(
             r#"
             INSERT INTO withdrawals (
@@ -83,7 +101,7 @@ impl WithdrawalServer {
             "#,
             uuid_str,
             pubkey_str,
-            recipient,
+            recipient_str,
             withdrawal_hash_str,
             proof_bytes,
             withdrawal_value,
