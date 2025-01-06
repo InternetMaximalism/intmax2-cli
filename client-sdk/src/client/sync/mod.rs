@@ -423,6 +423,10 @@ where
                 user_data.private_commitment(),
             )
             .await?;
+        if user_data.block_number != 0 && prev_balance_proof.is_none() {
+            return Err(SyncError::BalanceProofNotFound);
+        }
+        let prev_balance_proof = prev_balance_proof.unwrap();
         let balance_proof = update_send_by_sender(
             &self.validity_prover,
             &self.balance_prover,

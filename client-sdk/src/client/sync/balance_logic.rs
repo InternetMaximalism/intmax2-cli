@@ -172,7 +172,7 @@ pub async fn update_send_by_sender<
     balance_prover: &B,
     key: KeySet,
     full_private_state: &mut FullPrivateState,
-    prev_balance_proof: &Option<ProofWithPublicInputs<F, C, D>>,
+    prev_balance_proof: &ProofWithPublicInputs<F, C, D>,
     tx_block_number: u32,
     tx_data: &TxData<F, C, D>,
 ) -> Result<ProofWithPublicInputs<F, C, D>, SyncError> {
@@ -184,7 +184,7 @@ pub async fn update_send_by_sender<
             block_number: tx_block_number,
         });
     }
-    let prev_balance_pis = get_prev_balance_pis(key.pubkey, prev_balance_proof);
+    let prev_balance_pis = BalancePublicInputs::from_pis(&prev_balance_proof.public_inputs);
     if tx_block_number <= prev_balance_pis.public_state.block_number {
         return Err(SyncError::InternalError(
             "tx block number is not greater than prev balance proof".to_string(),
@@ -192,8 +192,10 @@ pub async fn update_send_by_sender<
     }
     if prev_balance_pis.private_commitment != full_private_state.to_private_state().commitment() {
         return Err(SyncError::InternalError(
-            "prev balance proof private commitment is not equal to full private state commitment"
-                .to_string(),
+            format!(
+            "prev balance proof private commitment {} is not equal to full private state commitment {}"
+            , prev_balance_pis.private_commitment, full_private_state.to_private_state().commitment()
+            )
         ));
     }
 
@@ -281,7 +283,7 @@ pub async fn update_send_by_sender<
             &tx_witness,
             &update_witness,
             &spent_proof,
-            prev_balance_proof,
+            &Some(prev_balance_proof.clone()),
         )
         .await?;
     let balance_pis = BalancePublicInputs::from_pis(&balance_proof.public_inputs);
