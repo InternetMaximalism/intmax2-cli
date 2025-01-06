@@ -69,6 +69,23 @@ where
 
     /// Sync the client's balance proof with the latest block
     pub async fn sync(&self, key: KeySet) -> Result<PendingInfo, SyncError> {
+        let pending = match self.sync_inner(key).await {
+            Ok(pending) => pending,
+            Err(SyncError::BalanceProofNotFound) => {
+                log::info!("balance proof not found, try to sync from the beginning");
+                let user_data = UserData::new(key.pubkey);
+                self.store_vault_server
+                    .save_user_data(key.pubkey, user_data.encrypt(key.pubkey))
+                    .await?;
+                log::info!("user data is reset");
+                self.sync_inner(key).await?
+            }
+            Err(e) => return Err(e),
+        };
+        Ok(pending)
+    }
+
+    async fn sync_inner(&self, key: KeySet) -> Result<PendingInfo, SyncError> {
         let (sequence, pending) = determine_sequence(
             &self.store_vault_server,
             &self.validity_prover,
