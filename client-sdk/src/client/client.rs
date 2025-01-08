@@ -182,7 +182,10 @@ where
                     user_data.private_commitment(),
                 )
                 .await?
-                .ok_or(SyncError::BalanceProofNotFound)?;
+                .ok_or(SyncError::InconsistencyError(format!(
+                    "balance proof not found for block number {}",
+                    user_data.block_number
+                )))?;
         }
 
         // balance check

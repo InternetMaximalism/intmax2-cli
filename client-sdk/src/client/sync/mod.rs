@@ -216,9 +216,7 @@ where
     ) -> Result<(), SyncError> {
         log::info!("sync_transfer: {:?}", meta);
         if meta.block_number.is_none() {
-            return Err(SyncError::InternalError(
-                "block number is not set".to_string(),
-            ));
+            return Err(SyncError::BlockNumberIsNotSetForMetaData);
         }
         let mut user_data = self.get_user_data(key).await?;
         // user's balance proof before applying the tx
@@ -525,7 +523,10 @@ where
             )
             .await?;
         if user_data.block_number != 0 && prev_balance_proof.is_none() {
-            return Err(SyncError::BalanceProofNotFound);
+            return Err(SyncError::InconsistencyError(format!(
+                "balance proof not found for block number {}",
+                user_data.block_number
+            )));
         }
         let new_balance_proof = update_no_send(
             &self.validity_prover,

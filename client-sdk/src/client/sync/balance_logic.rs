@@ -125,7 +125,7 @@ pub async fn receive_transfer<V: ValidityProverClientInterface, B: BalanceProver
         ));
     }
     if sender_balance_pis.last_tx_hash != transfer_data.tx_data.tx.hash() {
-        return Err(SyncError::InternalError(format!(
+        return Err(SyncError::InvalidTransferError(format!(
             "last_tx_hash mismatch last_tx_hash: {} != tx_hash: {}",
             sender_balance_pis.last_tx_hash,
             transfer_data.tx_data.tx.hash()
@@ -135,7 +135,7 @@ pub async fn receive_transfer<V: ValidityProverClientInterface, B: BalanceProver
         .last_tx_insufficient_flags
         .random_access(transfer_data.transfer_index as usize)
     {
-        return Err(SyncError::InternalError(
+        return Err(SyncError::InvalidTransferError(
             "last_tx_insufficient_flags is true".to_string(),
         ));
     }
@@ -418,8 +418,7 @@ pub async fn update_send_by_receiver<
 }
 
 /// Update prev_balance_proof to block_number or do noting if already synced later than block_number.
-///
-/// Assumes that there are no send transactions between the block_number of prev_balance_proof and block_number.
+// Assumes that there are no send transactions between the block_number of prev_balance_proof and block_number.
 pub async fn update_no_send<V: ValidityProverClientInterface, B: BalanceProverClientInterface>(
     validity_prover: &V,
     balance_prover: &B,
@@ -458,7 +457,7 @@ pub async fn update_no_send<V: ValidityProverClientInterface, B: BalanceProverCl
         .await?;
     let last_block_number = update_witness.get_last_block_number();
     if prev_block_number < last_block_number {
-        return Err(SyncError::InternalError(format!(
+        return Err(SyncError::InconsistencyError(format!(
             "prev_block_number {} is less than last_block_number {}",
             prev_block_number, last_block_number
         )));

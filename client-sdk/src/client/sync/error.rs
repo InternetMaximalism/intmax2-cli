@@ -26,9 +26,6 @@ pub enum SyncError {
     #[error("Pending tx error: {0}")]
     PendingTxError(String),
 
-    #[error("Pending withdrawal error: {0}")]
-    PendingWithdrawalError(String),
-
     #[error("Witness generation error: {0}")]
     WitnessGenerationError(String),
 
@@ -47,12 +44,12 @@ pub enum SyncError {
     #[error("Invalid transfer error: {0}")]
     InvalidTransferError(String),
 
+    #[error("Inconsistency error: {0}")]
+    InconsistencyError(String),
+
     #[error("Block number mismatch balance_proof_block_number: {balance_proof_block_number} != block_number: {block_number}")]
     BalanceProofBlockNumberMismatch {
         balance_proof_block_number: u32,
         block_number: u32,
     },
-
-    #[error("Balance proof not found")]
-    BalanceProofNotFound,
 }
