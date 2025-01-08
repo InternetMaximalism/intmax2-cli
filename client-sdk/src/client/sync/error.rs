@@ -1,7 +1,5 @@
-use intmax2_interfaces::api::error::ServerError;
-use intmax2_zkp::ethereum_types::bytes32::Bytes32;
-
 use crate::client::strategy::error::StrategyError;
+use intmax2_interfaces::api::error::ServerError;
 
 #[derive(Debug, thiserror::Error)]
 pub enum SyncError {
@@ -37,9 +35,6 @@ pub enum SyncError {
         validity_prover_block_number: u32,
         block_number: u32,
     },
-
-    #[error("Deposit info not found: {0}")]
-    DepositInfoNotFound(Bytes32),
 
     #[error("Invalid transfer error: {0}")]
     InvalidTransferError(String),

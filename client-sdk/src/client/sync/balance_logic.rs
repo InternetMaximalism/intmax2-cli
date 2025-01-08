@@ -1,3 +1,9 @@
+// This module provides helper functions that extract only pure functions of the balance proof synchronization logic.
+// There are three types of errors that can occur during the synchronization process:
+// 1. InternalError: An error related to the client-side processing. An error close to panic
+// 2. InvalidTransferError: An error related to the consistency of the received Transfer data
+// 3. InconsistencyError: An error related to the consistency of the client's own account state
+
 use intmax2_interfaces::{
     api::{
         balance_prover::interface::BalanceProverClientInterface,
@@ -58,13 +64,15 @@ pub async fn receive_deposit<V: ValidityProverClientInterface, B: BalanceProverC
     let deposit_info = validity_prover
         .get_deposit_info(deposit_data.deposit_hash().unwrap())
         .await?
-        .ok_or(SyncError::DepositInfoNotFound(
+        .ok_or(SyncError::InternalError(format!(
+            "Deposit info not found for deposit hash: {}",
             deposit_data.deposit_hash().unwrap(),
-        ))?;
+        )))?;
     if receive_block_number < deposit_info.block_number {
-        return Err(SyncError::InternalError(
-            "Deposit block number is greater than receive block number".to_string(),
-        ));
+        return Err(SyncError::InternalError(format!(
+            "receive block number is not greater than deposit block number: {} < {}",
+            receive_block_number, deposit_info.block_number
+        )));
     }
     let deposit_merkle_proof = validity_prover
         .get_deposit_merkle_proof(receive_block_number, deposit_info.deposit_index)
@@ -120,9 +128,10 @@ pub async fn receive_transfer<V: ValidityProverClientInterface, B: BalanceProver
     let receive_block_number = prev_balance_pis.public_state.block_number;
     let sender_balance_pis = BalancePublicInputs::from_pis(&sender_balance_proof.public_inputs);
     if receive_block_number < prev_balance_pis.public_state.block_number {
-        return Err(SyncError::InternalError(
-            "receive block number is not greater than prev balance proof".to_string(),
-        ));
+        return Err(SyncError::InternalError(format!(
+            "receive block number is not greater than prev balance proof block number: {} < {}",
+            receive_block_number, prev_balance_pis.public_state.block_number
+        )));
     }
     if sender_balance_pis.last_tx_hash != transfer_data.tx_data.tx.hash() {
         return Err(SyncError::InvalidTransferError(format!(
@@ -203,16 +212,19 @@ pub async fn update_send_by_sender<
         });
     }
     let prev_balance_pis = get_prev_balance_pis(key.pubkey, prev_balance_proof);
-    if tx_block_number <= prev_balance_pis.public_state.block_number {
-        return Err(SyncError::InternalError(
-            "tx block number is not greater than prev balance proof".to_string(),
-        ));
+    let prev_block_number = prev_balance_pis.public_state.block_number;
+    if tx_block_number <= prev_block_number {
+        return Err(SyncError::InconsistencyError(format!(
+            "tx block number is not greater than prev balance proof block number: {} <= {}",
+            tx_block_number, prev_block_number
+        )));
     }
     if prev_balance_pis.private_commitment != full_private_state.to_private_state().commitment() {
-        return Err(SyncError::InternalError(
-            "prev balance proof private commitment is not equal to full private state commitment"
-                .to_string(),
-        ));
+        return Err(SyncError::InconsistencyError(format!(
+            "prev_balance_pis.private_commitment: {} != full_private_state.commitment: {}",
+            prev_balance_pis.private_commitment,
+            full_private_state.to_private_state().commitment()
+        )));
     }
 
     // get witness
@@ -223,7 +235,6 @@ pub async fn update_send_by_sender<
             "validity public inputs not found for block number {}",
             tx_block_number
         )))?;
-
     let sender_leaves = validity_prover
         .get_sender_leaves(tx_block_number)
         .await?
@@ -239,19 +250,15 @@ pub async fn update_send_by_sender<
         tx_merkle_proof: tx_data.common.tx_merkle_proof.clone(),
     };
     let update_witness = validity_prover
-        .get_update_witness(
-            key.pubkey,
-            tx_block_number,
-            prev_balance_pis.public_state.block_number,
-            true,
-        )
+        .get_update_witness(key.pubkey, tx_block_number, prev_block_number, true)
         .await?;
-    log::info!(
-        "update_witness.last_block_number: {}, tx_block_number: {}",
-        update_witness.get_last_block_number(),
-        tx_block_number
-    );
-
+    let last_block_number = update_witness.get_last_block_number();
+    if prev_block_number < last_block_number {
+        return Err(SyncError::InconsistencyError(format!(
+            "prev_block_number {} is less than last_block_number {}",
+            prev_block_number, last_block_number
+        )));
+    }
     let sender_leaf = sender_leaves
         .iter()
         .find(|leaf| leaf.sender == key.pubkey)
@@ -260,7 +267,6 @@ pub async fn update_send_by_sender<
         ))?;
     // update private state only if sender leaf has returned signature and validity_pis is valid
     let update_private_state = sender_leaf.did_return_sig && validity_pis.is_valid_block;
-
     let spent_proof =
         if tx_data.spent_witness.prev_private_state == full_private_state.to_private_state() {
             // We can use the original spent proof if prev_private_state matches
