@@ -45,7 +45,6 @@ jobs:
         uses: crate-ci/typos@master
   clippy:
     name: clippy
-    needs: format-check
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -58,7 +57,7 @@ jobs:
         run: cargo clippy --tests -- -D warnings -D "clippy::perf" -D "clippy::correctness"
   tests:
     name: tests
-    needs: clippy
+    needs: [clippy, format-check]
     runs-on: ubuntu-latest
     services:
       postgres:
