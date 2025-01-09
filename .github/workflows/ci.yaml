@@ -96,9 +96,11 @@ jobs:
           cp validity-prover/.env.example validity-prover/.env
           cp withdrawal-server/.env.example withdrawal-server/.env
           cp tests/.env.example tests/.env
-      - name: Install sqlx-cli and setup databases
+      - uses: taiki-e/cache-cargo-install-action@v2
+        with:
+          tool: sqlx-cli
+      - name: Setup databases
         run: |
-          cargo install sqlx-cli
           cd store-vault-server && sqlx database setup && cd -
           cd validity-prover && sqlx database setup && cd -
           cd withdrawal-server && sqlx database setup && cd -
