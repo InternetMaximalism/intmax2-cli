@@ -82,7 +82,7 @@ jobs:
           toolchain: stable
       - uses: taiki-e/install-action@v2
         with:
-          tool: cargo-nextest
+          tool: cargo-nextest,sqlx-cli
       - name: Install Anvil
         uses: foundry-rs/foundry-toolchain@v1
         with:
@@ -96,9 +96,6 @@ jobs:
           cp validity-prover/.env.example validity-prover/.env
           cp withdrawal-server/.env.example withdrawal-server/.env
           cp tests/.env.example tests/.env
-      - uses: taiki-e/cache-cargo-install-action@v2
-        with:
-          tool: sqlx-cli
       - name: Setup databases
         run: |
           cd store-vault-server && sqlx database setup && cd -
