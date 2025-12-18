@@ -1,0 +1,73 @@
+{
+  "_format": "hh-sol-artifact-1",
+  "contractName": "ContributionTest",
+  "sourceName": "contracts/test/ContributionTest.sol",
+  "abi": [
+    {
+      "inputs": [],
+      "name": "latestAmount",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "latestTag",
+      "outputs": [
+        {
+          "internalType": "bytes32",
+          "name": "",
+          "type": "bytes32"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "latestUser",
+      "outputs": [
+        {
+          "internalType": "address",
+          "name": "",
+          "type": "address"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "bytes32",
+          "name": "tag",
+          "type": "bytes32"
+        },
+        {
+          "internalType": "address",
+          "name": "user",
+          "type": "address"
+        },
+        {
+          "internalType": "uint256",
+          "name": "amount",
+          "type": "uint256"
+        }
+      ],
+      "name": "recordContribution",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    }
+  ],
+  "bytecode": "0x6080604052348015600f57600080fd5b506101568061001f6000396000f3fe608060405234801561001057600080fd5b506004361061004c5760003560e01c806360afaac614610051578063bb76d63a1461006d578063d868816614610076578063f099f9f5146100a1575b600080fd5b61005a60005481565b6040519081526020015b60405180910390f35b61005a60025481565b600154610089906001600160a01b031681565b6040516001600160a01b039091168152602001610064565b6100da6100af3660046100dc565b600092909255600180546001600160a01b0319166001600160a01b0392909216919091179055600255565b005b6000806000606084860312156100f157600080fd5b8335925060208401356001600160a01b038116811461010f57600080fd5b92959294505050604091909101359056fea2646970667358221220764d081a1ae9506fac666b18c6936d6cf53c20d2073f7d846a3f1dfa6d5b9cc264736f6c634300081b0033",
+  "deployedBytecode": "0x608060405234801561001057600080fd5b506004361061004c5760003560e01c806360afaac614610051578063bb76d63a1461006d578063d868816614610076578063f099f9f5146100a1575b600080fd5b61005a60005481565b6040519081526020015b60405180910390f35b61005a60025481565b600154610089906001600160a01b031681565b6040516001600160a01b039091168152602001610064565b6100da6100af3660046100dc565b600092909255600180546001600160a01b0319166001600160a01b0392909216919091179055600255565b005b6000806000606084860312156100f157600080fd5b8335925060208401356001600160a01b038116811461010f57600080fd5b92959294505050604091909101359056fea2646970667358221220764d081a1ae9506fac666b18c6936d6cf53c20d2073f7d846a3f1dfa6d5b9cc264736f6c634300081b0033",
+  "linkReferences": {},
+  "deployedLinkReferences": {}
+}
