@@ -92,6 +92,7 @@ impl RollupContract {
         })
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub async fn initialize(
         &self,
         signer_private_key: B256,
@@ -99,6 +100,9 @@ impl RollupContract {
         scroll_messenger_address: Address,
         liquidity_address: Address,
         contribution_address: Address,
+        rate_limit_threshold_interval: U256,
+        rate_limit_alpha: U256,
+        rate_limit_k: U256,
     ) -> Result<B256, BlockchainError> {
         let signer = get_provider_with_signer(&self.provider, signer_private_key);
         let contract = Rollup::new(self.address, signer.clone());
@@ -108,6 +112,9 @@ impl RollupContract {
                 scroll_messenger_address,
                 liquidity_address,
                 contribution_address,
+                rate_limit_threshold_interval,
+                rate_limit_alpha,
+                rate_limit_k,
             )
             .into_transaction_request();
         send_transaction_with_gas_bump(signer, tx_request, "initialize").await
@@ -270,6 +277,12 @@ impl RollupContract {
         let contract = Rollup::new(self.address, self.provider.clone());
         let next_deposit_index = contract.depositIndex().call().await?;
         Ok(next_deposit_index)
+    }
+
+    pub async fn get_l2_scroll_messenger(&self) -> Result<Address, BlockchainError> {
+        let contract = Rollup::new(self.address, self.provider.clone());
+        let l2_scroll_messenger = contract.l2ScrollMessenger().call().await?;
+        Ok(l2_scroll_messenger)
     }
 
     pub async fn get_block_hash(&self, block_number: u32) -> Result<Bytes32, BlockchainError> {

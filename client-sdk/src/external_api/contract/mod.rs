@@ -1,5 +1,6 @@
 pub mod block_builder_registry;
 pub mod block_builder_reward;
+pub mod contribution_test_contract;
 pub mod convert;
 pub mod data_decoder;
 pub mod erc1155_contract;
@@ -8,6 +9,7 @@ pub mod erc721_contract;
 pub mod error;
 pub mod handlers;
 pub mod liquidity_contract;
+pub mod mock_l2_scroll_messenger;
 pub mod proxy_contract;
 pub mod rollup_contract;
 pub mod utils;

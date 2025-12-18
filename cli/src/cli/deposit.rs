@@ -1,4 +1,8 @@
-use alloy::{primitives::B256, providers::Provider};
+use alloy::{
+    primitives::{Bytes as AlloyBytes, B256, U256 as AlloyU256},
+    providers::Provider,
+    sol_types::SolCall,
+};
 use intmax2_client_sdk::{
     client::client::Client,
     external_api::{
@@ -11,6 +15,8 @@ use intmax2_client_sdk::{
             erc20_contract::ERC20Contract,
             erc721_contract::ERC721Contract,
             liquidity_contract::LiquidityContract,
+            mock_l2_scroll_messenger::MockL2ScrollMessengerContract,
+            rollup_contract::Rollup,
             utils::get_address_from_private_key,
         },
         predicate::{PermissionRequest, PredicateClient},
@@ -345,9 +351,27 @@ async fn relay_deposit(
             "Failed to compute deposit hash".to_string(),
         ))?;
 
-    client
-        .rollup_contract
-        .process_deposits(signer_private_key, None, 0, &[deposit_hash])
+    let l2_scroll_messenger = client.rollup_contract.get_l2_scroll_messenger().await?;
+    let relayer = MockL2ScrollMessengerContract::new(
+        client.rollup_contract.provider.clone(),
+        l2_scroll_messenger,
+    );
+    let deposit_hashes_bytes = vec![convert_bytes32_to_b256(deposit_hash)];
+    let process_call = Rollup::processDepositsCall {
+        _lastProcessedDepositId: AlloyU256::from(0),
+        depositHashes: deposit_hashes_bytes,
+    };
+    let message = AlloyBytes::from(process_call.abi_encode());
+    relayer
+        .relay_message(
+            signer_private_key,
+            client.liquidity_contract.address,
+            client.rollup_contract.address,
+            AlloyU256::from(0),
+            AlloyU256::from(0),
+            message,
+            None,
+        )
         .await?;
 
     Ok(())
