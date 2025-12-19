@@ -463,7 +463,8 @@ impl RollupContract {
     pub fn parse_full_block_posted(
         &self,
         receipt: &TransactionReceipt,
-    ) -> Result<FullBlockPostedEvent, BlockchainError> {
+    ) -> Result<Vec<FullBlockPostedEvent>, BlockchainError> {
+        let mut events = Vec::new();
         for log in receipt.logs() {
             match log.log_decode::<Rollup::FullBlockPosted>() {
                 Ok(event) => {
@@ -475,7 +476,7 @@ impl RollupContract {
                         .cloned()
                         .map(convert_u256_to_intmax)
                         .collect();
-                    return Ok(FullBlockPostedEvent {
+                    events.push(FullBlockPostedEvent {
                         block_number: inner.blockNumber,
                         prev_block_hash: convert_b256_to_bytes32(inner.prevBlockHash),
                         timestamp: inner.timestamp,
@@ -499,20 +500,19 @@ impl RollupContract {
                 Err(_) => continue,
             }
         }
-        Err(BlockchainError::ParseError(
-            "MissingEvent(FullBlockPosted)".to_string(),
-        ))
+        Ok(events)
     }
 
     pub fn parse_deposit_leaf_inserted_with_block_number(
         &self,
         receipt: &TransactionReceipt,
-    ) -> Result<DepositLeafInsertedWithBlockNumber, BlockchainError> {
+    ) -> Result<Vec<DepositLeafInsertedWithBlockNumber>, BlockchainError> {
+        let mut events = Vec::new();
         for log in receipt.logs() {
             match log.log_decode::<Rollup::DepositLeafInsertedWithBlockNumber>() {
                 Ok(event) => {
                     let inner = event.inner;
-                    return Ok(DepositLeafInsertedWithBlockNumber {
+                    events.push(DepositLeafInsertedWithBlockNumber {
                         deposit_index: inner.depositIndex,
                         deposit_hash: convert_b256_to_bytes32(inner.depositHash),
                         next_block_number: inner.nextBlockNumber,
@@ -521,9 +521,7 @@ impl RollupContract {
                 Err(_) => continue,
             }
         }
-        Err(BlockchainError::ParseError(
-            "MissingEvent(DepositLeafInsertedWithBlockNumber)".to_string(),
-        ))
+        Ok(events)
     }
 }
 
