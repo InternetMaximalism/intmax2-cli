@@ -5,8 +5,10 @@ use intmax2_client_sdk::external_api::contract::{
     data_decoder::decode_post_block_calldata,
     error::BlockchainError,
     liquidity_contract::Deposited,
-    rollup_contract::{DepositLeafInserted, FullBlockWithMeta},
-    utils::{get_batch_transaction, NormalProvider},
+    rollup_contract::{
+        full_block_from_posted_event, DepositLeafInserted, FullBlockWithMeta, RollupContract,
+    },
+    utils::{get_batch_transaction, get_batch_transaction_receipt, NormalProvider},
 };
 
 // A wrapper around TheGraphClient that provides additional functionality for interacting with the L1 and L2 providers.
@@ -49,22 +51,30 @@ impl TheGraphClient {
             .map(|entry| convert_bytes32_to_tx_hash(entry.transaction_hash))
             .collect::<Vec<_>>();
         let txs = get_batch_transaction(&self.l2_provider, &tx_hashes).await?;
+        let receipts = get_batch_transaction_receipt(&self.l2_provider, &tx_hashes).await?;
         let mut full_blocks = Vec::new();
-        for (tx, event) in txs.iter().zip(block_posteds) {
-            let input = tx.input();
-            let full_block = decode_post_block_calldata(
-                event.prev_block_hash,
-                event.deposit_tree_root,
-                event.block_timestamp,
-                event.rollup_block_number,
-                event.block_builder,
-                input,
-            )
-            .map_err(|e| {
-                BlockchainError::DecodeCallDataError(format!(
-                    "failed to decode post block calldata: {e}"
-                ))
-            })?;
+        for ((tx, receipt), event) in txs.iter().zip(receipts.iter()).zip(block_posteds) {
+            let full_block_event = RollupContract::parse_full_block_posted(receipt)?
+                .into_iter()
+                .find(|e| e.block_number == event.rollup_block_number);
+            let full_block = if let Some(full_block_event) = full_block_event {
+                full_block_from_posted_event(&full_block_event)?
+            } else {
+                let input = tx.input();
+                decode_post_block_calldata(
+                    event.prev_block_hash,
+                    event.deposit_tree_root,
+                    event.block_timestamp,
+                    event.rollup_block_number,
+                    event.block_builder,
+                    input,
+                )
+                .map_err(|e| {
+                    BlockchainError::DecodeCallDataError(format!(
+                        "failed to decode post block calldata: {e}"
+                    ))
+                })?
+            };
             full_blocks.push(FullBlockWithMeta {
                 full_block,
                 eth_block_number: tx.block_number.unwrap(),

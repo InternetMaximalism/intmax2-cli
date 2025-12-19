@@ -132,6 +132,24 @@ pub async fn get_batch_transaction(
     Ok(txs)
 }
 
+pub async fn get_batch_transaction_receipt(
+    provider: &NormalProvider,
+    tx_hashes: &[TxHash],
+) -> Result<Vec<alloy::rpc::types::TransactionReceipt>, BlockchainError> {
+    let provider = provider.clone();
+    let receipts = futures::future::try_join_all(tx_hashes.iter().cloned().map(|tx_hash| {
+        let provider = provider.clone();
+        async move {
+            provider
+                .get_transaction_receipt(tx_hash)
+                .await?
+                .ok_or(BlockchainError::TxNotFound(tx_hash))
+        }
+    }))
+    .await?;
+    Ok(receipts)
+}
+
 async fn get_batch_transaction_inner(
     provider: &NormalProvider,
     tx_hashes: &[TxHash],

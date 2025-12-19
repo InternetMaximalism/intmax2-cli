@@ -1,7 +1,7 @@
 use crate::external_api::contract::{
     convert::{convert_address_to_intmax, convert_bytes32_to_tx_hash, convert_tx_hash_to_bytes32},
     data_decoder::decode_post_block_calldata,
-    utils::get_batch_transaction,
+    utils::{get_batch_transaction, get_batch_transaction_receipt},
 };
 use alloy::{
     consensus::Transaction,
@@ -12,12 +12,19 @@ use alloy::{
 };
 use intmax2_zkp::{
     common::{
-        signature_content::flatten::{FlatG1, FlatG2},
+        block::Block,
+        signature_content::{
+            block_sign_payload::BlockSignPayload,
+            flatten::{FlatG1, FlatG2},
+            utils::get_pubkey_hash,
+            SignatureContent,
+        },
         witness::full_block::FullBlock,
     },
+    constants::NUM_SENDERS_IN_BLOCK,
     ethereum_types::{
-        address::Address as ZkpAddress, bytes16::Bytes16, bytes32::Bytes32, u256::U256 as ZkpU256,
-        u32limb_trait::U32LimbTrait as _,
+        account_id::AccountIdPacked, address::Address as ZkpAddress, bytes16::Bytes16,
+        bytes32::Bytes32, u256::U256 as ZkpU256, u32limb_trait::U32LimbTrait as _,
     },
 };
 use std::time::Instant;
@@ -402,22 +409,30 @@ impl RollupContract {
             instant.elapsed(),
             tx_hashes.len()
         );
+        let receipts = get_batch_transaction_receipt(&self.provider, &tx_hashes).await?;
         let mut full_blocks = Vec::new();
-        for (tx, event) in txs.iter().zip(block_posted_events) {
-            let input = tx.input();
-            let full_block = decode_post_block_calldata(
-                event.prev_block_hash,
-                event.deposit_tree_root,
-                event.timestamp,
-                event.block_number,
-                event.block_builder,
-                input,
-            )
-            .map_err(|e| {
-                BlockchainError::DecodeCallDataError(format!(
-                    "failed to decode post block calldata: {e}"
-                ))
-            })?;
+        for ((tx, receipt), event) in txs.iter().zip(receipts.iter()).zip(block_posted_events) {
+            let full_block_event = Self::parse_full_block_posted(receipt)?
+                .into_iter()
+                .find(|e| e.block_number == event.block_number);
+            let full_block = if let Some(full_block_event) = full_block_event {
+                full_block_from_posted_event(&full_block_event)?
+            } else {
+                let input = tx.input();
+                decode_post_block_calldata(
+                    event.prev_block_hash,
+                    event.deposit_tree_root,
+                    event.timestamp,
+                    event.block_number,
+                    event.block_builder,
+                    input,
+                )
+                .map_err(|e| {
+                    BlockchainError::DecodeCallDataError(format!(
+                        "failed to decode post block calldata: {e}"
+                    ))
+                })?
+            };
             full_blocks.push(FullBlockWithMeta {
                 full_block,
                 eth_block_number: event.eth_block_number,
@@ -461,7 +476,6 @@ impl RollupContract {
     }
 
     pub fn parse_full_block_posted(
-        &self,
         receipt: &TransactionReceipt,
     ) -> Result<Vec<FullBlockPostedEvent>, BlockchainError> {
         let mut events = Vec::new();
@@ -525,6 +539,57 @@ impl RollupContract {
     }
 }
 
+pub fn full_block_from_posted_event(
+    event: &FullBlockPostedEvent,
+) -> Result<FullBlock, BlockchainError> {
+    let block_sign_payload = BlockSignPayload {
+        is_registration_block: event.block_data.is_registration_block,
+        tx_tree_root: event.block_data.tx_tree_root,
+        expiry: event.block_data.expiry.into(),
+        block_builder_address: event.block_data.builder_address,
+        block_builder_nonce: event.block_data.builder_nonce,
+    };
+    let (signature, pubkeys, account_ids) = if event.block_data.is_registration_block {
+        let pubkeys = event.sender_public_keys.clone();
+        let signature = SignatureContent {
+            block_sign_payload,
+            sender_flag: event.block_data.sender_flags,
+            agg_pubkey: event.aggregated_public_key.clone(),
+            agg_signature: event.aggregated_signature.clone(),
+            message_point: event.message_point.clone(),
+            pubkey_hash: pad_pubkey_and_hash(&pubkeys),
+            account_id_hash: Bytes32::default(),
+        };
+        (signature, Some(pubkeys), None)
+    } else {
+        let account_id_packed = AccountIdPacked::from_trimmed_bytes(&event.sender_account_ids)
+            .map_err(|e| BlockchainError::ParseError(format!("invalid account ids: {e}")))?;
+        let signature = SignatureContent {
+            block_sign_payload,
+            sender_flag: event.block_data.sender_flags,
+            agg_pubkey: event.aggregated_public_key.clone(),
+            agg_signature: event.aggregated_signature.clone(),
+            message_point: event.message_point.clone(),
+            pubkey_hash: event.public_keys_hash,
+            account_id_hash: account_id_packed.hash(),
+        };
+        (signature, None, Some(event.sender_account_ids.clone()))
+    };
+    let block = Block {
+        prev_block_hash: event.prev_block_hash,
+        deposit_tree_root: event.deposit_tree_root,
+        signature_hash: signature.hash(),
+        timestamp: event.timestamp,
+        block_number: event.block_number,
+    };
+    Ok(FullBlock {
+        block,
+        signature,
+        pubkeys,
+        account_ids,
+    })
+}
+
 fn convert_to_flat_g1(data: [B256; 2]) -> Result<FlatG1, BlockchainError> {
     let flat_g1 = FlatG1([
         ZkpU256::from_bytes_be(&data[0].0)
@@ -547,4 +612,10 @@ fn convert_to_flat_g2(data: [B256; 4]) -> Result<FlatG2, BlockchainError> {
             .map_err(|e| BlockchainError::ParseError(format!("invalid FlatG2[3]: {e}")))?,
     ]);
     Ok(flat_g2)
+}
+
+fn pad_pubkey_and_hash(pubkeys: &[ZkpU256]) -> Bytes32 {
+    let mut pubkeys = pubkeys.to_vec();
+    pubkeys.resize(NUM_SENDERS_IN_BLOCK, ZkpU256::dummy_pubkey());
+    get_pubkey_hash(&pubkeys)
 }
