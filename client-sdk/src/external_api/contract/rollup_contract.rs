@@ -7,6 +7,7 @@ use alloy::{
     consensus::Transaction,
     network::TransactionBuilder,
     primitives::{Address, Bytes, B256, U256},
+    rpc::types::TransactionReceipt,
     sol,
 };
 use intmax2_zkp::{
@@ -16,14 +17,15 @@ use intmax2_zkp::{
     },
     ethereum_types::{
         address::Address as ZkpAddress, bytes16::Bytes16, bytes32::Bytes32, u256::U256 as ZkpU256,
+        u32limb_trait::U32LimbTrait as _,
     },
 };
 use std::time::Instant;
 
 use super::{
     convert::{
-        convert_b256_to_bytes32, convert_bytes16_to_b128, convert_bytes32_to_b256,
-        convert_u256_to_alloy, convert_u256_to_intmax,
+        convert_b128_to_byte16, convert_b256_to_bytes32, convert_bytes16_to_b128,
+        convert_bytes32_to_b256, convert_u256_to_alloy, convert_u256_to_intmax,
     },
     error::BlockchainError,
     handlers::send_transaction_with_gas_bump,
@@ -49,6 +51,13 @@ pub struct DepositLeafInserted {
 }
 
 #[derive(Clone, Debug)]
+pub struct DepositLeafInsertedWithBlockNumber {
+    pub deposit_index: u32,
+    pub deposit_hash: Bytes32,
+    pub next_block_number: u32,
+}
+
+#[derive(Clone, Debug)]
 pub struct BlockPosted {
     pub prev_block_hash: Bytes32,
     pub block_builder: ZkpAddress,
@@ -68,6 +77,31 @@ pub struct FullBlockWithMeta {
     pub full_block: FullBlock,
     pub eth_block_number: u64,
     pub eth_tx_index: u64,
+}
+
+#[derive(Clone, Debug)]
+pub struct BlockPostDataEvent {
+    pub is_registration_block: bool,
+    pub tx_tree_root: Bytes32,
+    pub expiry: u64,
+    pub builder_address: ZkpAddress,
+    pub builder_nonce: u32,
+    pub sender_flags: Bytes16,
+}
+
+#[derive(Clone, Debug)]
+pub struct FullBlockPostedEvent {
+    pub block_number: u32,
+    pub prev_block_hash: Bytes32,
+    pub timestamp: u64,
+    pub deposit_tree_root: Bytes32,
+    pub block_data: BlockPostDataEvent,
+    pub aggregated_public_key: FlatG1,
+    pub aggregated_signature: FlatG2,
+    pub message_point: FlatG2,
+    pub sender_public_keys: Vec<ZkpU256>,
+    pub public_keys_hash: Bytes32,
+    pub sender_account_ids: Vec<u8>,
 }
 
 #[derive(Debug, Clone)]
@@ -425,4 +459,94 @@ impl RollupContract {
         deposit_leaf_inserted_events.sort_by_key(|event| event.deposit_index);
         Ok(deposit_leaf_inserted_events)
     }
+
+    pub fn parse_full_block_posted(
+        &self,
+        receipt: &TransactionReceipt,
+    ) -> Result<FullBlockPostedEvent, BlockchainError> {
+        for log in receipt.logs() {
+            match log.log_decode::<Rollup::FullBlockPosted>() {
+                Ok(event) => {
+                    let inner = &event.inner;
+                    let block_data = &inner.blockData;
+                    let sender_public_keys = inner
+                        .senderPublicKeys
+                        .iter()
+                        .cloned()
+                        .map(convert_u256_to_intmax)
+                        .collect();
+                    return Ok(FullBlockPostedEvent {
+                        block_number: inner.blockNumber,
+                        prev_block_hash: convert_b256_to_bytes32(inner.prevBlockHash),
+                        timestamp: inner.timestamp,
+                        deposit_tree_root: convert_b256_to_bytes32(inner.depositTreeRoot),
+                        block_data: BlockPostDataEvent {
+                            is_registration_block: block_data.isRegistrationBlock,
+                            tx_tree_root: convert_b256_to_bytes32(block_data.txTreeRoot),
+                            expiry: block_data.expiry,
+                            builder_address: convert_address_to_intmax(block_data.builderAddress),
+                            builder_nonce: block_data.builderNonce,
+                            sender_flags: convert_b128_to_byte16(block_data.senderFlags),
+                        },
+                        aggregated_public_key: convert_to_flat_g1(inner.aggregatedPublicKey)?,
+                        aggregated_signature: convert_to_flat_g2(inner.aggregatedSignature)?,
+                        message_point: convert_to_flat_g2(inner.messagePoint)?,
+                        sender_public_keys,
+                        public_keys_hash: convert_b256_to_bytes32(inner.publicKeysHash),
+                        sender_account_ids: inner.senderAccountIds.to_vec(),
+                    });
+                }
+                Err(_) => continue,
+            }
+        }
+        Err(BlockchainError::ParseError(
+            "MissingEvent(FullBlockPosted)".to_string(),
+        ))
+    }
+
+    pub fn parse_deposit_leaf_inserted_with_block_number(
+        &self,
+        receipt: &TransactionReceipt,
+    ) -> Result<DepositLeafInsertedWithBlockNumber, BlockchainError> {
+        for log in receipt.logs() {
+            match log.log_decode::<Rollup::DepositLeafInsertedWithBlockNumber>() {
+                Ok(event) => {
+                    let inner = event.inner;
+                    return Ok(DepositLeafInsertedWithBlockNumber {
+                        deposit_index: inner.depositIndex,
+                        deposit_hash: convert_b256_to_bytes32(inner.depositHash),
+                        next_block_number: inner.nextBlockNumber,
+                    });
+                }
+                Err(_) => continue,
+            }
+        }
+        Err(BlockchainError::ParseError(
+            "MissingEvent(DepositLeafInsertedWithBlockNumber)".to_string(),
+        ))
+    }
+}
+
+fn convert_to_flat_g1(data: [B256; 2]) -> Result<FlatG1, BlockchainError> {
+    let flat_g1 = FlatG1([
+        ZkpU256::from_bytes_be(&data[0].0)
+            .map_err(|e| BlockchainError::ParseError(format!("invalid FlatG1[0]: {e}")))?,
+        ZkpU256::from_bytes_be(&data[1].0)
+            .map_err(|e| BlockchainError::ParseError(format!("invalid FlatG1[1]: {e}")))?,
+    ]);
+    Ok(flat_g1)
+}
+
+fn convert_to_flat_g2(data: [B256; 4]) -> Result<FlatG2, BlockchainError> {
+    let flat_g2 = FlatG2([
+        ZkpU256::from_bytes_be(&data[0].0)
+            .map_err(|e| BlockchainError::ParseError(format!("invalid FlatG2[0]: {e}")))?,
+        ZkpU256::from_bytes_be(&data[1].0)
+            .map_err(|e| BlockchainError::ParseError(format!("invalid FlatG2[1]: {e}")))?,
+        ZkpU256::from_bytes_be(&data[2].0)
+            .map_err(|e| BlockchainError::ParseError(format!("invalid FlatG2[2]: {e}")))?,
+        ZkpU256::from_bytes_be(&data[3].0)
+            .map_err(|e| BlockchainError::ParseError(format!("invalid FlatG2[3]: {e}")))?,
+    ]);
+    Ok(flat_g2)
 }
