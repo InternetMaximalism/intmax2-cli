@@ -116,15 +116,40 @@ impl TheGraphObserver {
             }
         }
 
+        let (min_eth_block, max_eth_block) =
+            events.iter().fold((u64::MAX, 0u64), |(min, max), event| {
+                (
+                    min.min(event.eth_block_number),
+                    max.max(event.eth_block_number),
+                )
+            });
+        let deposit_leaf_with_block_numbers = if min_eth_block == u64::MAX {
+            Vec::new()
+        } else {
+            self.rollup_contract
+                .get_deposit_leaf_inserted_with_block_number_events(min_eth_block, max_eth_block)
+                .await
+                .map_err(|e| ObserverError::EventFetchError(e.to_string()))?
+        };
+        let next_block_number_by_deposit_index = deposit_leaf_with_block_numbers
+            .into_iter()
+            .map(|event| (event.deposit_index, event.next_block_number))
+            .collect::<std::collections::HashMap<_, _>>();
+
         let mut tx = self.pool.begin().await?;
         for event in &events {
+            let next_block_number = next_block_number_by_deposit_index
+                .get(&event.deposit_index)
+                .copied()
+                .map(|v| v as i32);
             sqlx::query!(
-            "INSERT INTO deposit_leaf_events (deposit_index, deposit_hash, eth_block_number, eth_tx_index) 
-            VALUES ($1, $2, $3, $4)",
+            "INSERT INTO deposit_leaf_events (deposit_index, deposit_hash, eth_block_number, eth_tx_index, next_block_number) 
+            VALUES ($1, $2, $3, $4, $5)",
             event.deposit_index as i32,
             event.deposit_hash.to_bytes_be(),
             event.eth_block_number as i64,
-            event.eth_tx_index as i64
+            event.eth_tx_index as i64,
+            next_block_number
             )
             .execute(&mut *tx).await?;
         }

@@ -475,6 +475,34 @@ impl RollupContract {
         Ok(deposit_leaf_inserted_events)
     }
 
+    pub async fn get_deposit_leaf_inserted_with_block_number_events(
+        &self,
+        from_eth_block: u64,
+        to_eth_block_number: u64,
+    ) -> Result<Vec<DepositLeafInsertedWithBlockNumber>, BlockchainError> {
+        log::info!(
+            "get_deposit_leaf_inserted_with_block_number_events: from_eth_block={from_eth_block}, to_eth_block_number={to_eth_block_number}"
+        );
+        let contract = Rollup::new(self.address, self.provider.clone());
+        let events = contract
+            .event_filter::<Rollup::DepositLeafInsertedWithBlockNumber>()
+            .address(self.address)
+            .from_block(from_eth_block)
+            .to_block(to_eth_block_number)
+            .query()
+            .await?;
+        let mut deposit_leaf_inserted_events = Vec::new();
+        for (event, _meta) in events {
+            deposit_leaf_inserted_events.push(DepositLeafInsertedWithBlockNumber {
+                deposit_index: event.depositIndex,
+                deposit_hash: convert_b256_to_bytes32(event.depositHash),
+                next_block_number: event.nextBlockNumber,
+            });
+        }
+        deposit_leaf_inserted_events.sort_by_key(|event| event.deposit_index);
+        Ok(deposit_leaf_inserted_events)
+    }
+
     pub fn parse_full_block_posted(
         receipt: &TransactionReceipt,
     ) -> Result<Vec<FullBlockPostedEvent>, BlockchainError> {
