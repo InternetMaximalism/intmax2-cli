@@ -1,0 +1,14 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "DELETE FROM deposit_leaf_events WHERE eth_block_number >= $1",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int8"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "b25c1a89d2bcc3538879e54239c4f35cdaac677d0e7702c601f501797bf01df4"
+}

@@ -44,12 +44,12 @@ type F = GoldilocksField;
 type C = PoseidonGoldilocksConfig;
 const D: usize = 2;
 
-const ACCOUNT_DB_TAG: u32 = 1;
-const BLOCK_DB_TAG: u32 = 2;
-const DEPOSIT_DB_TAG: u32 = 3;
-const ACCOUNT_BACKUP_DB_TAG: u32 = 11;
-const BLOCK_BACKUP_DB_TAG: u32 = 12;
-const DEPOSIT_BACKUP_DB_TAG: u32 = 13;
+pub(crate) const ACCOUNT_DB_TAG: u32 = 1;
+pub(crate) const BLOCK_DB_TAG: u32 = 2;
+pub(crate) const DEPOSIT_DB_TAG: u32 = 3;
+pub(crate) const ACCOUNT_BACKUP_DB_TAG: u32 = 11;
+pub(crate) const BLOCK_BACKUP_DB_TAG: u32 = 12;
+pub(crate) const DEPOSIT_BACKUP_DB_TAG: u32 = 13;
 
 const MAX_TASKS: u32 = 30;
 

@@ -38,6 +38,10 @@ impl TracingPool {
     pub fn new(pool: PgPool) -> Self {
         Self { pool }
     }
+
+    pub fn raw_pool(&self) -> &PgPool {
+        &self.pool
+    }
 }
 
 type QueryStream<'e> =

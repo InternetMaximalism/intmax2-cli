@@ -1,21 +1,32 @@
 use super::{
-    check_point_store::{ChainType, CheckPointStore, EventType},
+    check_point_store::{ChainType, CheckPoint, CheckPointStore, EventType},
     error::ObserverError,
     leader_election::LeaderElection,
     observer_api::ObserverApi,
     observer_common::{ObserverConfig, SyncEvent},
     rate_manager::RateManager,
+    validity_prover::{ACCOUNT_DB_TAG, BLOCK_DB_TAG, DEPOSIT_DB_TAG},
 };
 use crate::{
     app::observer_common::{initialize_observer_db, sync_event_key},
+    trees::{
+        deposit_hash::DepositHash,
+        merkle_tree::{
+            sql_incremental_merkle_tree::SqlIncrementalMerkleTree,
+            sql_indexed_merkle_tree::SqlIndexedMerkleTree, IncrementalMerkleTreeClient,
+            IndexedMerkleTreeClient,
+        },
+    },
     EnvVar,
 };
-use alloy::providers::Provider;
+use alloy::{eips::BlockNumberOrTag, providers::Provider};
 use intmax2_client_sdk::external_api::contract::{
     liquidity_contract::LiquidityContract, rollup_contract::RollupContract,
 };
 use intmax2_zkp::{
-    ethereum_types::u32limb_trait::U32LimbTrait as _, utils::leafable::Leafable as _,
+    constants::{ACCOUNT_TREE_HEIGHT, BLOCK_HASH_TREE_HEIGHT, DEPOSIT_TREE_HEIGHT},
+    ethereum_types::{bytes32::Bytes32, u32limb_trait::U32LimbTrait as _},
+    utils::leafable::Leafable as _,
 };
 use log::warn;
 use server_common::db::{DbPool, DbPoolConfig};
@@ -79,6 +90,162 @@ impl RPCObserver {
             ChainType::L2 => self.rollup_contract.provider.get_block_number().await?,
         };
         Ok(current_eth_block_number)
+    }
+
+    async fn get_eth_block_hash(
+        &self,
+        event_type: EventType,
+        block_number: u64,
+    ) -> Result<alloy::primitives::B256, ObserverError> {
+        let block = match event_type.to_chain_type() {
+            ChainType::L1 => {
+                self.liquidity_contract
+                    .provider
+                    .get_block_by_number(BlockNumberOrTag::Number(block_number))
+                    .await?
+            }
+            ChainType::L2 => {
+                self.rollup_contract
+                    .provider
+                    .get_block_by_number(BlockNumberOrTag::Number(block_number))
+                    .await?
+            }
+        };
+        let block = block.ok_or_else(|| {
+            ObserverError::EventFetchError(format!(
+                "Block not found for block number {block_number}"
+            ))
+        })?;
+        Ok(block.header.hash)
+    }
+
+    async fn rewind_events(
+        &self,
+        event_type: EventType,
+        from_eth_block_number: u64,
+    ) -> Result<(), ObserverError> {
+        match event_type {
+            EventType::Deposited => {
+                sqlx::query!(
+                    "DELETE FROM deposited_events WHERE eth_block_number >= $1",
+                    from_eth_block_number as i64
+                )
+                .execute(&self.pool)
+                .await?;
+            }
+            EventType::DepositLeafInserted => {
+                sqlx::query!(
+                    "DELETE FROM deposit_leaf_events WHERE eth_block_number >= $1",
+                    from_eth_block_number as i64
+                )
+                .execute(&self.pool)
+                .await?;
+            }
+            EventType::BlockPosted => {
+                sqlx::query!(
+                    "DELETE FROM full_blocks WHERE eth_block_number >= $1",
+                    from_eth_block_number as i64
+                )
+                .execute(&self.pool)
+                .await?;
+            }
+        }
+        Ok(())
+    }
+
+    async fn rewind_validity_state(&self, from_eth_block_number: u64) -> Result<(), ObserverError> {
+        let min_block_number = sqlx::query_scalar!(
+            "SELECT MIN(block_number) FROM full_blocks WHERE eth_block_number >= $1",
+            from_eth_block_number as i64
+        )
+        .fetch_one(&self.pool)
+        .await?;
+        let Some(min_block_number) = min_block_number else {
+            return Ok(());
+        };
+        let min_block_number = min_block_number as u64;
+        let reset_block_number = min_block_number.max(1);
+        warn!(
+            "Reorg detected, rewinding validity state from block {min_block_number}, resetting merkle trees from {reset_block_number}",
+        );
+        let mut tx = self.pool.begin().await?;
+        sqlx::query!(
+            "DELETE FROM validity_state WHERE block_number >= $1",
+            min_block_number as i32
+        )
+        .execute(&mut *tx)
+        .await?;
+        sqlx::query!(
+            "DELETE FROM tx_tree_roots WHERE block_number >= $1",
+            min_block_number as i32
+        )
+        .execute(&mut *tx)
+        .await?;
+        sqlx::query!(
+            "DELETE FROM validity_proofs WHERE block_number >= $1",
+            min_block_number as i32
+        )
+        .execute(&mut *tx)
+        .await?;
+        tx.commit().await?;
+
+        let pool = self.pool.raw_pool().clone();
+        let account_tree =
+            SqlIndexedMerkleTree::new(pool.clone(), ACCOUNT_DB_TAG, ACCOUNT_TREE_HEIGHT);
+        let block_tree = SqlIncrementalMerkleTree::<Bytes32>::new(
+            pool.clone(),
+            BLOCK_DB_TAG,
+            BLOCK_HASH_TREE_HEIGHT,
+        );
+        let deposit_hash_tree =
+            SqlIncrementalMerkleTree::<DepositHash>::new(pool, DEPOSIT_DB_TAG, DEPOSIT_TREE_HEIGHT);
+        account_tree.reset(reset_block_number).await?;
+        block_tree.reset(reset_block_number).await?;
+        deposit_hash_tree.reset(reset_block_number).await?;
+        Ok(())
+    }
+
+    async fn ensure_checkpoint_consistent(
+        &self,
+        event_type: EventType,
+        checkpoint: Option<CheckPoint>,
+    ) -> Result<Option<CheckPoint>, ObserverError> {
+        let Some(checkpoint) = checkpoint else {
+            return Ok(None);
+        };
+        let Some(expected_hash) = checkpoint.block_hash else {
+            return Ok(Some(checkpoint));
+        };
+        let current_hash = self
+            .get_eth_block_hash(event_type, checkpoint.eth_block_number)
+            .await?;
+        if current_hash == expected_hash {
+            return Ok(Some(checkpoint));
+        }
+
+        let rewind_block_number = checkpoint
+            .eth_block_number
+            .saturating_sub(1)
+            .max(self.default_eth_block_number(event_type));
+        warn!(
+            "Checkpoint mismatch detected for {event_type}, rewinding from block {rewind_block_number}",
+        );
+        if event_type.to_chain_type() == ChainType::L2 {
+            self.rewind_validity_state(rewind_block_number).await?;
+        }
+        // Rewind one extra block so the previous block is reprocessed.
+        self.rewind_events(event_type, rewind_block_number).await?;
+        let rewind_hash = self
+            .get_eth_block_hash(event_type, rewind_block_number)
+            .await?;
+        let rewound = CheckPoint {
+            eth_block_number: rewind_block_number,
+            block_hash: Some(rewind_hash),
+        };
+        self.check_point_store
+            .set_check_point(event_type, rewound.eth_block_number, rewound.block_hash)
+            .await?;
+        Ok(Some(rewound))
     }
 
     #[instrument(skip(self))]
@@ -300,11 +467,14 @@ impl RPCObserver {
     ) -> Result<(), ObserverError> {
         let reset_eth_block_number =
             local_last_eth_block_number.unwrap_or(self.default_eth_block_number(event_type));
+        let reset_block_hash = self
+            .get_eth_block_hash(event_type, reset_eth_block_number)
+            .await?;
         warn!(
             "Reset checkpoint. Event type: {event_type}, Local last eth block number: {local_last_eth_block_number:?}, Reset eth block number: {reset_eth_block_number}, Reason: {reason}"
         );
         self.check_point_store
-            .set_check_point(event_type, reset_eth_block_number)
+            .set_check_point(event_type, reset_eth_block_number, Some(reset_block_hash))
             .await?;
         Ok(())
     }
@@ -317,12 +487,15 @@ impl RPCObserver {
         local_next_event_id: u64,
     ) -> Result<u64, ObserverError> {
         self.leader_election.wait_for_leadership().await?;
-        let checkpoint_eth_block_number =
-            self.check_point_store.get_check_point(event_type).await?;
+        let checkpoint = self.check_point_store.get_check_point(event_type).await?;
+        let checkpoint = self
+            .ensure_checkpoint_consistent(event_type, checkpoint)
+            .await?;
         let local_last_eth_block_number = self
             .observer_api
             .get_local_last_eth_block_number(event_type)
             .await?;
+        let checkpoint_eth_block_number = checkpoint.map(|checkpoint| checkpoint.eth_block_number);
         let from_eth_block_number = checkpoint_eth_block_number
             .max(local_last_eth_block_number)
             .unwrap_or(self.default_eth_block_number(event_type));
@@ -394,8 +567,11 @@ impl RPCObserver {
                     "Sync success. Local next event id: {}, synced next event id: {}, From eth block number: {}, To eth block number: {}",
                     local_next_event_id, next_event_id, from_eth_block_number, to_eth_block_number
                     );
+                let block_hash = self
+                    .get_eth_block_hash(event_type, to_eth_block_number)
+                    .await?;
                 self.check_point_store
-                    .set_check_point(event_type, to_eth_block_number)
+                    .set_check_point(event_type, to_eth_block_number, Some(block_hash))
                     .await?;
                 Ok(next_event_id)
             }

@@ -1,0 +1,28 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            SELECT eth_block_number, block_hash FROM event_sync_eth_block WHERE event_type = $1\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "eth_block_number",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 1,
+        "name": "block_hash",
+        "type_info": "Bytea"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text"
+      ]
+    },
+    "nullable": [
+      false,
+      true
+    ]
+  },
+  "hash": "b2ae0f24d4ea02514c12eca8399d3783fc96aab804612e254ff200856bc82a0a"
+}

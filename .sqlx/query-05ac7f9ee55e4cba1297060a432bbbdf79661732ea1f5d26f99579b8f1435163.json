@@ -1,0 +1,22 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT MIN(block_number) FROM full_blocks WHERE eth_block_number >= $1",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "min",
+        "type_info": "Int4"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int8"
+      ]
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "05ac7f9ee55e4cba1297060a432bbbdf79661732ea1f5d26f99579b8f1435163"
+}

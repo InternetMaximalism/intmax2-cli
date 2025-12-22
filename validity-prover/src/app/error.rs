@@ -58,6 +58,9 @@ pub enum ObserverError {
 
     #[error("Block number mismatch: {0} != {1}")]
     BlockNumberMismatch(u32, u32),
+
+    #[error("Merkle tree error: {0}")]
+    MerkleTreeError(#[from] MerkleTreeError),
 }
 
 #[derive(Debug, thiserror::Error)]

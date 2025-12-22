@@ -1,0 +1,14 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "DELETE FROM full_blocks WHERE eth_block_number >= $1",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int8"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "a5967331a266972b2cdd828ff3fb98e990591f0cde6fe627d66defd397e90b6f"
+}

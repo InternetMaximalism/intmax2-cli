@@ -1,0 +1,14 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "DELETE FROM tx_tree_roots WHERE block_number >= $1",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int4"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "2b9284a5a8c817d1991686e454d7e6feeb5efcce9db6b6f6a8ff6605adfbe768"
+}

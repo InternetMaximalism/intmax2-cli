@@ -1,0 +1,14 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "DELETE FROM validity_state WHERE block_number >= $1",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int4"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "818e1b504a5ad685bc885080cc4470a07fb1e9da11021b939ed66fdfd9c6b30c"
+}
