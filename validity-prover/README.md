@@ -705,6 +705,7 @@ L1_RPC_URL=<ethereum-rpc-url>
 L2_RPC_URL=<scroll-rpc-url>
 LIQUIDITY_CONTRACT_ADDRESS=<contract-address>
 ROLLUP_CONTRACT_ADDRESS=<contract-address>
+ROLLUP_CONTRACT_EVENT_UPGRADE_BLOCK_NUMBER=<upgrade-eth-block-number>
 
 # Worker Configuration
 NUM_PROCESS=4

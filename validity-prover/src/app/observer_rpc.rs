@@ -249,7 +249,7 @@ impl RPCObserver {
     }
 
     #[instrument(skip(self))]
-    async fn fetch_and_write_deposit_leaf_inserted_events(
+    async fn fetch_and_write_deposit_leaf_inserted_events_legacy(
         &self,
         expected_next_event_id: u64,
         from_eth_block_number: u64,
@@ -326,6 +326,125 @@ impl RPCObserver {
     }
 
     #[instrument(skip(self))]
+    async fn fetch_and_write_deposit_leaf_with_block_number_events(
+        &self,
+        expected_next_event_id: u64,
+        from_eth_block_number: u64,
+        to_eth_block_number: u64,
+    ) -> Result<u64, ObserverError> {
+        let events = self
+            .rollup_contract
+            .get_deposit_leaf_inserted_with_block_number_events(
+                from_eth_block_number,
+                to_eth_block_number,
+            )
+            .await
+            .map_err(|e| ObserverError::EventFetchError(e.to_string()))?;
+        let events = events
+            .into_iter()
+            .skip_while(|e| e.deposit_index < expected_next_event_id as u32)
+            .collect::<Vec<_>>();
+        if events.is_empty() {
+            return Ok(expected_next_event_id);
+        }
+        let first = events.first().unwrap();
+        if first.deposit_index != expected_next_event_id as u32 {
+            return Err(ObserverError::EventGapDetected {
+                event_type: EventType::DepositLeafInserted,
+                expected_next_event_id,
+                got_event_id: first.deposit_index as u64,
+            });
+        }
+
+        // sequence check
+        {
+            let mut next_event_id = expected_next_event_id;
+            for event in &events {
+                if event.deposit_index as u64 != next_event_id {
+                    return Err(ObserverError::EventFetchError(format!(
+                        "Event sequence error. Deposited: Expected: {}, Got: {}",
+                        next_event_id, event.deposit_index
+                    )));
+                }
+                next_event_id += 1;
+            }
+        }
+
+        let mut tx = self.pool.begin().await?;
+        for event in &events {
+            sqlx::query!(
+            "INSERT INTO deposit_leaf_events (deposit_index, deposit_hash, eth_block_number, eth_tx_index, next_block_number) 
+            VALUES ($1, $2, $3, $4, $5)",
+            event.deposit_index as i32,
+            event.deposit_hash.to_bytes_be(),
+            event.eth_block_number as i64,
+            event.eth_tx_index as i64,
+            event.next_block_number as i32
+            )
+            .execute(&mut *tx).await?;
+        }
+        tx.commit().await?;
+        let next_event_id = events.last().unwrap().deposit_index as u64 + 1;
+        Ok(next_event_id)
+    }
+
+    #[instrument(skip(self))]
+    async fn fetch_and_write_deposit_leaf_inserted_events(
+        &self,
+        expected_next_event_id: u64,
+        from_eth_block_number: u64,
+        to_eth_block_number: u64,
+    ) -> Result<u64, ObserverError> {
+        let switch_block = self.config.rollup_contract_event_upgrade_block_number;
+        let Some(switch_block) = switch_block else {
+            return self
+                .fetch_and_write_deposit_leaf_inserted_events_legacy(
+                    expected_next_event_id,
+                    from_eth_block_number,
+                    to_eth_block_number,
+                )
+                .await;
+        };
+
+        if to_eth_block_number < switch_block {
+            return self
+                .fetch_and_write_deposit_leaf_inserted_events_legacy(
+                    expected_next_event_id,
+                    from_eth_block_number,
+                    to_eth_block_number,
+                )
+                .await;
+        }
+        if from_eth_block_number >= switch_block {
+            return self
+                .fetch_and_write_deposit_leaf_with_block_number_events(
+                    expected_next_event_id,
+                    from_eth_block_number,
+                    to_eth_block_number,
+                )
+                .await;
+        }
+
+        let legacy_to = switch_block.saturating_sub(1);
+        let next_event_id = if from_eth_block_number <= legacy_to {
+            self.fetch_and_write_deposit_leaf_inserted_events_legacy(
+                expected_next_event_id,
+                from_eth_block_number,
+                legacy_to,
+            )
+            .await?
+        } else {
+            expected_next_event_id
+        };
+        self.fetch_and_write_deposit_leaf_with_block_number_events(
+            next_event_id,
+            switch_block,
+            to_eth_block_number,
+        )
+        .await
+    }
+
+    #[instrument(skip(self))]
     async fn fetch_and_write_deposited_events(
         &self,
         expected_next_event_id: u64,
@@ -394,7 +513,7 @@ impl RPCObserver {
     }
 
     #[instrument(skip(self))]
-    async fn fetch_and_write_block_posted_events(
+    async fn fetch_and_write_block_posted_events_legacy(
         &self,
         expected_next_event_id: u64,
         from_eth_block_number: u64,
@@ -456,6 +575,122 @@ impl RPCObserver {
         tx.commit().await?;
         let next_event_id = events.last().unwrap().block_number + 1;
         Ok(next_event_id as u64)
+    }
+
+    #[instrument(skip(self))]
+    async fn fetch_and_write_full_block_posted_events(
+        &self,
+        expected_next_event_id: u64,
+        from_eth_block_number: u64,
+        to_eth_block_number: u64,
+    ) -> Result<u64, ObserverError> {
+        let events = self
+            .rollup_contract
+            .get_full_block_posted_events(from_eth_block_number, to_eth_block_number)
+            .await
+            .map_err(|e| ObserverError::EventFetchError(e.to_string()))?;
+        let events = events
+            .into_iter()
+            .skip_while(|b| b.full_block.block.block_number < expected_next_event_id as u32)
+            .collect::<Vec<_>>();
+        if events.is_empty() {
+            return Ok(expected_next_event_id);
+        }
+        let first = events.first().unwrap();
+        if first.full_block.block.block_number != expected_next_event_id as u32 {
+            return Err(ObserverError::EventGapDetected {
+                event_type: EventType::BlockPosted,
+                expected_next_event_id,
+                got_event_id: first.full_block.block.block_number as u64,
+            });
+        }
+
+        // sequence check
+        {
+            let mut next_event_id = expected_next_event_id;
+            for event in &events {
+                if event.full_block.block.block_number as u64 != next_event_id {
+                    return Err(ObserverError::EventFetchError(format!(
+                        "Event sequence error. Block posted: Expected: {}, Got: {}",
+                        next_event_id, event.full_block.block.block_number
+                    )));
+                }
+                next_event_id += 1;
+            }
+        }
+
+        let mut tx = self.pool.begin().await?;
+        for event in &events {
+            sqlx::query!(
+                "INSERT INTO full_blocks (block_number, eth_block_number, eth_tx_index, full_block) 
+                 VALUES ($1, $2, $3, $4)",
+                event.full_block.block.block_number as i32,
+                event.eth_block_number as i64,
+                event.eth_tx_index as i64,
+                bincode::serialize(&event.full_block).unwrap()
+            )
+            .execute(&mut *tx)
+            .await?;
+        }
+        tx.commit().await?;
+        let next_event_id = events.last().unwrap().full_block.block.block_number + 1;
+        Ok(next_event_id as u64)
+    }
+
+    #[instrument(skip(self))]
+    async fn fetch_and_write_block_posted_events(
+        &self,
+        expected_next_event_id: u64,
+        from_eth_block_number: u64,
+        to_eth_block_number: u64,
+    ) -> Result<u64, ObserverError> {
+        let switch_block = self.config.rollup_contract_event_upgrade_block_number;
+        let Some(switch_block) = switch_block else {
+            return self
+                .fetch_and_write_block_posted_events_legacy(
+                    expected_next_event_id,
+                    from_eth_block_number,
+                    to_eth_block_number,
+                )
+                .await;
+        };
+
+        if to_eth_block_number < switch_block {
+            return self
+                .fetch_and_write_block_posted_events_legacy(
+                    expected_next_event_id,
+                    from_eth_block_number,
+                    to_eth_block_number,
+                )
+                .await;
+        }
+        if from_eth_block_number >= switch_block {
+            return self
+                .fetch_and_write_full_block_posted_events(
+                    expected_next_event_id,
+                    from_eth_block_number,
+                    to_eth_block_number,
+                )
+                .await;
+        }
+
+        let legacy_to = switch_block.saturating_sub(1);
+        let next_event_id = if from_eth_block_number <= legacy_to {
+            self.fetch_and_write_block_posted_events_legacy(
+                expected_next_event_id,
+                from_eth_block_number,
+                legacy_to,
+            )
+            .await?
+        } else {
+            expected_next_event_id
+        };
+        self.fetch_and_write_full_block_posted_events(
+            next_event_id,
+            switch_block,
+            to_eth_block_number,
+        )
+        .await
     }
 
     #[instrument(skip(self))]

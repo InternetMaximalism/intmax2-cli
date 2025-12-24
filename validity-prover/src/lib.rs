@@ -31,6 +31,7 @@ pub struct EnvVar {
     pub rollup_contract_deployed_block_number: u64,
     pub liquidity_contract_address: Address,
     pub liquidity_contract_deployed_block_number: u64,
+    pub rollup_contract_event_upgrade_block_number: Option<u64>,
 
     // the graph settings
     pub the_graph_l1_url: Option<String>,

@@ -31,6 +31,7 @@ pub struct ObserverConfig {
 
     pub rollup_contract_deployed_block_number: u64,
     pub liquidity_contract_deployed_block_number: u64,
+    pub rollup_contract_event_upgrade_block_number: Option<u64>,
 }
 
 impl ObserverConfig {
@@ -43,6 +44,8 @@ impl ObserverConfig {
             observer_error_threshold: env.observer_error_threshold,
             rollup_contract_deployed_block_number: env.rollup_contract_deployed_block_number,
             liquidity_contract_deployed_block_number: env.liquidity_contract_deployed_block_number,
+            rollup_contract_event_upgrade_block_number: env
+                .rollup_contract_event_upgrade_block_number,
         }
     }
 }
