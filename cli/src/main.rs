@@ -21,7 +21,7 @@ use intmax2_cli::{
         sync::{resync, sync_claims, sync_withdrawals},
         withdrawal::send_withdrawal,
     },
-    format::{format_token_info, privkey_to_keypair, TokenInput},
+    format::{format_token_info, privkey_to_keypair, resolve_view_pair, TokenInput},
 };
 use intmax2_client_sdk::client::{
     config::network_from_env,
@@ -175,78 +175,104 @@ async fn main_process(command: Commands) -> Result<(), CliError> {
         }
         Commands::SyncWithdrawals {
             private_key,
+            view_key,
             fee_token_index,
         } => {
-            let key_pair = privkey_to_keypair(private_key);
-            sync_withdrawals(key_pair.into(), fee_token_index).await?;
+            let view_pair = resolve_view_pair(private_key, view_key)?;
+            sync_withdrawals(view_pair, fee_token_index).await?;
         }
         Commands::SyncClaims {
             private_key,
+            view_key,
             recipient,
             fee_token_index,
         } => {
-            let key_pair = privkey_to_keypair(private_key);
-            sync_claims(key_pair.into(), recipient, fee_token_index).await?;
+            let view_pair = resolve_view_pair(private_key, view_key)?;
+            sync_claims(view_pair, recipient, fee_token_index).await?;
         }
         Commands::ClaimBuilderReward { eth_private_key } => {
             claim_builder_reward(eth_private_key).await?;
         }
         Commands::Balance {
             private_key,
+            view_key,
             without_sync,
         } => {
-            let key_pair = privkey_to_keypair(private_key);
-            balance(key_pair.into(), !without_sync).await?;
+            let view_pair = resolve_view_pair(private_key, view_key)?;
+            balance(view_pair, !without_sync).await?;
         }
-        Commands::UserData { private_key } => {
-            let key_pair = privkey_to_keypair(private_key);
-            get_user_data(key_pair.into()).await?;
+        Commands::UserData {
+            private_key,
+            view_key,
+        } => {
+            let view_pair = resolve_view_pair(private_key, view_key)?;
+            get_user_data(view_pair).await?;
         }
         Commands::History {
             private_key,
+            view_key,
             order,
             from,
         } => {
-            let key_pair = privkey_to_keypair(private_key);
+            let view_pair = resolve_view_pair(private_key, view_key)?;
             let order = order.unwrap_or_default();
-            history(key_pair.into(), order, from).await?;
+            history(view_pair, order, from).await?;
         }
-        Commands::WithdrawalStatus { private_key } => {
-            let key_pair = privkey_to_keypair(private_key);
-            withdrawal_status(key_pair.into()).await?;
+        Commands::WithdrawalStatus {
+            private_key,
+            view_key,
+        } => {
+            let view_pair = resolve_view_pair(private_key, view_key)?;
+            withdrawal_status(view_pair).await?;
         }
-        Commands::MiningList { private_key } => {
-            let key_pair = privkey_to_keypair(private_key);
-            mining_list(key_pair.into()).await?;
+        Commands::MiningList {
+            private_key,
+            view_key,
+        } => {
+            let view_pair = resolve_view_pair(private_key, view_key)?;
+            mining_list(view_pair).await?;
         }
-        Commands::ClaimStatus { private_key } => {
-            let key_pair = privkey_to_keypair(private_key);
-            claim_status(key_pair.into()).await?;
+        Commands::ClaimStatus {
+            private_key,
+            view_key,
+        } => {
+            let view_pair = resolve_view_pair(private_key, view_key)?;
+            claim_status(view_pair).await?;
         }
-        Commands::PaymentMemos { private_key, name } => {
-            let key_pair = privkey_to_keypair(private_key);
-            get_payment_memos(key_pair.into(), &name).await?;
+        Commands::PaymentMemos {
+            private_key,
+            view_key,
+            name,
+        } => {
+            let view_pair = resolve_view_pair(private_key, view_key)?;
+            get_payment_memos(view_pair, &name).await?;
         }
         Commands::ClaimWithdrawals {
             private_key,
+            view_key,
             eth_private_key,
         } => {
-            let key_pair = privkey_to_keypair(private_key);
-            claim_withdrawals(key_pair.into(), eth_private_key).await?;
+            let view_pair = resolve_view_pair(private_key, view_key)?;
+            claim_withdrawals(view_pair, eth_private_key).await?;
         }
-        Commands::Resync { private_key, deep } => {
-            let key_pair = privkey_to_keypair(private_key);
-            resync(key_pair.into(), deep).await?;
+        Commands::Resync {
+            private_key,
+            view_key,
+            deep,
+        } => {
+            let view_pair = resolve_view_pair(private_key, view_key)?;
+            resync(view_pair, deep).await?;
         }
         Commands::MakeBackup {
             private_key,
+            view_key,
             dir,
             from,
         } => {
-            let key_pair = privkey_to_keypair(private_key);
+            let view_pair = resolve_view_pair(private_key, view_key)?;
             let from = from.unwrap_or_default();
             let dir = dir.unwrap_or_default();
-            make_history_backup(key_pair.into(), &dir, from).await?;
+            make_history_backup(view_pair, &dir, from).await?;
         }
         Commands::IncorporateBackup { path } => {
             incorporate_backup(&path)?;
@@ -256,18 +282,20 @@ async fn main_process(command: Commands) -> Result<(), CliError> {
         }
         Commands::GenerateReceipt {
             private_key,
+            view_key,
             tx_digest,
             transfer_index,
         } => {
-            let key_pair = privkey_to_keypair(private_key);
-            generate_receipt(key_pair.into(), tx_digest, transfer_index).await?;
+            let view_pair = resolve_view_pair(private_key, view_key)?;
+            generate_receipt(view_pair, tx_digest, transfer_index).await?;
         }
         Commands::VerifyReceipt {
             private_key,
+            view_key,
             receipt,
         } => {
-            let key_pair = privkey_to_keypair(private_key);
-            verify_receipt(key_pair.into(), &receipt).await?;
+            let view_pair = resolve_view_pair(private_key, view_key)?;
+            verify_receipt(view_pair, &receipt).await?;
         }
         Commands::GenerateKey => {
             let mut rng = default_rng();
