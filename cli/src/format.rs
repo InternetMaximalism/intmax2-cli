@@ -1,13 +1,15 @@
+use crate::cli::error::CliError;
 use intmax2_interfaces::{
     data::deposit_data::TokenType,
     utils::{
-        key::{KeyPair, PrivateKey},
+        key::{KeyPair, PrivateKey, ViewPair},
         key_derivation::derive_keypair_from_spend_key,
     },
 };
 use intmax2_zkp::ethereum_types::{
     address::Address, bytes32::Bytes32, u256::U256, u32limb_trait::U32LimbTrait as _,
 };
+use std::str::FromStr;
 
 #[derive(Debug, thiserror::Error)]
 pub enum FormatTokenInfoError {
@@ -69,4 +71,26 @@ pub fn privkey_to_keypair(privkey: Bytes32) -> KeyPair {
         .map(|s| s == "true")
         .unwrap_or(false);
     derive_keypair_from_spend_key(PrivateKey(privkey.into()), is_legacy)
+}
+
+pub fn viewkey_to_viewpair(
+    viewkey: &str,
+) -> Result<ViewPair, intmax2_interfaces::utils::key::Error> {
+    ViewPair::from_str(viewkey)
+}
+
+/// Resolves ViewPair from either private_key or view_key option
+pub fn resolve_view_pair(
+    private_key: Option<Bytes32>,
+    view_key: Option<String>,
+) -> Result<ViewPair, CliError> {
+    match (private_key, view_key) {
+        (Some(pk), _) => Ok(privkey_to_keypair(pk).into()),
+        (None, Some(vk)) => {
+            viewkey_to_viewpair(&vk).map_err(|e| CliError::ParseError(e.to_string()))
+        }
+        (None, None) => Err(CliError::ParseError(
+            "Either --private-key or --view-key must be provided".to_string(),
+        )),
+    }
 }

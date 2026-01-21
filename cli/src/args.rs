@@ -78,58 +78,78 @@ pub enum Commands {
         mining: bool,
     },
     SyncWithdrawals {
-        #[clap(long)]
-        private_key: Bytes32,
+        #[clap(long, required_unless_present = "view_key")]
+        private_key: Option<Bytes32>,
+        #[clap(long, required_unless_present = "private_key")]
+        view_key: Option<String>,
         #[clap(long)]
         fee_token_index: Option<u32>,
     },
     SyncClaims {
-        #[clap(long)]
-        private_key: Bytes32,
+        #[clap(long, required_unless_present = "view_key")]
+        private_key: Option<Bytes32>,
+        #[clap(long, required_unless_present = "private_key")]
+        view_key: Option<String>,
         #[clap(long)]
         recipient: Address,
         #[clap(long)]
         fee_token_index: Option<u32>,
     },
     Balance {
-        #[clap(long)]
-        private_key: Bytes32,
+        #[clap(long, required_unless_present = "view_key")]
+        private_key: Option<Bytes32>,
+        #[clap(long, required_unless_present = "private_key")]
+        view_key: Option<String>,
         #[clap(long, default_value_t = false)]
         without_sync: bool,
     },
     UserData {
-        #[clap(long)]
-        private_key: Bytes32,
+        #[clap(long, required_unless_present = "view_key")]
+        private_key: Option<Bytes32>,
+        #[clap(long, required_unless_present = "private_key")]
+        view_key: Option<String>,
     },
     History {
-        #[clap(long)]
-        private_key: Bytes32,
+        #[clap(long, required_unless_present = "view_key")]
+        private_key: Option<Bytes32>,
+        #[clap(long, required_unless_present = "private_key")]
+        view_key: Option<String>,
         #[clap(long)]
         order: Option<CursorOrder>, // asc or desc
         #[clap(long)]
         from: Option<u64>,
     },
     WithdrawalStatus {
-        #[clap(long)]
-        private_key: Bytes32,
+        #[clap(long, required_unless_present = "view_key")]
+        private_key: Option<Bytes32>,
+        #[clap(long, required_unless_present = "private_key")]
+        view_key: Option<String>,
     },
     MiningList {
-        #[clap(long)]
-        private_key: Bytes32,
+        #[clap(long, required_unless_present = "view_key")]
+        private_key: Option<Bytes32>,
+        #[clap(long, required_unless_present = "private_key")]
+        view_key: Option<String>,
     },
     ClaimStatus {
-        #[clap(long)]
-        private_key: Bytes32,
+        #[clap(long, required_unless_present = "view_key")]
+        private_key: Option<Bytes32>,
+        #[clap(long, required_unless_present = "private_key")]
+        view_key: Option<String>,
     },
     ClaimWithdrawals {
-        #[clap(long)]
-        private_key: Bytes32,
+        #[clap(long, required_unless_present = "view_key")]
+        private_key: Option<Bytes32>,
+        #[clap(long, required_unless_present = "private_key")]
+        view_key: Option<String>,
         #[clap(long)]
         eth_private_key: Bytes32,
     },
     PaymentMemos {
-        #[clap(long)]
-        private_key: Bytes32,
+        #[clap(long, required_unless_present = "view_key")]
+        private_key: Option<Bytes32>,
+        #[clap(long, required_unless_present = "private_key")]
+        view_key: Option<String>,
         #[clap(long)]
         name: String,
     },
@@ -138,14 +158,18 @@ pub enum Commands {
         eth_private_key: Bytes32,
     },
     Resync {
-        #[clap(long)]
-        private_key: Bytes32,
+        #[clap(long, required_unless_present = "view_key")]
+        private_key: Option<Bytes32>,
+        #[clap(long, required_unless_present = "private_key")]
+        view_key: Option<String>,
         #[clap(long, default_value_t = false)]
         deep: bool,
     },
     MakeBackup {
-        #[clap(long)]
-        private_key: Bytes32,
+        #[clap(long, required_unless_present = "view_key")]
+        private_key: Option<Bytes32>,
+        #[clap(long, required_unless_present = "private_key")]
+        view_key: Option<String>,
         #[clap(long)]
         dir: Option<PathBuf>,
         #[clap(long)]
@@ -156,16 +180,20 @@ pub enum Commands {
         path: PathBuf,
     },
     GenerateReceipt {
-        #[clap(long)]
-        private_key: Bytes32,
+        #[clap(long, required_unless_present = "view_key")]
+        private_key: Option<Bytes32>,
+        #[clap(long, required_unless_present = "private_key")]
+        view_key: Option<String>,
         #[clap(long)]
         tx_digest: Bytes32,
         #[clap(long)]
         transfer_index: u32,
     },
     VerifyReceipt {
-        #[clap(long)]
-        private_key: Bytes32,
+        #[clap(long, required_unless_present = "view_key")]
+        private_key: Option<Bytes32>,
+        #[clap(long, required_unless_present = "private_key")]
+        view_key: Option<String>,
         #[clap(long)]
         receipt: String,
     },
